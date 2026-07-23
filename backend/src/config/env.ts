@@ -7,6 +7,11 @@ const envSchema = z.object({
         .enum(["fatal", "error", "warn", "info", "debug", "trace"])
         .default("info"),
     PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
+    FRONTEND_ORIGIN: z
+        .string()
+        .trim()
+        .url()
+        .refine((value) => new URL(value).origin === value),
     MONGO_URI: z.string().trim().min(1),
     REDIS_URL: z.string().trim().min(1),
     COMMIT_SHA: z.preprocess(

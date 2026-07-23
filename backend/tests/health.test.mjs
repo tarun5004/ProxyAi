@@ -3,6 +3,7 @@ import { once } from "node:events";
 import test from "node:test";
 
 process.env.NODE_ENV ??= "test";
+process.env.FRONTEND_ORIGIN ??= "http://localhost:3000";
 process.env.MONGO_URI ??= "mongodb://127.0.0.1:27017/proxiai_test";
 process.env.REDIS_URL ??= "redis://127.0.0.1:6379";
 process.env.COMMIT_SHA = "health-test-sha";

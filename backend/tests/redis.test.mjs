@@ -7,6 +7,7 @@ const safeEnvironment = {
     NODE_ENV: "test",
     LOG_LEVEL: "info",
     PORT: "8080",
+    FRONTEND_ORIGIN: "http://localhost:3000",
     MONGO_URI: "mongodb://localhost:27017/proxiai-test",
     REDIS_URL: "redis://:SENTINEL_REDIS_PASSWORD@localhost:6379",
 };
