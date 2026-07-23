@@ -471,7 +471,7 @@ Recommended backend variables:
 ```env
 NODE_ENV=development
 PORT=8080
-APP_ORIGIN=http://localhost:3000
+FRONTEND_ORIGIN=http://localhost:3000
 
 MONGO_URI=mongodb://localhost:27017/proxiai
 REDIS_URL=redis://localhost:6379
@@ -1055,4 +1055,3 @@ Terminology, roles, retention modes, policy actions, streaming behavior, and def
 ## 33. Final Status
 
 > **Approved as the main project entry-point and developer onboarding baseline for the ProxiAI beginner solo-developer MVP.**
-
