@@ -2,6 +2,7 @@ import { app } from "./app.js";
 import { env } from "./config/env.js";
 import { logger } from "./shared/lib/logger.js";
 import { connectMongo, disconnectMongo } from "./shared/lib/mongo.js";
+import { connectRedis, disconnectRedis } from "./shared/lib/redis.js";
 
 const server = app.listen(env.PORT, () => {
     logger.info(
@@ -44,6 +45,20 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
         }
 
         try {
+            await disconnectRedis();
+        } catch {
+            process.exitCode = 1;
+
+            logger.error(
+                {
+                    errorCode: "REDIS_DISCONNECT_FAILED",
+                    event: "redis.disconnect.failed",
+                },
+                "Redis disconnect failed",
+            );
+        }
+
+        try {
             await disconnectMongo();
         } catch {
             process.exitCode = 1;
@@ -75,3 +90,4 @@ process.once("SIGTERM", () => {
 });
 
 void connectMongo().catch(() => undefined);
+void connectRedis().catch(() => undefined);
