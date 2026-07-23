@@ -1,8 +1,6 @@
-import "dotenv/config";
 import { app } from "./app.js";
+import { env } from "./config/env.js";
 
-const port = Number(process.env.PORT ?? 8080);
-
-app.listen(port, () => {
-    console.log(`ProxiAI API running on http://localhost:${port}`);
+app.listen(env.PORT, () => {
+    console.log(`ProxiAI API running on http://localhost:${env.PORT}`);
 });
