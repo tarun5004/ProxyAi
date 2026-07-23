@@ -9,6 +9,11 @@ const envSchema = z.object({
     PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
     MONGO_URI: z.string().trim().min(1),
     REDIS_URL: z.string().trim().min(1),
+    COMMIT_SHA: z.preprocess(
+        (value) =>
+            typeof value === "string" && value.trim() === "" ? undefined : value,
+        z.string().trim().min(1).optional(),
+    ),
 });
 
 const result = envSchema.safeParse(process.env);
