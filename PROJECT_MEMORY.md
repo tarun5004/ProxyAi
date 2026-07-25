@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 1 — Foundation and Dependency Readiness
-- **Task:** Phase 1 closure
-- **Status:** Completed
+- **Phase:** Phase 2 — Authentication and Tenant Isolation
+- **Task:** P2-02 — User and Team Models
+- **Status:** Not Started
 
 ## Completed Tasks
 
@@ -18,6 +18,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P1-05 — Redis connection completed on 2026-07-24
 - P1-06 — Health endpoints completed on 2026-07-24
 - P1-07 — API foundation completed on 2026-07-24
+- P2-01 — Organisation model completed on 2026-07-25
 
 ## Important Decisions
 
@@ -53,6 +54,16 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - `AppError` represents known operational failures. Unknown failures return a generic `500` response and are logged without the raw error, body, headers, or stack.
 - JSON request bodies are limited to 1 MB and oversized payloads use the standard `413` error envelope.
 - Helmet defaults are enabled and Express branding is disabled.
+- Organisation is the tenant root and may be queried using a trusted backend-derived `orgId`.
+- Future child tenant records must be queried with trusted `orgId` together with their resource identifier; ordinary client-supplied `orgId` is never authoritative.
+- Organisation `orgId` is a backend-generated immutable UUID v4. The MVP `slug` is also immutable, while `name` may change.
+- Organisation enums are uppercase and use fail-closed defaults: `SUSPENDED`, `FREE`, zero monthly token budget, `METADATA_ONLY`, and all four approved feature flags disabled.
+- Organisation retention, policy, and feature-flag objects use strict throw behavior, so unknown nested fields fail instead of being silently stored.
+- Organisation policy requires integer thresholds from 0 to 100 and enforces `blockThreshold > maskThreshold` during document validation.
+- Future partial policy updates must validate the complete resulting policy object, not only the fields present in the patch.
+- Organisation uniqueness is enforced by real MongoDB indexes on `orgId` and `slug`; `unique` is an index constraint, not a normal Mongoose validator.
+- P2-01 uses schema-declared indexes only. A separate index migration framework remains outside this task.
+- Deferred organisation fields such as custom retention, routing configuration, current billing period, and advanced PII flags are intentionally rejected.
 
 ## Commands That Work
 
@@ -61,6 +72,7 @@ cd backend
 npm test
 npm run typecheck
 npm run build
+node --test tests/organisation.model.integration.mjs
 # After providing a valid .env:
 npm run dev
 npm start
@@ -84,28 +96,28 @@ npm start
 - Readiness currently reflects connection state only; it does not execute MongoDB or Redis probe commands.
 - Future `AppError` callers must ensure optional `details` contain only safe client-correctable data.
 - Unknown errors intentionally omit raw exceptions and stack traces from logs, improving data safety but reducing immediate diagnostic detail.
+- Organisation policy invariants are enforced for document validation; future query-style partial updates need a service flow that reconstructs and validates the complete policy object.
+- Organisation indexes are currently declared in the Mongoose schema; production-safe index migration tooling has not been introduced.
 
 ## Latest Task Record
 
-- **Task:** Phase 1 Closure
+- **Task:** P2-01 — Organisation Model
 - **Status:** Completed
-- **Files changed:** `AGENTS.md`, `docs/15_PHASE.md`, `PROJECT_MEMORY.md`
-- **Redis runtime:** Started an authenticated temporary official Redis container on localhost, received `PONG`, then removed the container and released its port.
-- **Readiness check:** Compiled API returned `200` from `/health/ready` with MongoDB and Redis both `up`.
-- **Liveness check:** Compiled API returned `200` from `/health/live` without dependency output.
-- **Shutdown check:** Application `SIGTERM` flow emitted Redis disconnect, MongoDB disconnect, and shutdown-completed events; Redis ended cleanly.
-- **Log-safety check:** MongoDB URI, Redis URL, and Redis credential were absent from application logs.
-- **Automated tests:** `npm test` passed with 20 tests and 0 failures.
+- **Files changed:** `backend/src/features/organisations/organisation.types.ts`, `backend/src/features/organisations/organisation.model.ts`, `backend/tests/organisation.model.test.mjs`, `backend/tests/organisation.model.integration.mjs`, `docs/15_PHASE.md`, `PROJECT_MEMORY.md`
+- **Model behavior:** Adds the `organisations` collection with backend-generated UUID v4 `orgId`, immutable tenant identifiers, timestamps, approved enums/defaults, bounded policy and budget values, strict nested objects, and four fixed feature flags.
+- **Index verification:** Awaited `OrganisationModel.init()` against the dedicated local MongoDB test database; duplicate `orgId` and `slug` writes both failed with MongoDB error code `11000`.
+- **Automated tests:** `npm test` passed with 29 tests and 0 failures.
+- **Mongo integration tests:** `node --test tests/organisation.model.integration.mjs` passed with 4 tests and 0 failures.
 - **Typecheck:** `npm run typecheck` passed.
 - **Build:** `npm run build` passed.
-- **Commits:** `feat(config): add validated environment configuration`; `feat(logging): add redacted structured logger`; `feat(mongodb): add managed MongoDB connection`; `feat(redis): add managed Redis connection`; `feat(health): add liveness and readiness endpoints`; `docs(config): standardize frontend origin variable`; `feat(api): add secure API foundation`; `docs(progress): record Phase 1 completion`.
-- **Scope check:** Phase 2 was not started.
-- **Remaining risks:** Missing deployment architecture document, readiness-provider contract mismatch, and path-based logger redaction remain documented.
-- **Recommended completed commit:** `docs(progress): record Phase 1 completion`
+- **Security check:** Tenant identifiers cannot be changed after persistence, unknown top-level and nested fields are rejected, deferred fields are rejected, and no client route or client-controlled tenant context was introduced.
+- **Scope check:** No routes, controllers, services, repositories, authentication, user models, team models, or P2-02 implementation were added.
+- **Limitation:** Future partial policy updates must validate the complete merged policy object; no migration framework was added.
+- **Recommended completed commit:** `feat(organisations): add tenant organisation model`
 
 ## Recommended Next Task
 
-- P2-01 — Organisation Model. Do not start it without explicit approval.
+- P2-02 — User and Team Models. Do not start it without explicit approval.
 
 ## Do Not Forget
 

@@ -134,12 +134,12 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 1 — Foundation
-Current Task: Phase 1 closure
-Current Status: Completed
+Current Phase: Phase 2 — Authentication and Tenant Isolation
+Current Task: P2-02 — User and Team Models
+Current Status: Not Started
 Current Blocker: None
-Last Completed Task: Phase 1 closure
-Last Completed Commit: docs(progress): record Phase 1 completion
+Last Completed Task: P2-01 — Organisation Model
+Last Completed Commit: feat(organisations): add tenant organisation model
 ```
 
 ---
@@ -304,18 +304,21 @@ Last Completed Commit: docs(progress): record Phase 1 completion
 # 8. Phase 2 — Authentication and Tenant Isolation
 
 **Effort:** ⭐ Ultra  
+**Status:** In Progress  
 **Goal:** Every request has a trusted user, organisation, role, and permission context.
 
 ## P2-01 — Organisation Model
 
-- [ ] Unique organisation ID.
-- [ ] Active state.
-- [ ] Plan.
-- [ ] Retention mode.
-- [ ] Policy thresholds.
-- [ ] Monthly budget.
-- [ ] Feature flags.
-- [ ] Required indexes.
+**Status:** Completed
+
+- [x] Unique organisation ID.
+- [x] Active state.
+- [x] Plan.
+- [x] Retention mode.
+- [x] Policy thresholds.
+- [x] Monthly budget.
+- [x] Feature flags.
+- [x] Required indexes.
 
 ## P2-02 — User and Team Models
 
