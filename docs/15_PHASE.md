@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 2 — Authentication and Tenant Isolation
-Current Task: P2-03 — Password Security
+Current Task: P2-04 — Login
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P2-02 — User and Team Models
-Last Completed Commit: feat(users): add tenant-scoped user model
+Last Completed Task: P2-03 — Password Security
+Last Completed Commit: feat(security): add Argon2id password protection
 ```
 
 ---
@@ -337,10 +337,12 @@ Last Completed Commit: feat(users): add tenant-scoped user model
 
 ## P2-03 — Password Security
 
-- [ ] Hash before storage.
-- [ ] Compare safely.
-- [ ] Never log password.
-- [ ] Add minimum password validation.
+**Status:** Completed
+
+- [x] Hash before storage.
+- [x] Compare safely.
+- [x] Never log password.
+- [x] Add minimum password validation.
 
 ## P2-04 — Login
 

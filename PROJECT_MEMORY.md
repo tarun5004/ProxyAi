@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 2 — Authentication and Tenant Isolation
-- **Task:** P2-03 — Password Security
+- **Task:** P2-04 — Login
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -20,6 +20,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P1-07 — API foundation completed on 2026-07-24
 - P2-01 — Organisation model completed on 2026-07-25
 - P2-02 — User and Team models completed on 2026-07-27
+- P2-03 — Password security completed on 2026-07-27
 
 ## Important Decisions
 
@@ -78,6 +79,12 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - `passwordHash` remains required but is not generated or verified in P2-02. It is excluded from normal projections and JSON/object serialization.
 - `emailNormalized`, `failedLoginCount`, and `lockedUntil` are excluded from normal projections and serialization. `lastLoginAt` remains normally selectable.
 - P2-02 does not add generic tenant query middleware. Future repositories and services must require trusted `orgId` and must not query User or Team by `_id` or public ID alone.
+- New passwords use Argon2id only with explicit `memoryCost: 19_456`, `timeCost: 2`, `parallelism: 1`, and `hashLength: 32`.
+- New-password validation accepts 15–128 Unicode code points after NFC normalization. Spaces and Unicode are allowed; passwords are never trimmed, case-folded, or truncated.
+- Password verification applies NFC normalization and only the defensive 128-code-point maximum, so future increases to the new-password minimum do not invalidate existing hashes.
+- Malformed or unsupported stored hashes raise a safe internal `PASSWORD_VERIFICATION_FAILED` operational error instead of being treated as ordinary mismatches.
+- Password helpers do not log. Pino redacts known top-level and one-level nested `passwordHash` paths in addition to existing password paths.
+- The documented password policy follows current NIST length, Unicode, and composition guidance, but full verifier alignment is not claimed.
 
 ## Commands That Work
 
@@ -86,6 +93,8 @@ cd backend
 npm test
 npm run typecheck
 npm run build
+npm ci
+npm audit --omit=dev
 node --test tests/organisation.model.integration.mjs
 node --test tests/user-team.model.integration.mjs
 # After providing a valid .env:
@@ -116,30 +125,35 @@ npm start
 - Organisation policy invariants are enforced for document validation; future query-style partial updates need a service flow that reconstructs and validates the complete policy object.
 - Organisation indexes are currently declared in the Mongoose schema; production-safe index migration tooling has not been introduced.
 - User/Team schemas cannot prove cross-collection organisation ownership by themselves. Team assignment and `createdBy` checks require future trusted service/repository lookups using `orgId`.
-- P2-02 accepts a required stored `passwordHash` but does not prove it was produced by an approved hashing algorithm; P2-03 owns hashing and verification.
+- Future user-creation services must call the password hashing helper before persistence; direct internal model writes can still bypass that service boundary.
+- Compromised/common-password blocklisting, authentication rate limiting, and missing-user timing equalization remain deferred to approved authentication work.
+- Argon2 is a native dependency; clean installation succeeded on the current Node 22 Windows environment, but deployment images must verify compatible native binaries.
+- The approved local Argon2 profile averaged 31.78 ms across five manual samples. Production hardware and expected authentication concurrency still require benchmarking.
+- `npm audit --omit=dev` reports zero production vulnerabilities. Full `npm audit` reports one high-severity development-only `brace-expansion` advisory through ESLint; it was not changed because it is unrelated to P2-03.
 
 ## Latest Task Record
 
-- **Task:** P2-02 — User and Team Models
+- **Task:** P2-03 — Password Security
 - **Status:** Completed
-- **Files changed:** `backend/src/features/teams/team.types.ts`, `backend/src/features/teams/team.model.ts`, `backend/src/features/users/user.types.ts`, `backend/src/features/users/user.model.ts`, `backend/tests/team.model.test.mjs`, `backend/tests/user.model.test.mjs`, `backend/tests/user-team.model.integration.mjs`, `docs/15_PHASE.md`, `PROJECT_MEMORY.md`
-- **Team behavior:** Adds strict tenant-owned Team records with backend-generated UUID v4 IDs, immutable tenant ownership, deterministic case-insensitive name keys, inactive defaults, timestamps, and approved indexes.
-- **User behavior:** Adds strict tenant-owned User records with tenant-only roles, allowlisted permissions, per-organisation normalized email identity, disabled defaults, optional team membership, internal login state, timestamps, and safe credential projection/serialization.
-- **Conditional validation:** `ACTIVE` `TEAM_LEAD` records require a UUID `teamId`; `DISABLED` team leads may remain unassigned during provisioning.
-- **Index verification:** Awaited `TeamModel.init()` and `UserModel.init()` against the dedicated local MongoDB test database; duplicate IDs, same-org normalized team names, and same-org normalized emails failed with MongoDB error code `11000`, while cross-org normalized names/emails succeeded.
-- **Automated tests:** `npm test` passed with 42 tests and 0 failures.
-- **Mongo integration tests:** `node --test tests/user-team.model.integration.mjs` passed with 6 tests and 0 failures.
+- **Files changed:** `docs/05_OPENAPI_SPEC.md`, `backend/package.json`, `backend/package-lock.json`, `backend/src/shared/security/password.ts`, `backend/src/shared/lib/logger.ts`, `backend/tests/password.test.mjs`, `backend/tests/logger.test.mjs`, `docs/15_PHASE.md`, `PROJECT_MEMORY.md`
+- **Password behavior:** Adds separate new-password validation, Argon2id hashing, and verification responsibilities with NFC normalization and Unicode code-point limits.
+- **Hash profile:** Uses explicit Argon2id `m=19456`, `t=2`, `p=1`, 32-byte hashes, and library-generated random salts. No bcrypt or plaintext fallback exists.
+- **Verification safety:** Correct candidates return `true`, mismatches return `false`, and malformed or unsupported hashes produce a safe internal operational error without including the hash or candidate.
+- **Logger safety:** Raw password and password-hash sentinels are absent from logger output; known protected paths contain `[REDACTED]`.
+- **Automated tests:** Final `npm test` passed with 51 tests and 0 failures after a clean `npm ci`.
 - **Typecheck:** `npm run typecheck` passed.
 - **Build:** `npm run build` passed.
-- **Security check:** Password hashes and internal account state are excluded by default; unknown fields, `SUPER_ADMIN`, platform permission strings, duplicate permissions, invalid IDs, and unsafe active team-lead state are rejected.
-- **Scope check:** No authentication, hashing service, JWT, refresh token, route, controller, repository, invitation, generic tenant query middleware, cross-collection model validator, or P2-03 implementation was added.
-- **Limitation:** Models alone do not prevent cross-organisation Team assignment; future assignment services must use trusted `{ orgId, teamId }`.
-- **Repository note:** A pre-existing uncommitted change in `backend/src/shared/lib/logger.ts` was not modified or included in P2-02 commits.
-- **Recommended completed commit:** `feat(users): add tenant-scoped user model`
+- **Clean install:** `npm ci` installed the locked dependency tree successfully, including the native Argon2 package.
+- **Dependency audit:** Production dependency audit passed with zero findings; one unrelated ESLint-tree development advisory remains documented.
+- **Source scans:** No application `console` calls, password logger calls, or bcrypt references were found. `passwordHash` appears only in the User schema/type and explicit logger-redaction paths.
+- **Manual benchmark:** Five local Argon2 hashes completed in 30.66–34.33 ms, averaging 31.78 ms; no hashes or password values were printed.
+- **Documentation:** OpenAPI now documents the 15–128 code-point policy, NFC normalization, no composition rules, and the remaining verifier-alignment gaps without claiming full NIST compliance.
+- **Scope check:** No login, user-creation route, JWT, refresh token, controller, password reset, invitation flow, common-password service, authentication rate limit, missing-user timing equalization, or P2-04 implementation was added.
+- **Recommended completed commit:** `feat(security): add Argon2id password protection`
 
 ## Recommended Next Task
 
-- P2-03 — Password Security. Do not start it without explicit approval.
+- P2-04 — Login. Start with design review only after explicit approval.
 
 ## Do Not Forget
 
