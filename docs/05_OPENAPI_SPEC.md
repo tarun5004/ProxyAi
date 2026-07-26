@@ -424,7 +424,17 @@ Authenticates a user, creates a refresh-token session, sets the refresh cookie, 
 | Field | Rules |
 |---|---|
 | `email` | Required, valid email, normalized to lower case |
-| `password` | Required, string, maximum 128 characters |
+| `password` | Required, string, 15–128 Unicode code points after NFC normalization |
+
+New passwords permit spaces and Unicode and do not require uppercase,
+lowercase, digits, or symbols. Passwords are normalized to Unicode NFC before
+hashing and verification, but they are never trimmed, case-folded, or
+truncated.
+
+This length, Unicode, and composition policy follows current NIST guidance,
+but ProxiAI does not claim full password-verifier compliance yet. Compromised
+or common-password blocklisting, authentication rate limiting, and
+missing-user timing equalization remain pending authentication work.
 
 ### Success — `200 OK`
 
@@ -1581,7 +1591,8 @@ Public IDs must follow the chosen UUID or prefixed-ID format. A syntactically va
 
 - Trim user-entered strings.
 - Normalize emails to lower case for lookup.
-- Do not normalize passwords.
+- Normalize passwords to Unicode NFC before hashing and verification.
+- Do not trim, case-fold, or truncate passwords.
 - Do not mutate prompts beyond approved masking and provider preparation.
 
 ## 26.4 Prompt validation
@@ -2089,7 +2100,7 @@ components:
       required: [email, password]
       properties:
         email: { type: string, format: email, maxLength: 254 }
-        password: { type: string, minLength: 1, maxLength: 128 }
+        password: { type: string, minLength: 15, maxLength: 128 }
     CreateConversationRequest:
       type: object
       additionalProperties: false
