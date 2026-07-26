@@ -16,6 +16,8 @@ export const logger = pino({
             "headers.cookie",
             "password",
             "*.password",
+            "passwordHash",
+            "*.passwordHash",
             "token",
             "*.token",
             "accessToken",

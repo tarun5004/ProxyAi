@@ -62,6 +62,8 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
         encryptionKey: "SENTINEL_ENCRYPTION_KEY",
         mongoUri: "SENTINEL_MONGO_URI",
         password: "SENTINEL_PASSWORD",
+        nestedPasswordHash: "SENTINEL_NESTED_PASSWORD_HASH",
+        passwordHash: "SENTINEL_PASSWORD_HASH",
         prompt: "SENTINEL_PROMPT",
         redisUrl: "SENTINEL_REDIS_URL",
         refreshToken: "SENTINEL_REFRESH_TOKEN",
@@ -71,6 +73,7 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
         {
             event: "logger.redaction.test",
             password: sentinels.password,
+            passwordHash: sentinels.passwordHash,
             req: {
                 headers: {
                     authorization: sentinels.authorization,
@@ -84,6 +87,7 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
                 contentEnc: sentinels.contentEnc,
                 encryptionKey: sentinels.encryptionKey,
                 mongoUri: sentinels.mongoUri,
+                passwordHash: sentinels.nestedPasswordHash,
                 prompt: sentinels.prompt,
                 redisUrl: sentinels.redisUrl,
                 refreshToken: sentinels.refreshToken,
@@ -98,6 +102,7 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
     }
 
     assert.equal(entry.password, "[REDACTED]");
+    assert.equal(entry.passwordHash, "[REDACTED]");
     assert.equal(entry.req.headers.authorization, "[REDACTED]");
     assert.equal(entry.req.headers.cookie, "[REDACTED]");
     assert.equal(entry.sensitive.accessToken, "[REDACTED]");
@@ -105,6 +110,7 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
     assert.equal(entry.sensitive.contentEnc, "[REDACTED]");
     assert.equal(entry.sensitive.encryptionKey, "[REDACTED]");
     assert.equal(entry.sensitive.mongoUri, "[REDACTED]");
+    assert.equal(entry.sensitive.passwordHash, "[REDACTED]");
     assert.equal(entry.sensitive.prompt, "[REDACTED]");
     assert.equal(entry.sensitive.redisUrl, "[REDACTED]");
     assert.equal(entry.sensitive.refreshToken, "[REDACTED]");
