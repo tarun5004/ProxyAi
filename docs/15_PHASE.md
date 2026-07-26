@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 2 — Authentication and Tenant Isolation
-Current Task: P2-02 — User and Team Models
+Current Task: P2-03 — Password Security
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P2-01 — Organisation Model
-Last Completed Commit: feat(organisations): add tenant organisation model
+Last Completed Task: P2-02 — User and Team Models
+Last Completed Commit: feat(users): add tenant-scoped user model
 ```
 
 ---
@@ -323,16 +323,17 @@ Last Completed Commit: feat(organisations): add tenant organisation model
 ## P2-02 — User and Team Models
 
 **Effort:** ⭐ Ultra
+**Status:** Completed
 
-- [ ] Mandatory `orgId`.
-- [ ] Normalized email.
-- [ ] Password hash.
-- [ ] Role and permissions.
-- [ ] Active state.
-- [ ] Optional team ID.
-- [ ] Team schema.
-- [ ] Compound indexes.
-- [ ] No query by `_id` alone for tenant-owned data.
+- [x] Mandatory `orgId`.
+- [x] Normalized email.
+- [x] Password hash.
+- [x] Role and permissions.
+- [x] Active state.
+- [x] Optional team ID.
+- [x] Team schema.
+- [x] Compound indexes.
+- [x] No query by `_id` alone for tenant-owned data.
 
 ## P2-03 — Password Security
 
