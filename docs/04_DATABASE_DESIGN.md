@@ -273,7 +273,8 @@ interface UserDocument {
 
 ### 11.2 Sensitive fields
 
-- Passwords are stored only as Argon2id or bcrypt hashes.
+- Passwords are stored only as approved Argon2id hashes; bcrypt and plaintext
+  fallbacks are not supported.
 - Password hashes are excluded from normal query projections.
 - Email is required for login and may remain plaintext, but access is tenant-scoped.
 
@@ -304,6 +305,7 @@ Supports one-time refresh-token rotation, revocation, logout, and token-reuse de
 interface RefreshTokenDocument {
   _id: Types.ObjectId;
   tokenId: string;
+  sessionId: string;
   familyId: string;
   orgId: string;
   userId: string;
@@ -312,10 +314,9 @@ interface RefreshTokenDocument {
   expiresAt: Date;
   usedAt?: Date;
   revokedAt?: Date;
-  revokedReason?: 'LOGOUT' | 'REUSE_DETECTED' | 'USER_DISABLED' | 'ROLE_CHANGED' | 'ADMIN_REVOKED';
   replacedByTokenId?: string;
-  createdIp?: string;
-  userAgent?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
@@ -324,8 +325,8 @@ interface RefreshTokenDocument {
 ```ts
 refreshTokenSchema.index({ tokenId: 1 }, { unique: true });
 refreshTokenSchema.index({ tokenHash: 1 }, { unique: true });
-refreshTokenSchema.index({ familyId: 1, userId: 1 });
-refreshTokenSchema.index({ userId: 1, revokedAt: 1 });
+refreshTokenSchema.index({ orgId: 1, sessionId: 1 });
+refreshTokenSchema.index({ orgId: 1, familyId: 1 });
 refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 ```
 
@@ -333,6 +334,8 @@ refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 - Store only a SHA-256 or HMAC hash of the opaque refresh token.
 - Raw token exists only in the secure cookie and transient application memory.
+- `sessionId` and `familyId` are separate backend-generated UUIDs.
+- P2-04 creates only an initial active token record.
 - Successful rotation marks the old token `usedAt` and creates a new token in the same `familyId`.
 - Reuse of a token with `usedAt` revokes every active token in the family.
 - Expired records are removed through MongoDB TTL.
@@ -549,8 +552,9 @@ interface AuditLogDocument {
 ### 16.2 Required event examples
 
 ```text
-auth.login_success
-auth.login_failure
+auth.login_succeeded
+auth.login_failed
+auth.login_operational_error
 auth.logout
 auth.refresh_reuse_detected
 policy.allow
@@ -565,6 +569,9 @@ organisation.budget_changed
 audit.exported
 provider.config_changed
 ```
+
+P2-04 emits these authentication actions as structured security logs only.
+The durable append-only `audit_logs` implementation remains Phase 9.
 
 ### 16.3 Indexes
 

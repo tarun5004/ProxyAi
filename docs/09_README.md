@@ -476,8 +476,9 @@ FRONTEND_ORIGIN=http://localhost:3000
 MONGO_URI=mongodb://localhost:27017/proxiai
 REDIS_URL=redis://localhost:6379
 
-JWT_ACCESS_SECRET=replace-with-a-long-random-secret
-JWT_ACCESS_TTL_MINUTES=15
+JWT_ACCESS_SECRET=replace-with-base64url-encoded-32-byte-random-secret
+AUTH_RATE_LIMIT_SECRET=replace-with-a-different-base64url-encoded-32-byte-random-secret
+ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=7
 
 CONTENT_ENCRYPTION_KEY=replace-with-a-valid-32-byte-key
@@ -490,6 +491,12 @@ RESEND_API_KEY=
 EMAIL_FROM=
 
 LOG_LEVEL=debug
+```
+
+Generate each authentication secret independently:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 ```
 
 Frontend variables may include:

@@ -129,15 +129,23 @@ Expected claims:
 {
   "sub": "user-public-id",
   "orgId": "organisation-public-id",
-  "role": "employee",
+  "role": "EMPLOYEE",
+  "permissions": ["chat:send", "chat:view_own"],
   "sessionId": "session-uuid",
   "type": "access",
+  "jti": "access-token-uuid",
   "iat": 1784800000,
-  "exp": 1784800900
+  "exp": 1784800900,
+  "iss": "proxiai",
+  "aud": "proxiai-api"
 }
 ```
 
-The API must confirm that the user and organisation are still active. Token claims alone are not sufficient for high-risk configuration updates.
+Access tokens use HS256 and protected-header `typ: at+jwt`. Role claims use
+uppercase persistence enums; permission claims use canonical lowercase
+namespaced values. P2-06 must validate permissions against the `UserPermission`
+allowlist and reload current User and Organisation state. Token claims alone
+are never sufficient authorization.
 
 ### 7.2 Refresh token
 
@@ -154,6 +162,9 @@ Max-Age: 7 days
 ```
 
 The cookie name may be `proxiai_refresh`.
+
+The cookie is host-only because `Domain` is omitted. The MVP assumes the
+frontend and API are same-site; cross-site cookie deployment is outside P2-04.
 
 ### 7.3 Refresh-token rotation
 
@@ -414,6 +425,7 @@ Authenticates a user, creates a refresh-token session, sets the refresh cookie, 
 
 ```json
 {
+  "organisationSlug": "example-organisation",
   "email": "employee@example.com",
   "password": "user-entered-password"
 }
@@ -423,13 +435,13 @@ Authenticates a user, creates a refresh-token session, sets the refresh cookie, 
 
 | Field | Rules |
 |---|---|
+| `organisationSlug` | Required, lowercase slug after trim, 2–63 characters |
 | `email` | Required, valid email, normalized to lower case |
-| `password` | Required, string, 15–128 Unicode code points after NFC normalization |
+| `password` | Required, non-empty string, maximum 128 Unicode code points after NFC normalization |
 
-New passwords permit spaces and Unicode and do not require uppercase,
-lowercase, digits, or symbols. Passwords are normalized to Unicode NFC before
-hashing and verification, but they are never trimmed, case-folded, or
-truncated.
+Login passwords preserve spaces and casing and are never trimmed or truncated.
+Verification normalizes to Unicode NFC. The 15-code-point new-password minimum
+does not apply to login verification.
 
 This length, Unicode, and composition policy follows current NIST guidance,
 but ProxiAI does not claim full password-verifier compliance yet. Compromised
@@ -469,9 +481,7 @@ missing-user timing equalization remain pending authentication work.
 | Status | Code | Condition |
 |---:|---|---|
 | 400 | `VALIDATION_ERROR` | Invalid body |
-| 401 | `INVALID_CREDENTIALS` | Email/password mismatch; generic message |
-| 403 | `USER_INACTIVE` | User disabled |
-| 403 | `ORGANISATION_INACTIVE` | Organisation suspended |
+| 401 | `INVALID_CREDENTIALS` | Organisation, account state, or password failure; generic message |
 | 429 | `RATE_LIMITED` | Too many attempts |
 | 500 | `INTERNAL_ERROR` | Unexpected failure |
 
@@ -479,8 +489,12 @@ missing-user timing equalization remain pending authentication work.
 
 - Never reveal whether an email exists.
 - Never return or log the password.
+- Never log the raw organisation slug, email, password hash, access token,
+  refresh token, cookie, request body, or sensitive headers.
 - Set `Cache-Control: no-store`.
-- Audit successful and failed login attempts without storing the password.
+- Emit structured `auth.login_succeeded`, `auth.login_failed`, and
+  `auth.login_operational_error` security events. Durable audit persistence
+  remains Phase 9.
 
 ## 14.2 POST `/auth/refresh`
 
@@ -2097,10 +2111,15 @@ components:
     LoginRequest:
       type: object
       additionalProperties: false
-      required: [email, password]
+      required: [organisationSlug, email, password]
       properties:
+        organisationSlug:
+          type: string
+          minLength: 2
+          maxLength: 63
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
         email: { type: string, format: email, maxLength: 254 }
-        password: { type: string, minLength: 15, maxLength: 128 }
+        password: { type: string, minLength: 1, maxLength: 128 }
     CreateConversationRequest:
       type: object
       additionalProperties: false

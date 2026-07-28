@@ -398,7 +398,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | S |
 | Risk | High |
 | Scenario | Credential stuffing or leaked password grants access. |
-| Prevention | Argon2id or bcrypt with safe work factor; login rate limits; generic login errors; minimum password rules; no plaintext passwords. |
+| Prevention | Approved Argon2id hashing; login rate limits; generic login errors; minimum new-password rules; no plaintext passwords. |
 | Detection | Failed-login counters and audit records without password values. |
 | MVP limitation | MFA is deferred and must not be claimed. |
 
@@ -723,7 +723,8 @@ Risk ratings are qualitative for the MVP:
 
 ### 13.1 Password storage
 
-- Use Argon2id when available, otherwise bcrypt with a reviewed work factor.
+- Use the approved Argon2id profile only; never fall back to bcrypt or
+  plaintext storage.
 - Store only password hashes.
 - Never log password values or hashes.
 - Use generic authentication failure message: `Invalid email or password`.
@@ -731,9 +732,14 @@ Risk ratings are qualitative for the MVP:
 
 ### 13.2 Access tokens
 
-- Signed using a strong runtime secret.
+- Signed using HS256 with protected-header `typ: at+jwt`.
+- Use dedicated `JWT_ACCESS_SECRET` material containing at least 32 decoded
+  random bytes; never reuse it for another purpose.
 - TTL: 15 minutes.
-- Include minimum claims: subject, session/user reference, issued time, expiry, and token identifier if used.
+- Require issuer `proxiai`, audience `proxiai-api`, access-token type `access`,
+  subject, separate session ID, issued time, expiry, and unique token ID.
+- Role values use uppercase persistence enums. Permission values use canonical
+  lowercase namespaced `UserPermission` values without transformation.
 - Do not place full permissions or mutable organisation configuration in a long-lived token without revalidation.
 - Validate algorithm explicitly; never accept `none` or an unexpected algorithm.
 
@@ -773,7 +779,7 @@ Tenant repositories should require an explicit trusted context:
 interface TenantContext {
   orgId: string;
   userId: string;
-  permissions: Permission[];
+  permissions: UserPermission[];
 }
 ```
 
@@ -914,6 +920,13 @@ Suggested MVP starting limits, configurable after testing:
 
 The exact prompt limit must be aligned with the provider capability registry and documented as an assumption until measured.
 
+Login rate limits use HMAC-SHA-256 opaque key components derived from the
+resolved request IP and normalized organisation-slug/email pair. Raw IP,
+email, and slug values never appear in Redis keys. The HMAC uses dedicated
+`AUTH_RATE_LIMIT_SECRET` material. Forwarded IP headers remain untrusted unless
+the deployment explicitly configures a trusted proxy. Redis failure blocks
+login with a generic dependency-unavailable response.
+
 ### 18.3 CORS and cookies
 
 - Exact origin allowlist.
@@ -1049,6 +1062,10 @@ Audit at minimum:
 - Feature-flag or plan change where implemented
 
 Audit metadata contains safe before/after summaries, not full sensitive objects.
+
+P2-04 emits structured `auth.login_succeeded`, `auth.login_failed`, and
+`auth.login_operational_error` events only. Durable append-only audit
+persistence remains Phase 9.
 
 ## 21. Deployment and Infrastructure Security
 

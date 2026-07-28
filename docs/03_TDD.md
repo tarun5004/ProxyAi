@@ -176,10 +176,9 @@ PORT
 MONGO_URI
 REDIS_URL
 JWT_ACCESS_SECRET
+AUTH_RATE_LIMIT_SECRET
 ACCESS_TOKEN_TTL_MINUTES
 REFRESH_TOKEN_TTL_DAYS
-COOKIE_SECURE
-COOKIE_DOMAIN
 APP_ENCRYPTION_KEY
 GROQ_API_KEY
 GEMINI_API_KEY
@@ -200,7 +199,10 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
   MONGO_URI: z.string().min(1),
   REDIS_URL: z.string().min(1),
-  JWT_ACCESS_SECRET: z.string().min(32),
+  JWT_ACCESS_SECRET: base64UrlSecretSchema,
+  AUTH_RATE_LIMIT_SECRET: base64UrlSecretSchema,
+  ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30),
   APP_ENCRYPTION_KEY: z.string().min(32),
   FRONTEND_ORIGIN: z.string().url(),
 });
@@ -297,8 +299,8 @@ requestId
 interface AuthenticatedUserContext {
   userId: string;
   orgId: string;
-  role: Role;
-  permissions: Permission[];
+  role: UserRole;
+  permissions: UserPermission[];
   sessionId: string;
 }
 
@@ -319,10 +321,21 @@ declare global {
 
 ## 10.1 Password handling
 
-- Hash with Argon2id or bcrypt using a safe work factor.
+- Hash new passwords with the approved Argon2id helper only; do not add a
+  bcrypt or plaintext fallback.
 - Never store or log plain passwords.
 - Use a generic login failure message to avoid account enumeration.
 - Lockout is not required for MVP, but rate limiting must protect the login route.
+
+Login accepts `organisationSlug`, `email`, and `password`. The slug resolves
+the tenant root first; only the Organisation record may provide trusted
+`orgId`. The subsequent User lookup must use `{ orgId, emailNormalized }`.
+Missing or suspended organisations, missing or disabled users, and incorrect
+passwords all return the same public `401 INVALID_CREDENTIALS` response.
+
+Login passwords must be non-empty and contain at most 128 Unicode code points
+after NFC normalization. The 15-code-point minimum applies to new-password
+creation, not verification of an existing password.
 
 ## 10.2 Access token
 
@@ -332,42 +345,60 @@ Recommended claims:
 interface AccessTokenClaims {
   sub: string;
   orgId: string;
-  role: Role;
+  role: UserRole;
+  permissions: UserPermission[];
   sessionId: string;
   type: 'access';
+  jti: string;
   iat: number;
   exp: number;
+  iss: 'proxiai';
+  aud: 'proxiai-api';
 }
 ```
 
 Access-token lifetime: 15 minutes.
+
+Access tokens use HS256 with protected-header `typ: at+jwt`. Role claims use
+the uppercase persistence enums. Permission claims use the canonical lowercase
+namespaced `UserPermission` values without transformation. P2-06 must reload
+the current User and Organisation and validate every permission against the
+existing allowlist; token claims are never the sole authorization source.
 
 ## 10.3 Refresh token model
 
 ```ts
 interface RefreshTokenDocument {
   _id: ObjectId;
-  userId: ObjectId;
-  orgId: ObjectId;
+  tokenId: string;
   sessionId: string;
   familyId: string;
+  userId: string;
+  orgId: string;
   tokenHash: string;
   expiresAt: Date;
   usedAt?: Date;
   revokedAt?: Date;
-  replacedByTokenId?: ObjectId;
+  replacedByTokenId?: string;
   createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
 Indexes:
 
 ```text
+unique: tokenId
 unique: tokenHash
-index: userId + sessionId
+index: orgId + sessionId
+index: orgId + familyId
 TTL: expiresAt
-index: familyId
 ```
+
+`sessionId` identifies the login session. `familyId` identifies the
+refresh-token rotation family. They are separate backend-generated UUIDs.
+P2-04 creates only the initial token record. Rotation, reuse detection, family
+revocation, and replacement links remain P2-05 behavior.
 
 ## 10.4 Refresh rotation algorithm
 
@@ -1213,8 +1244,9 @@ The code must not construct a plain-content MongoDB document and remove content 
 
 MVP audit actions include:
 
-- `auth.login_success`
+- `auth.login_succeeded`
 - `auth.login_failed`
+- `auth.login_operational_error`
 - `auth.logout`
 - `auth.refresh_reuse_detected`
 - `policy.allow`
@@ -1237,7 +1269,9 @@ interface AuditRepository {
 }
 ```
 
-No `update`, `delete`, or generic save method is allowed.
+No `update`, `delete`, or generic save method is allowed once the durable audit
+repository is implemented in Phase 9. P2-04 emits structured authentication
+security events only and does not create the MongoDB audit collection.
 
 ### 27.3 Failure handling
 
@@ -1402,12 +1436,18 @@ Recommended MVP limits:
 
 | Route | Limit |
 |---|---|
-| Login | 10 attempts per IP per 15 minutes |
+| Login | 10 attempts per IP and opaque account key per 15 minutes |
 | Refresh | 30 per session per 15 minutes |
 | Chat | Plan-based requests per minute per user |
 | Admin export | 5 per admin per hour |
 
 The exact plan limits should come from configuration. Rate-limit errors return `429 RATE_LIMITED` with a safe retry-after value.
+
+Login rate-limit keys must not contain raw IP, email, or organisation slug.
+Derive IP and account key components with HMAC-SHA-256 using the dedicated
+`AUTH_RATE_LIMIT_SECRET`. Do not trust forwarded IP headers without explicit
+trusted-proxy configuration. Login fails closed with a generic `503` when
+Redis rate limiting is unavailable.
 
 ## 34. Admin API Design
 
@@ -1624,7 +1664,10 @@ The send button is disabled while one request for the conversation is actively s
 
 - Allow only configured frontend origin.
 - `credentials: true` only for trusted origin.
-- Refresh cookie: `httpOnly`, `Secure` in production, `SameSite=Lax` or stricter.
+- Refresh cookie: host-only `httpOnly`, `Secure` in production,
+  `SameSite=Lax`, path `/api/v1/auth`, seven-day max age.
+- Cookie `Domain` is omitted. The MVP assumes the frontend and API are
+  same-site; cross-site cookie deployment is not designed in P2-04.
 
 ### 41.4 HTTP hardening
 

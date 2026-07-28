@@ -157,7 +157,7 @@ sequenceDiagram
     participant TokenService
     participant AuditService
 
-    User->>Browser: Enter email and password
+    User->>Browser: Enter organisation slug, email, and password
     Browser->>API: POST /api/v1/auth/login
     API->>Validation: Validate request body
 
@@ -166,35 +166,43 @@ sequenceDiagram
         API-->>Browser: 400 VALIDATION_ERROR
         Browser-->>User: Show safe validation message
     else Valid request
-        API->>MongoDB: Find active user by normalized email
-        MongoDB-->>API: User record or not found
+        API->>API: Apply Redis IP and account rate limits
+        API->>MongoDB: Resolve Organisation by normalized slug
+        MongoDB-->>API: Organisation record or not found
 
-        alt User not found or inactive
-            API->>AuditService: Record failed login
-            AuditService->>MongoDB: Append audit event
+        alt Organisation missing or suspended
+            API->>PasswordService: Verify candidate against dummy Argon2 hash
+            API->>API: Emit auth.login_failed
             API-->>Browser: 401 INVALID_CREDENTIALS
-            Browser-->>User: Show generic login failure
-        else Active user found
-            API->>PasswordService: Compare password hash
+        else Active Organisation found
+            API->>MongoDB: Find User by trusted orgId + normalized email
+            MongoDB-->>API: User record or not found
 
-            alt Password invalid
-                PasswordService-->>API: Invalid
-                API->>AuditService: Record failed login
-                AuditService->>MongoDB: Append audit event
+            alt User or hash missing
+                API->>PasswordService: Verify candidate against dummy Argon2 hash
+                API->>API: Emit auth.login_failed
                 API-->>Browser: 401 INVALID_CREDENTIALS
-                Browser-->>User: Show generic login failure
-            else Password valid
-                PasswordService-->>API: Valid
-                API->>TokenService: Create access token
-                TokenService-->>API: Access token
-                API->>TokenService: Create refresh token and family
-                TokenService->>MongoDB: Store refresh-token hash
-                MongoDB-->>TokenService: Stored
-                TokenService-->>API: Raw refresh token
-                API->>AuditService: Record successful login
-                AuditService->>MongoDB: Append audit event
-                API-->>Browser: 200 + access token + secure refresh cookie
-                Browser-->>User: Open chat/dashboard
+            else User found
+                API->>PasswordService: Compare password hash
+
+                alt Password invalid or User disabled
+                    PasswordService-->>API: Invalid
+                    API->>MongoDB: Increment failedLoginCount
+                    API->>API: Emit auth.login_failed
+                    API-->>Browser: 401 INVALID_CREDENTIALS
+                else Password valid and User active
+                    PasswordService-->>API: Valid
+                    API->>TokenService: Generate separate sessionId and familyId
+                    API->>TokenService: Generate and hash refresh token
+                    TokenService->>MongoDB: Store initial refresh-token hash
+                    MongoDB-->>TokenService: Stored
+                    API->>TokenService: Create HS256 access token
+                    TokenService-->>API: Access token
+                    API->>MongoDB: Reset failed count and update lastLoginAt
+                    API->>API: Emit auth.login_succeeded
+                    API-->>Browser: 200 + access token + host-only refresh cookie
+                    Browser-->>User: Open chat/dashboard
+                end
             end
         end
     end
@@ -205,7 +213,8 @@ sequenceDiagram
 - Login errors must not reveal whether an email exists.
 - Passwords are never stored or logged in plaintext.
 - Refresh tokens are stored as hashes.
-- Successful and failed login events are audited.
+- Successful, failed, and operational login outcomes emit structured security
+  events. Durable audit persistence remains Phase 9.
 - The refresh token is returned only as a secure HTTP-only cookie.
 
 ---
