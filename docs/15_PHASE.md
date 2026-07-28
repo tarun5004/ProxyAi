@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 2 — Authentication and Tenant Isolation
-Current Task: P2-04 — Login
+Current Task: P2-05 — Refresh Token Rotation
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P2-03 — Password Security
-Last Completed Commit: feat(security): add Argon2id password protection
+Last Completed Task: P2-04 — Login
+Last Completed Commit: docs(progress): record P2-04 completion
 ```
 
 ---
@@ -347,16 +347,17 @@ Last Completed Commit: feat(security): add Argon2id password protection
 ## P2-04 — Login
 
 **Effort:** ⭐ Ultra
+**Status:** Completed
 
-- [ ] Validate login request.
-- [ ] Find active user.
-- [ ] Verify active organisation.
-- [ ] Compare password.
-- [ ] Issue access token.
-- [ ] Create refresh token family.
-- [ ] Store refresh-token hash.
-- [ ] Set secure HTTP-only cookie.
-- [ ] Audit success and failure.
+- [x] Validate login request.
+- [x] Find active user.
+- [x] Verify active organisation.
+- [x] Compare password.
+- [x] Issue access token.
+- [x] Create refresh token family.
+- [x] Store refresh-token hash.
+- [x] Set secure HTTP-only cookie.
+- [x] Audit success and failure.
 
 ## P2-05 — Refresh Token Rotation
 
