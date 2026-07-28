@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 
+import { applyAuthTestEnvironment } from "./helpers/test-env.mjs";
+
+applyAuthTestEnvironment();
 process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL = "warn";
 process.env.FRONTEND_ORIGIN ??= "http://localhost:3000";

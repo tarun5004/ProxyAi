@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
+import { authTestEnvironment } from "./helpers/test-env.mjs";
+
 const safeEnvironment = {
     ...process.env,
+    ...authTestEnvironment,
     NODE_ENV: "test",
     LOG_LEVEL: "info",
     PORT: "8080",

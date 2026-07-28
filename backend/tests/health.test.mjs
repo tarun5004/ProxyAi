@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import test from "node:test";
 
+import { applyAuthTestEnvironment } from "./helpers/test-env.mjs";
+
+applyAuthTestEnvironment();
 process.env.NODE_ENV ??= "test";
 process.env.FRONTEND_ORIGIN ??= "http://localhost:3000";
 process.env.MONGO_URI ??= "mongodb://127.0.0.1:27017/proxiai_test";

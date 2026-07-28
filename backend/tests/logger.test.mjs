@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
+import { authTestEnvironment } from "./helpers/test-env.mjs";
+
 const validEnvironment = {
     ...process.env,
+    ...authTestEnvironment,
     NODE_ENV: "test",
     LOG_LEVEL: "info",
     PORT: "8080",
@@ -59,21 +62,28 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
         authorization: "SENTINEL_AUTHORIZATION",
         contentEnc: "SENTINEL_ENCRYPTED_CONTENT",
         cookie: "SENTINEL_COOKIE",
+        email: "SENTINEL_EMAIL",
         encryptionKey: "SENTINEL_ENCRYPTION_KEY",
         mongoUri: "SENTINEL_MONGO_URI",
         password: "SENTINEL_PASSWORD",
         nestedPasswordHash: "SENTINEL_NESTED_PASSWORD_HASH",
+        organisationSlug: "SENTINEL_ORGANISATION_SLUG",
         passwordHash: "SENTINEL_PASSWORD_HASH",
         prompt: "SENTINEL_PROMPT",
+        rawToken: "SENTINEL_RAW_TOKEN",
         redisUrl: "SENTINEL_REDIS_URL",
         refreshToken: "SENTINEL_REFRESH_TOKEN",
         responseText: "SENTINEL_RESPONSE",
+        tokenHash: "SENTINEL_TOKEN_HASH",
     };
     const { entry, output } = writeLog(
         {
             event: "logger.redaction.test",
+            email: sentinels.email,
+            organisationSlug: sentinels.organisationSlug,
             password: sentinels.password,
             passwordHash: sentinels.passwordHash,
+            rawToken: sentinels.rawToken,
             req: {
                 headers: {
                     authorization: sentinels.authorization,
@@ -92,6 +102,7 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
                 redisUrl: sentinels.redisUrl,
                 refreshToken: sentinels.refreshToken,
                 responseText: sentinels.responseText,
+                tokenHash: sentinels.tokenHash,
             },
         },
         "Redaction test",
@@ -103,6 +114,9 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
 
     assert.equal(entry.password, "[REDACTED]");
     assert.equal(entry.passwordHash, "[REDACTED]");
+    assert.equal(entry.email, "[REDACTED]");
+    assert.equal(entry.organisationSlug, "[REDACTED]");
+    assert.equal(entry.rawToken, "[REDACTED]");
     assert.equal(entry.req.headers.authorization, "[REDACTED]");
     assert.equal(entry.req.headers.cookie, "[REDACTED]");
     assert.equal(entry.sensitive.accessToken, "[REDACTED]");
@@ -115,5 +129,6 @@ test("logger redacts sensitive values and preserves safe metadata", () => {
     assert.equal(entry.sensitive.redisUrl, "[REDACTED]");
     assert.equal(entry.sensitive.refreshToken, "[REDACTED]");
     assert.equal(entry.sensitive.responseText, "[REDACTED]");
+    assert.equal(entry.sensitive.tokenHash, "[REDACTED]");
     assert.equal(entry.safeField, "SAFE_VALUE");
 });
