@@ -1,6 +1,17 @@
 import "dotenv/config";
 import { z } from "zod";
 
+const base64UrlSecretSchema = z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .refine((value) => {
+        const decodedValue = Buffer.from(value, "base64url");
+
+        return decodedValue.length >= 32
+            && decodedValue.toString("base64url") === value;
+    });
+
 const envSchema = z.object({
     NODE_ENV: z.enum(["development", "test", "production"]),
     LOG_LEVEL: z
@@ -14,6 +25,10 @@ const envSchema = z.object({
         .refine((value) => new URL(value).origin === value),
     MONGO_URI: z.string().trim().min(1),
     REDIS_URL: z.string().trim().min(1),
+    JWT_ACCESS_SECRET: base64UrlSecretSchema,
+    AUTH_RATE_LIMIT_SECRET: base64UrlSecretSchema,
+    ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60),
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30),
     COMMIT_SHA: z.preprocess(
         (value) =>
             typeof value === "string" && value.trim() === "" ? undefined : value,
