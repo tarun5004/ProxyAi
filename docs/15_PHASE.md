@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 2 — Authentication and Tenant Isolation
-Current Task: P2-05 — Refresh Token Rotation
+Current Task: P2-06 — Authentication Middleware
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P2-04 — Login
-Last Completed Commit: docs(progress): record P2-04 completion
+Last Completed Task: P2-05 — Refresh Token Rotation
+Last Completed Commit: docs(progress): record P2-05 completion
 ```
 
 ---
@@ -362,16 +362,17 @@ Last Completed Commit: docs(progress): record P2-04 completion
 ## P2-05 — Refresh Token Rotation
 
 **Effort:** ⭐ Ultra
+**Status:** Completed
 
-- [ ] Token hash.
-- [ ] Family ID.
-- [ ] Expiry.
-- [ ] Used timestamp.
-- [ ] Revoked state.
-- [ ] Rotate on refresh.
-- [ ] Detect reuse.
-- [ ] Revoke family on reuse.
-- [ ] TTL index.
+- [x] Token hash.
+- [x] Family ID.
+- [x] Expiry.
+- [x] Used timestamp.
+- [x] Revoked state.
+- [x] Rotate on refresh.
+- [x] Detect reuse.
+- [x] Revoke family on reuse.
+- [x] TTL index.
 
 ## P2-06 — Authentication Middleware
 

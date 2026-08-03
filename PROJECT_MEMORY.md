@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 2 — Authentication and Tenant Isolation
-- **Task:** P2-05 — Refresh Token Rotation
+- **Task:** P2-06 — Authentication Middleware
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -22,6 +22,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P2-02 — User and Team models completed on 2026-07-27
 - P2-03 — Password security completed on 2026-07-27
 - P2-04 — Tenant-aware login completed on 2026-07-28
+- P2-05 — Refresh token rotation completed on 2026-08-03
 
 ## Important Decisions
 
@@ -103,6 +104,14 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Initial refresh-token persistence is critical and occurs before access-token signing or cookie response. Login metadata updates and structured security-event logging are best-effort.
 - P2-04 emits only `auth.login_succeeded`, `auth.login_failed`, and `auth.login_operational_error`; durable append-only audit persistence remains Phase 9.
 - P2-05 exclusively owns refresh rotation, reuse detection, family revocation, and the refresh endpoint.
+- Refresh-token lookup may start with unique `tokenHash` because trusted `orgId` is not known until the database record is loaded.
+- Refresh rotation uses a conditional MongoDB `findOneAndUpdate` gate scoped by old token `_id`, trusted `orgId`, `usedAt: null`, `revokedAt: null`, and future `expiresAt`.
+- Successful refresh preserves `orgId`, `userId`, `sessionId`, and `familyId`; it changes `tokenId`, raw token, token hash, and expiry.
+- Refresh access tokens are signed from current active User and Organisation state, not from stale JWT claims.
+- Refresh failures for absent, unknown, expired, used, revoked, disabled-User, and suspended-Organisation states return the same public `401 INVALID_REFRESH_TOKEN` response.
+- Used-token replay and concurrent atomic-gate losers revoke the trusted token family and emit `auth.refresh_reuse_detected`.
+- Refresh operational failures after old-token consumption revoke the family, clear the cookie, emit `auth.refresh_operational_error`, and return generic `503 AUTH_TEMPORARILY_UNAVAILABLE`.
+- P2-05 emits only `auth.refresh_succeeded`, `auth.refresh_failed`, `auth.refresh_reuse_detected`, and `auth.refresh_operational_error`; durable audit persistence remains Phase 9.
 
 ## Commands That Work
 
@@ -115,6 +124,7 @@ npm ci
 npm audit --omit=dev
 node --test tests/organisation.model.integration.mjs
 node --test tests/user-team.model.integration.mjs
+node --test tests/refresh.integration.mjs
 # After providing a valid .env:
 npm run dev
 npm start
@@ -153,30 +163,30 @@ npm start
 - If access-token signing fails after critical refresh-token persistence, the unissued refresh record is unusable because its raw token is never returned; it remains until TTL cleanup.
 - Successful-login metadata updates are best-effort, so a valid issued session can exist even if `failedLoginCount` reset or `lastLoginAt` update temporarily fails.
 - Logger redaction now covers known authentication paths, but it remains path-based and is never permission to log raw User objects, requests, tokens, or credentials.
-- Refresh-token rotation, reuse detection, family revocation, refresh/logout endpoints, authentication middleware, and RBAC remain unimplemented by design.
+- Authentication middleware, RBAC, logout, refresh-token rate limiting, durable audit persistence, and session administration remain unimplemented by design.
+- Without MongoDB transactions, a process crash after old-token claim and before replacement response can force re-login; the flow fails closed and revokes family on known post-claim operational failures.
+- Concurrent replay family revocation uses currently persisted family records; a full session-family state table remains deferred.
 
 ## Latest Task Record
 
-- **Task:** P2-04 — Tenant-Aware Login
+- **Task:** P2-05 — Refresh Token Rotation
 - **Status:** Completed
-- **Files changed:** `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/09_README.md`, `docs/12_SEQUENCE_DIAGRAMS.md`, `backend/.env.example`, `backend/package.json`, `backend/package-lock.json`, `backend/src/app.ts`, `backend/src/config/env.ts`, `backend/src/shared/lib/logger.ts`, `backend/src/features/auth/*`, focused and existing environment-backed tests, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Login flow:** Validates strict external input, applies Redis limits, resolves Organisation slug to trusted `orgId`, loads User with `{ orgId, emailNormalized }`, verifies password with real/dummy Argon2 paths, persists initial refresh state, signs the access token, updates metadata, and sets the cookie.
-- **JWT contract:** HS256 with `typ=at+jwt`, `iss=proxiai`, `aud=proxiai-api`, UUID `jti`, UUID `sessionId`, uppercase role, and unchanged canonical lowercase permissions.
-- **Refresh security:** Separate UUID `tokenId`, `sessionId`, and `familyId`; unique SHA-256 token hash; TTL expiry; raw token absent from MongoDB and JSON.
-- **Generic failures:** Real HTTP integration verified identical public `401` code/message for missing/suspended Organisation, missing/disabled User, and wrong password.
-- **Rate limiting:** Real Redis database 15 verified opaque account/IP keys, 10 allowed attempts, eleventh `429`, 15-minute TTL, forwarded-header resistance, and clean disconnect.
-- **Automated tests:** Final `npm test` passed with 78 tests and 0 failures.
-- **Real integrations:** Organisation model `4/4`, User/Team model `6/6`, and tenant login with Redis `4/4` passed.
+- **Files changed:** `docs/03_TDD.md`, `docs/05_OPENAPI_SPEC.md`, `docs/12_SEQUENCE_DIAGRAMS.md`, `backend/src/features/auth/auth.controller.ts`, `backend/src/features/auth/auth.repository.ts`, `backend/src/features/auth/auth.routes.ts`, `backend/src/features/auth/auth.service.ts`, `backend/src/features/auth/auth.types.ts`, `backend/src/features/auth/refresh-token.service.ts`, `backend/tests/refresh.service.test.mjs`, `backend/tests/refresh.integration.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Refresh flow:** Reads the HttpOnly cookie value, hashes it, loads the refresh record by unique token hash, claims the old token atomically, reloads current User and Organisation state, persists replacement hash, signs a new access token, and replaces the cookie.
+- **Rotation security:** Old token receives `usedAt` and `replacedByTokenId`; replacement keeps `orgId`, `userId`, `sessionId`, and `familyId` while changing `tokenId`, raw token, token hash, and expiry.
+- **Reuse handling:** Used-token replay and concurrent losers revoke the trusted family by `orgId`, `userId`, `sessionId`, and `familyId`, clear the cookie, and return generic `401`.
+- **Generic failures:** Missing, unknown, expired, revoked, used, disabled-User, and suspended-Organisation refresh states return identical public `401 INVALID_REFRESH_TOKEN`.
+- **Automated tests:** Final `npm test` passed with 83 tests and 0 failures.
+- **Real integrations:** Refresh rotation with real MongoDB passed `4/4`, including current DB claims, hash-only persistence, reuse revocation, and concurrent single-success behavior.
 - **Typecheck:** `npm run typecheck` passed.
 - **Build:** `npm run build` passed.
-- **Security scans:** No application console calls, permission transformations, raw auth logging, bcrypt fallback, refresh/logout routes, or secret-bearing log fields were found.
-- **Regression found and fixed:** Real integration exposed that Mongoose permission arrays are not structured-cloneable by `jose`; the token boundary now copies them into a plain array without changing values.
-- **Scope check:** No refresh endpoint, rotation, reuse detection, family revocation behavior, logout, authentication middleware, RBAC middleware, password reset, invitation flow, durable audit collection, or P2-05 implementation was added.
-- **Recommended completed commits:** `docs(auth): reconcile tenant-aware login contract`, `feat(config): add authentication security settings`, `feat(auth): add access and refresh token primitives`, `feat(auth): add tenant-aware login flow`, `test(auth): add login security coverage`, `docs(progress): record P2-04 completion`.
+- **Security scans:** Focused scans found no auth log calls containing raw tokens, token hashes, cookies, request bodies, passwords, or sensitive headers; broad scan hits were expected model fields, redaction paths, and test fixtures.
+- **Scope check:** No auth middleware, RBAC, logout, password reset, durable audit, session administration, or P2-06 implementation was added.
+- **Recommended completed commits:** `feat(auth): add refresh token rotation`, `test(auth): add refresh rotation security coverage`, `docs(progress): record P2-05 completion`.
 
 ## Recommended Next Task
 
-- P2-05 — Refresh Token Rotation. Start with design review only after explicit approval.
+- P2-06 — Authentication Middleware. Start with design review only after explicit approval.
 
 ## Do Not Forget
 
