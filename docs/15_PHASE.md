@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 2 — Authentication and Tenant Isolation
-Current Task: P2-06 — Authentication Middleware
+Current Task: P2-07 — Permission-Based RBAC
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P2-05 — Refresh Token Rotation
-Last Completed Commit: docs(progress): record P2-05 completion
+Last Completed Task: P2-06 — Authentication Middleware
+Last Completed Commit: docs(progress): record P2-06 completion
 ```
 
 ---
@@ -376,11 +376,13 @@ Last Completed Commit: docs(progress): record P2-05 completion
 
 ## P2-06 — Authentication Middleware
 
-- [ ] Verify bearer token.
-- [ ] Load active user.
-- [ ] Load active organisation.
-- [ ] Attach safe context.
-- [ ] Never trust request `orgId` as identity source.
+**Status:** Completed
+
+- [x] Verify bearer token.
+- [x] Load active user.
+- [x] Load active organisation.
+- [x] Attach safe context.
+- [x] Never trust request `orgId` as identity source.
 
 ## P2-07 — Permission-Based RBAC
 

@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 2 — Authentication and Tenant Isolation
-- **Task:** P2-06 — Authentication Middleware
+- **Task:** P2-07 — Permission-Based RBAC
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -23,6 +23,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P2-03 — Password security completed on 2026-07-27
 - P2-04 — Tenant-aware login completed on 2026-07-28
 - P2-05 — Refresh token rotation completed on 2026-08-03
+- P2-06 — Authentication middleware completed on 2026-08-03
 
 ## Important Decisions
 
@@ -112,6 +113,11 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Used-token replay and concurrent atomic-gate losers revoke the trusted token family and emit `auth.refresh_reuse_detected`.
 - Refresh operational failures after old-token consumption revoke the family, clear the cookie, emit `auth.refresh_operational_error`, and return generic `503 AUTH_TEMPORARILY_UNAVAILABLE`.
 - P2-05 emits only `auth.refresh_succeeded`, `auth.refresh_failed`, `auth.refresh_reuse_detected`, and `auth.refresh_operational_error`; durable audit persistence remains Phase 9.
+- P2-06 verifies bearer access tokens with `jose`, HS256, protected-header `typ: at+jwt`, issuer `proxiai`, audience `proxiai-api`, valid signature, expiry, and `type: access`.
+- P2-06 treats JWT claims as identity hints only. It reloads the current User with `{ orgId, userId }` and the current Organisation with `{ orgId }` before attaching context.
+- Authenticated request context contains only `userId`, `orgId`, current database `role`, current database `permissions`, and `sessionId`.
+- Missing, malformed, expired, disabled-User, suspended-Organisation, invalid-claim, and stale-token cases return the same public `401 UNAUTHORIZED` response.
+- `GET /api/v1/auth/me` is the minimal protected route integration for validating attached auth context; RBAC remains P2-07.
 
 ## Commands That Work
 
@@ -163,30 +169,30 @@ npm start
 - If access-token signing fails after critical refresh-token persistence, the unissued refresh record is unusable because its raw token is never returned; it remains until TTL cleanup.
 - Successful-login metadata updates are best-effort, so a valid issued session can exist even if `failedLoginCount` reset or `lastLoginAt` update temporarily fails.
 - Logger redaction now covers known authentication paths, but it remains path-based and is never permission to log raw User objects, requests, tokens, or credentials.
-- Authentication middleware, RBAC, logout, refresh-token rate limiting, durable audit persistence, and session administration remain unimplemented by design.
+- RBAC, permission middleware, logout, refresh-token rate limiting, durable audit persistence, and session administration remain unimplemented by design.
 - Without MongoDB transactions, a process crash after old-token claim and before replacement response can force re-login; the flow fails closed and revokes family on known post-claim operational failures.
 - Concurrent replay family revocation uses currently persisted family records; a full session-family state table remains deferred.
 
 ## Latest Task Record
 
-- **Task:** P2-05 — Refresh Token Rotation
+- **Task:** P2-06 — Authentication Middleware
 - **Status:** Completed
-- **Files changed:** `docs/03_TDD.md`, `docs/05_OPENAPI_SPEC.md`, `docs/12_SEQUENCE_DIAGRAMS.md`, `backend/src/features/auth/auth.controller.ts`, `backend/src/features/auth/auth.repository.ts`, `backend/src/features/auth/auth.routes.ts`, `backend/src/features/auth/auth.service.ts`, `backend/src/features/auth/auth.types.ts`, `backend/src/features/auth/refresh-token.service.ts`, `backend/tests/refresh.service.test.mjs`, `backend/tests/refresh.integration.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Refresh flow:** Reads the HttpOnly cookie value, hashes it, loads the refresh record by unique token hash, claims the old token atomically, reloads current User and Organisation state, persists replacement hash, signs a new access token, and replaces the cookie.
-- **Rotation security:** Old token receives `usedAt` and `replacedByTokenId`; replacement keeps `orgId`, `userId`, `sessionId`, and `familyId` while changing `tokenId`, raw token, token hash, and expiry.
-- **Reuse handling:** Used-token replay and concurrent losers revoke the trusted family by `orgId`, `userId`, `sessionId`, and `familyId`, clear the cookie, and return generic `401`.
-- **Generic failures:** Missing, unknown, expired, revoked, used, disabled-User, and suspended-Organisation refresh states return identical public `401 INVALID_REFRESH_TOKEN`.
-- **Automated tests:** Final `npm test` passed with 83 tests and 0 failures.
-- **Real integrations:** Refresh rotation with real MongoDB passed `4/4`, including current DB claims, hash-only persistence, reuse revocation, and concurrent single-success behavior.
+- **Files changed:** `backend/src/features/auth/auth.middleware.ts`, `backend/src/features/auth/token.service.ts`, `backend/src/features/auth/auth.controller.ts`, `backend/src/features/auth/auth.routes.ts`, `backend/src/types/express.d.ts`, `docs/05_OPENAPI_SPEC.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Auth flow:** Extracts `Authorization: Bearer`, verifies the access token contract, reloads current User and Organisation by trusted IDs, requires both ACTIVE, and attaches safe auth context.
+- **JWT validation:** Explicit HS256, `typ: at+jwt`, issuer, audience, expiry, signature, `type: access`, UUID subject, UUID org/session IDs, UUID `jti`, role allowlist, and permission allowlist.
+- **Current state:** Middleware uses current database role and permissions instead of JWT role/permission snapshots.
+- **Generic failures:** Missing, malformed, expired, disabled-User, suspended-Organisation, and invalid-claim auth states return public `401 UNAUTHORIZED`.
+- **Automated tests:** Not generated or modified by request.
+- **Manual checks:** Pending user-run HTTP checks for missing header, malformed token, expired token, disabled User, suspended Organisation, valid token, and stale JWT role/permission override.
 - **Typecheck:** `npm run typecheck` passed.
 - **Build:** `npm run build` passed.
-- **Security scans:** Focused scans found no auth log calls containing raw tokens, token hashes, cookies, request bodies, passwords, or sensitive headers; broad scan hits were expected model fields, redaction paths, and test fixtures.
-- **Scope check:** No auth middleware, RBAC, logout, password reset, durable audit, session administration, or P2-06 implementation was added.
-- **Recommended completed commits:** `feat(auth): add refresh token rotation`, `test(auth): add refresh rotation security coverage`, `docs(progress): record P2-05 completion`.
+- **Security scans:** Focused scans found no auth middleware logs containing tokens, headers, cookies, raw JWT payloads, passwords, or token hashes.
+- **Scope check:** No RBAC, permission middleware, logout, password reset, durable audit, session administration, tests, or P2-07 implementation was added.
+- **Recommended completed commits:** `feat(auth): add access token authentication middleware`, `docs(progress): record P2-06 completion`.
 
 ## Recommended Next Task
 
-- P2-06 — Authentication Middleware. Start with design review only after explicit approval.
+- P2-07 — Permission-Based RBAC. Start with design review only after explicit approval.
 
 ## Do Not Forget
 
