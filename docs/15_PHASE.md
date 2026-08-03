@@ -136,10 +136,10 @@ Update this block at the end of every work session.
 ```text
 Current Phase: Phase 2 — Authentication and Tenant Isolation
 Current Task: P2-08 — Logout
-Current Status: Not Started
+Current Status: Completed
 Current Blocker: None
-Last Completed Task: P2-07 — Permission-Based RBAC
-Last Completed Commit: docs(progress): record P2-07 completion
+Last Completed Task: P2-08 — Logout
+Last Completed Commit: docs(progress): record P2-08 completion
 ```
 
 ---

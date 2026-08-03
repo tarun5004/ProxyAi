@@ -6,7 +6,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 - **Phase:** Phase 2 — Authentication and Tenant Isolation
 - **Task:** P2-08 — Logout
-- **Status:** Not Started
+- **Status:** Completed
 
 ## Completed Tasks
 
@@ -181,6 +181,16 @@ npm start
 - Concurrent replay family revocation uses currently persisted family records; a full session-family state table remains deferred.
 
 ## Latest Task Record
+
+- **Task:** P2-08 — Logout
+- **Status:** Completed
+- **Files changed:** `backend/src/features/auth/auth.controller.ts`, `backend/src/features/auth/auth.service.ts`, `backend/src/features/auth/auth.routes.ts`, `backend/src/features/auth/auth.types.ts`, `docs/05_OPENAPI_SPEC.md`, `docs/14_OBSERVABILITY_DOCUMENTATION.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Logout flow:** Reads the refresh token only from the `proxiai_refresh` cookie, hashes it, revokes the trusted token family by DB identifiers when present, and clears the cookie with the approved attributes.
+- **Idempotency:** Missing, unknown, or already revoked refresh tokens return the standard success envelope.
+- **Logging:** Logout emits safe `auth.logout_succeeded` and `auth.logout_operational_error` events without raw tokens or cookie data.
+- **Automated tests:** Not generated or modified by request.
+- **Manual checks:** Typecheck and build passed; live logout behavior verification was not executed here.
+- **Recommended completed commits:** `feat(auth): add idempotent logout`, `docs(progress): record P2-08 completion`.
 
 - **Task:** P2-07 — Permission-Based RBAC
 - **Status:** Completed
