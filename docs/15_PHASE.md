@@ -399,13 +399,13 @@ Last Completed Commit: docs(progress): record P2-07 completion
 
 ## P2-08 — Logout
 
-- [ ] Revoke session.
-- [ ] Clear cookie.
-- [ ] Audit logout.
+- [x] Revoke session.
+- [x] Clear cookie.
+- [x] Audit logout.
 
 ## Phase 2 Exit Criteria
 
-- [ ] Login, refresh, reuse detection, and logout work.
+- [x] Login, refresh, reuse detection, and logout work.
 - [ ] Auth middleware resolves trusted user and organisation.
 - [ ] Permission middleware works.
 - [ ] Cross-tenant tests pass.

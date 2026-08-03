@@ -176,6 +176,36 @@ export async function refresh(
     }
 }
 
+export async function logout(
+    request: Request,
+    response: Response,
+): Promise<void> {
+    const rawRefreshToken = getCookieValue(
+        request.headers.cookie,
+        REFRESH_COOKIE_NAME,
+    );
+
+    response.clearCookie(
+        REFRESH_COOKIE_NAME,
+        getRefreshCookieClearOptions(),
+    );
+
+    await authService.logoutSession(
+        rawRefreshToken,
+        request.log,
+    );
+
+    response.setHeader("Cache-Control", "no-store");
+    response.status(200).json(
+        createSuccessResponse(
+            {
+                loggedOut: true,
+            },
+            request.requestId,
+        ),
+    );
+}
+
 export function me(
     request: Request,
     response: Response,

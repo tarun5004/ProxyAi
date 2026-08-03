@@ -45,6 +45,10 @@ export interface RefreshSessionResult {
     refreshToken: string;
 }
 
+export type LogoutOperationalReason =
+    | "MONGODB_QUERY_FAILED"
+    | "REFRESH_TOKEN_REVOCATION_FAILED";
+
 export type LoginFailureReason =
     | "ORGANISATION_NOT_FOUND"
     | "ORGANISATION_SUSPENDED"

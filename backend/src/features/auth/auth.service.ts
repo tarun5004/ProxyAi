@@ -21,6 +21,7 @@ import type {
     LoginInput,
     LoginOperationalReason,
     LoginResult,
+    LogoutOperationalReason,
     RefreshFailureReason,
     RefreshOperationalReason,
     RefreshSessionResult,
@@ -177,6 +178,32 @@ function logRefreshOperationalError(
             ...identifiers,
         },
         "Refresh operation failed",
+    );
+}
+
+function logLogoutSuccess(
+    log: Logger,
+    reasonCode: "REFRESH_TOKEN_MISSING" | "REFRESH_TOKEN_UNKNOWN" | "REFRESH_TOKEN_REVOKED",
+): void {
+    log.info(
+        {
+            event: "auth.logout_succeeded",
+            reasonCode,
+        },
+        "Logout succeeded",
+    );
+}
+
+function logLogoutOperationalError(
+    log: Logger,
+    reasonCode: LogoutOperationalReason,
+): void {
+    log.error(
+        {
+            event: "auth.logout_operational_error",
+            reasonCode,
+        },
+        "Logout operation failed",
     );
 }
 
@@ -697,6 +724,65 @@ export function createAuthService(
                     accessTokenResult.expiresInSeconds,
                 refreshToken: replacementMaterial.rawToken,
             };
+        },
+
+        async logoutSession(
+            rawRefreshToken: string | undefined,
+            log: Logger,
+        ): Promise<void> {
+            if (!rawRefreshToken) {
+                logLogoutSuccess(log, "REFRESH_TOKEN_MISSING");
+
+                return;
+            }
+
+            const tokenHash = dependencies.hashRefreshToken(
+                rawRefreshToken,
+            );
+            let existingToken: RefreshTokenDocument | null;
+
+            try {
+                existingToken = await dependencies.findRefreshTokenByHash(
+                    tokenHash,
+                );
+            } catch {
+                logLogoutOperationalError(
+                    log,
+                    "MONGODB_QUERY_FAILED",
+                );
+
+                return;
+            }
+
+            if (!existingToken) {
+                logLogoutSuccess(log, "REFRESH_TOKEN_UNKNOWN");
+
+                return;
+            }
+
+            try {
+                await dependencies.revokeRefreshTokenFamily(
+                    {
+                        familyId: existingToken.familyId,
+                        orgId: existingToken.orgId,
+                        sessionId: existingToken.sessionId,
+                        userId: existingToken.userId,
+                    },
+                    new Date(),
+                );
+            } catch {
+                logLogoutOperationalError(
+                    log,
+                    "REFRESH_TOKEN_REVOCATION_FAILED",
+                );
+
+                return;
+            }
+
+            logLogoutSuccess(
+                log,
+                "REFRESH_TOKEN_REVOKED",
+            );
         },
     };
 

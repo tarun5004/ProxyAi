@@ -250,7 +250,8 @@ Use stable event names.
 ```text
 auth.login.succeeded
 auth.login.failed
-auth.logout.succeeded
+auth.logout_succeeded
+auth.logout_operational_error
 auth.refresh.succeeded
 auth.refresh.failed
 auth.refresh.reuse_detected

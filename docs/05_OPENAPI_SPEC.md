@@ -553,6 +553,8 @@ No body.
 
 Logout is idempotent from the user's perspective. The cookie is cleared even when the stored session is already revoked.
 
+Missing, unknown, or already revoked refresh tokens still return the standard success envelope.
+
 ## 14.4 GET `/auth/me`
 
 Returns the current safe authentication context.
