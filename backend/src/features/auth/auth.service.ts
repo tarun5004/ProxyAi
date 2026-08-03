@@ -5,22 +5,34 @@ import { verifyPassword } from "../../shared/security/password.js";
 import type { OrganisationDocument } from "../organisations/organisation.types.js";
 import type { UserDocument } from "../users/user.types.js";
 import {
+    claimRefreshTokenForRotation,
+    findOrganisationByOrgId,
     findOrganisationForLogin,
+    findRefreshTokenByHash,
+    findUserByOrgIdAndUserId,
     findUserForLogin,
     incrementFailedLoginCount,
+    persistReplacementRefreshToken,
     recordSuccessfulLogin,
+    revokeRefreshTokenFamily,
 } from "./auth.repository.js";
 import type {
     LoginFailureReason,
     LoginInput,
     LoginOperationalReason,
     LoginResult,
+    RefreshFailureReason,
+    RefreshOperationalReason,
+    RefreshSessionResult,
 } from "./auth.types.js";
 import {
     createInitialRefreshTokenMaterial,
+    createRotatedRefreshTokenMaterial,
+    hashRefreshToken,
     persistInitialRefreshToken,
 } from "./refresh-token.service.js";
 import { createAccessToken } from "./token.service.js";
+import type { RefreshTokenDocument } from "./refresh-token.types.js";
 
 const DUMMY_PASSWORD_HASH =
     "$argon2id$v=19$m=19456,p=1,t=2$tctGzLy+e7DPgILRdtqpEQ$IN0OAhhfqdOcZ/4l+bvHt/+XDLBsOv5q/+pQ+EEJxak";
@@ -33,31 +45,66 @@ function createInvalidCredentialsError(): AppError {
     );
 }
 
+function createInvalidRefreshTokenError(): AppError {
+    return new AppError(
+        401,
+        "INVALID_REFRESH_TOKEN",
+        "Session is invalid or expired.",
+    );
+}
+
+function createAuthUnavailableError(): AppError {
+    return new AppError(
+        503,
+        "AUTH_TEMPORARILY_UNAVAILABLE",
+        "Authentication is temporarily unavailable.",
+    );
+}
+
 interface AuthDependencies {
+    claimRefreshTokenForRotation: typeof claimRefreshTokenForRotation;
     createAccessToken: typeof createAccessToken;
     createInitialRefreshTokenMaterial:
         typeof createInitialRefreshTokenMaterial;
+    createRotatedRefreshTokenMaterial:
+        typeof createRotatedRefreshTokenMaterial;
+    findOrganisationByOrgId: typeof findOrganisationByOrgId;
     findOrganisationForLogin:
         (slug: string) => Promise<OrganisationDocument | null>;
+    findRefreshTokenByHash:
+        (tokenHash: string) => Promise<RefreshTokenDocument | null>;
+    findUserByOrgIdAndUserId: typeof findUserByOrgIdAndUserId;
     findUserForLogin:
         (
             orgId: string,
             emailNormalized: string,
         ) => Promise<UserDocument | null>;
+    hashRefreshToken: typeof hashRefreshToken;
     incrementFailedLoginCount: typeof incrementFailedLoginCount;
     persistInitialRefreshToken: typeof persistInitialRefreshToken;
+    persistReplacementRefreshToken:
+        typeof persistReplacementRefreshToken;
     recordSuccessfulLogin: typeof recordSuccessfulLogin;
+    revokeRefreshTokenFamily: typeof revokeRefreshTokenFamily;
     verifyPassword: typeof verifyPassword;
 }
 
 const defaultDependencies: AuthDependencies = {
+    claimRefreshTokenForRotation,
     createAccessToken,
     createInitialRefreshTokenMaterial,
+    createRotatedRefreshTokenMaterial,
+    findOrganisationByOrgId,
     findOrganisationForLogin,
+    findRefreshTokenByHash,
+    findUserByOrgIdAndUserId,
     findUserForLogin,
+    hashRefreshToken,
     incrementFailedLoginCount,
     persistInitialRefreshToken,
+    persistReplacementRefreshToken,
     recordSuccessfulLogin,
+    revokeRefreshTokenFamily,
     verifyPassword,
 };
 
@@ -94,6 +141,58 @@ function logOperationalError(
             ...identifiers,
         },
         "Login operation failed",
+    );
+}
+
+function logRefreshFailed(
+    log: Logger,
+    reasonCode: RefreshFailureReason,
+    identifiers: {
+        orgId?: string;
+        userId?: string;
+    } = {},
+): void {
+    log.warn(
+        {
+            event: "auth.refresh_failed",
+            reasonCode,
+            ...identifiers,
+        },
+        "Refresh failed",
+    );
+}
+
+function logRefreshOperationalError(
+    log: Logger,
+    reasonCode: RefreshOperationalReason,
+    identifiers: {
+        orgId?: string;
+        userId?: string;
+    } = {},
+): void {
+    log.error(
+        {
+            event: "auth.refresh_operational_error",
+            reasonCode,
+            ...identifiers,
+        },
+        "Refresh operation failed",
+    );
+}
+
+function logRefreshReuseDetected(
+    log: Logger,
+    identifiers: {
+        orgId: string;
+        userId: string;
+    },
+): void {
+    log.warn(
+        {
+            event: "auth.refresh_reuse_detected",
+            ...identifiers,
+        },
+        "Refresh token reuse detected",
     );
 }
 
@@ -397,7 +496,235 @@ export function createAuthService(
                 },
             };
         },
+
+        async refreshSession(
+            rawRefreshToken: string,
+            log: Logger,
+        ): Promise<RefreshSessionResult> {
+            const tokenHash =
+                dependencies.hashRefreshToken(rawRefreshToken);
+            let existingToken: RefreshTokenDocument | null;
+
+            try {
+                existingToken =
+                    await dependencies.findRefreshTokenByHash(
+                        tokenHash,
+                    );
+            } catch {
+                logRefreshOperationalError(
+                    log,
+                    "MONGODB_QUERY_FAILED",
+                );
+
+                throw createAuthUnavailableError();
+            }
+
+            if (!existingToken) {
+                logRefreshFailed(log, "REFRESH_TOKEN_UNKNOWN");
+
+                throw createInvalidRefreshTokenError();
+            }
+
+            const identifiers = {
+                orgId: existingToken.orgId,
+                userId: existingToken.userId,
+            };
+            const now = new Date();
+
+            if (existingToken.usedAt) {
+                await revokeFamilyBestEffort(existingToken, log);
+                logRefreshReuseDetected(log, identifiers);
+
+                throw createInvalidRefreshTokenError();
+            }
+
+            if (existingToken.revokedAt) {
+                logRefreshFailed(
+                    log,
+                    "REFRESH_TOKEN_REVOKED",
+                    identifiers,
+                );
+
+                throw createInvalidRefreshTokenError();
+            }
+
+            if (existingToken.expiresAt <= now) {
+                logRefreshFailed(
+                    log,
+                    "REFRESH_TOKEN_EXPIRED",
+                    identifiers,
+                );
+
+                throw createInvalidRefreshTokenError();
+            }
+
+            const replacementMaterial =
+                dependencies.createRotatedRefreshTokenMaterial(
+                    {
+                        familyId: existingToken.familyId,
+                        orgId: existingToken.orgId,
+                        sessionId: existingToken.sessionId,
+                        userId: existingToken.userId,
+                    },
+                    now,
+                );
+
+            let claimedToken: RefreshTokenDocument | null;
+
+            try {
+                claimedToken =
+                    await dependencies.claimRefreshTokenForRotation(
+                        existingToken._id,
+                        existingToken.orgId,
+                        replacementMaterial.tokenId,
+                        now,
+                    );
+            } catch {
+                logRefreshOperationalError(
+                    log,
+                    "REFRESH_TOKEN_CLAIM_FAILED",
+                    identifiers,
+                );
+
+                throw createAuthUnavailableError();
+            }
+
+            if (!claimedToken) {
+                await revokeFamilyBestEffort(existingToken, log);
+                logRefreshReuseDetected(log, identifiers);
+
+                throw createInvalidRefreshTokenError();
+            }
+
+            let organisation: OrganisationDocument | null;
+            let user: UserDocument | null;
+
+            try {
+                [organisation, user] = await Promise.all([
+                    dependencies.findOrganisationByOrgId(
+                        existingToken.orgId,
+                    ),
+                    dependencies.findUserByOrgIdAndUserId(
+                        existingToken.orgId,
+                        existingToken.userId,
+                    ),
+                ]);
+            } catch {
+                await revokeFamilyBestEffort(existingToken, log);
+                logRefreshOperationalError(
+                    log,
+                    "MONGODB_QUERY_FAILED",
+                    identifiers,
+                );
+
+                throw createAuthUnavailableError();
+            }
+
+            if (!organisation || organisation.status !== "ACTIVE") {
+                await revokeFamilyBestEffort(existingToken, log);
+                logRefreshFailed(
+                    log,
+                    "ORGANISATION_INACTIVE",
+                    identifiers,
+                );
+
+                throw createInvalidRefreshTokenError();
+            }
+
+            if (!user || user.status !== "ACTIVE") {
+                await revokeFamilyBestEffort(existingToken, log);
+                logRefreshFailed(log, "USER_INACTIVE", identifiers);
+
+                throw createInvalidRefreshTokenError();
+            }
+
+            try {
+                await dependencies.persistReplacementRefreshToken({
+                    expiresAt: replacementMaterial.expiresAt,
+                    familyId: replacementMaterial.familyId,
+                    orgId: replacementMaterial.orgId,
+                    sessionId: replacementMaterial.sessionId,
+                    tokenHash: replacementMaterial.tokenHash,
+                    tokenId: replacementMaterial.tokenId,
+                    userId: replacementMaterial.userId,
+                });
+            } catch {
+                await revokeFamilyBestEffort(existingToken, log);
+                logRefreshOperationalError(
+                    log,
+                    "REFRESH_TOKEN_PERSISTENCE_FAILED",
+                    identifiers,
+                );
+
+                throw createAuthUnavailableError();
+            }
+
+            let accessTokenResult: Awaited<
+                ReturnType<typeof createAccessToken>
+            >;
+
+            try {
+                accessTokenResult =
+                    await dependencies.createAccessToken({
+                        userId: user.userId,
+                        orgId: existingToken.orgId,
+                        role: user.role,
+                        permissions: user.permissions,
+                        sessionId: existingToken.sessionId,
+                    });
+            } catch {
+                await revokeFamilyBestEffort(existingToken, log);
+                logRefreshOperationalError(
+                    log,
+                    "TOKEN_SIGNING_FAILED",
+                    identifiers,
+                );
+
+                throw createAuthUnavailableError();
+            }
+
+            log.info(
+                {
+                    event: "auth.refresh_succeeded",
+                    ...identifiers,
+                },
+                "Refresh succeeded",
+            );
+
+            return {
+                accessToken: accessTokenResult.accessToken,
+                expiresInSeconds:
+                    accessTokenResult.expiresInSeconds,
+                refreshToken: replacementMaterial.rawToken,
+            };
+        },
     };
+
+    async function revokeFamilyBestEffort(
+        token: RefreshTokenDocument,
+        log: Logger,
+    ): Promise<void> {
+        try {
+            await dependencies.revokeRefreshTokenFamily(
+                {
+                    familyId: token.familyId,
+                    orgId: token.orgId,
+                    sessionId: token.sessionId,
+                    userId: token.userId,
+                },
+                new Date(),
+            );
+        } catch {
+            logRefreshOperationalError(
+                log,
+                "REFRESH_TOKEN_PERSISTENCE_FAILED",
+                {
+                    orgId: token.orgId,
+                    userId: token.userId,
+                },
+            );
+        }
+    }
 }
 
 export const authService = createAuthService();

@@ -279,8 +279,8 @@ sequenceDiagram
     MongoDB-->>TokenService: Family revoked
     TokenService->>AuditService: Record token reuse detection
     AuditService->>MongoDB: Append security audit event
-    TokenService-->>API: TOKEN_REUSE_DETECTED
-    API-->>Old Client: 401 + force re-login
+        TokenService-->>API: Generic invalid refresh response
+        API-->>Old Client: 401 + clear cookie + force re-login
 ```
 
 ## Key Rules

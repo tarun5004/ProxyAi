@@ -175,7 +175,7 @@ Each refresh token is single-use. A successful refresh:
 3. Replaces the cookie.
 4. Returns a new access token.
 
-Reuse of an already-used token returns `TOKEN_REUSE_DETECTED` and revokes the complete token family.
+Reuse of an already-used token revokes the complete token family and returns the same generic public refresh failure as other invalid refresh states.
 
 ### 7.4 Permission model
 
@@ -317,10 +317,7 @@ The implementation should prefer a small consistent set. `400` may be used inste
 | `INVALID_CREDENTIALS` | 401 | Generic login failure |
 | `UNAUTHORIZED` | 401 | Access token missing or invalid |
 | `ACCESS_TOKEN_EXPIRED` | 401 | Access token expired |
-| `INVALID_REFRESH_TOKEN` | 401 | Refresh token missing, expired, revoked, or unknown |
-| `TOKEN_REUSE_DETECTED` | 401 | A used refresh token was presented again |
-| `USER_INACTIVE` | 403 | User account is inactive |
-| `ORGANISATION_INACTIVE` | 403 | Organisation is suspended or inactive |
+| `INVALID_REFRESH_TOKEN` | 401 | Refresh token missing, unknown, expired, used, revoked, or linked to an inactive User or Organisation |
 | `FORBIDDEN` | 403 | Permission or tenant ownership check failed |
 | `FEATURE_DISABLED` | 403 | Subscription or feature flag does not permit an action |
 | `POLICY_BLOCKED` | 403 | Prompt blocked before provider contact |
@@ -525,11 +522,8 @@ A replacement refresh cookie is set.
 
 | Status | Code | Condition |
 |---:|---|---|
-| 401 | `INVALID_REFRESH_TOKEN` | Missing, expired, revoked, or unknown token |
-| 401 | `TOKEN_REUSE_DETECTED` | Used token presented again; family revoked |
-| 403 | `USER_INACTIVE` | User disabled after token issuance |
-| 403 | `ORGANISATION_INACTIVE` | Organisation suspended |
-| 429 | `RATE_LIMITED` | Refresh abuse |
+| 401 | `INVALID_REFRESH_TOKEN` | Missing, unknown, expired, used, revoked, or linked to an inactive User or Organisation |
+| 503 | `AUTH_TEMPORARILY_UNAVAILABLE` | Refresh cannot be completed because a required auth dependency failed |
 
 ## 14.3 POST `/auth/logout`
 

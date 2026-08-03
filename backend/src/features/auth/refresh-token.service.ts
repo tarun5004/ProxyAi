@@ -24,17 +24,32 @@ export interface InitialRefreshTokenMaterial {
     expiresAt: Date;
 }
 
+export interface RotatedRefreshTokenMaterial {
+    tokenId: string;
+    sessionId: string;
+    familyId: string;
+    orgId: string;
+    userId: string;
+    tokenHash: string;
+    rawToken: string;
+    expiresAt: Date;
+}
+
 export function hashRefreshToken(rawToken: string): string {
     return createHash("sha256")
         .update(rawToken, "utf8")
         .digest("hex");
 }
 
-export function createInitialRefreshTokenMaterial(
-    orgId: string,
-    userId: string,
+function createRefreshTokenMaterial(
+    input: {
+        familyId: string;
+        orgId: string;
+        sessionId: string;
+        userId: string;
+    },
     now = new Date(),
-): InitialRefreshTokenMaterial {
+): RotatedRefreshTokenMaterial {
     const rawToken = randomBytes(REFRESH_TOKEN_BYTES).toString("base64url");
     const expiresAt = new Date(
         now.getTime()
@@ -43,14 +58,53 @@ export function createInitialRefreshTokenMaterial(
 
     return {
         tokenId: randomUUID(),
-        sessionId: randomUUID(),
-        familyId: randomUUID(),
-        orgId,
-        userId,
+        sessionId: input.sessionId,
+        familyId: input.familyId,
+        orgId: input.orgId,
+        userId: input.userId,
         tokenHash: hashRefreshToken(rawToken),
         rawToken,
         expiresAt,
     };
+}
+
+export function createInitialRefreshTokenMaterial(
+    orgId: string,
+    userId: string,
+    now = new Date(),
+): InitialRefreshTokenMaterial {
+    const material = createRefreshTokenMaterial(
+        {
+            familyId: randomUUID(),
+            orgId,
+            sessionId: randomUUID(),
+            userId,
+        },
+        now,
+    );
+
+    return {
+        tokenId: material.tokenId,
+        sessionId: material.sessionId,
+        familyId: material.familyId,
+        orgId,
+        userId,
+        tokenHash: material.tokenHash,
+        rawToken: material.rawToken,
+        expiresAt: material.expiresAt,
+    };
+}
+
+export function createRotatedRefreshTokenMaterial(
+    input: {
+        familyId: string;
+        orgId: string;
+        sessionId: string;
+        userId: string;
+    },
+    now = new Date(),
+): RotatedRefreshTokenMaterial {
+    return createRefreshTokenMaterial(input, now);
 }
 
 export async function persistInitialRefreshToken(
@@ -71,6 +125,15 @@ export function getRefreshCookieOptions(): CookieOptions {
     return {
         httpOnly: true,
         maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1_000,
+        path: REFRESH_COOKIE_PATH,
+        sameSite: "lax",
+        secure: env.NODE_ENV === "production",
+    };
+}
+
+export function getRefreshCookieClearOptions(): CookieOptions {
+    return {
+        httpOnly: true,
         path: REFRESH_COOKIE_PATH,
         sameSite: "lax",
         secure: env.NODE_ENV === "production",

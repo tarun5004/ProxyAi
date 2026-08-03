@@ -406,7 +406,7 @@ revocation, and replacement links remain P2-05 behavior.
 2. Hash it using SHA-256.
 3. Find the token record.
 4. Reject when missing, expired, or revoked.
-5. When `usedAt` is already set, revoke every token in the same `familyId` and reject with `TOKEN_REUSE_DETECTED`.
+5. When `usedAt` is already set, revoke every token in the same `familyId`, emit `auth.refresh_reuse_detected`, and return the generic refresh failure response.
 6. Mark the current token as used.
 7. Generate a new random refresh token.
 8. Store only its hash in the same token family.

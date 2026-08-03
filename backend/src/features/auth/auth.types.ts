@@ -39,6 +39,12 @@ export interface LoginResult {
     user: LoginResponseUser;
 }
 
+export interface RefreshSessionResult {
+    accessToken: string;
+    expiresInSeconds: number;
+    refreshToken: string;
+}
+
 export type LoginFailureReason =
     | "ORGANISATION_NOT_FOUND"
     | "ORGANISATION_SUSPENDED"
@@ -53,5 +59,20 @@ export type LoginOperationalReason =
     | "MONGODB_QUERY_FAILED"
     | "PASSWORD_HASH_INVALID"
     | "RATE_LIMIT_UNAVAILABLE"
+    | "REFRESH_TOKEN_PERSISTENCE_FAILED"
+    | "TOKEN_SIGNING_FAILED";
+
+export type RefreshFailureReason =
+    | "REFRESH_TOKEN_MISSING"
+    | "REFRESH_TOKEN_UNKNOWN"
+    | "REFRESH_TOKEN_EXPIRED"
+    | "REFRESH_TOKEN_REVOKED"
+    | "REFRESH_TOKEN_USED"
+    | "USER_INACTIVE"
+    | "ORGANISATION_INACTIVE";
+
+export type RefreshOperationalReason =
+    | "MONGODB_QUERY_FAILED"
+    | "REFRESH_TOKEN_CLAIM_FAILED"
     | "REFRESH_TOKEN_PERSISTENCE_FAILED"
     | "TOKEN_SIGNING_FAILED";
