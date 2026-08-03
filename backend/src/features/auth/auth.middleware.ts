@@ -100,6 +100,11 @@ export async function authenticateRequest(
         role: user.role,
         permissions: [...user.permissions],
         sessionId: claims.sessionId,
+        ...(user.teamId === undefined
+            ? {}
+            : {
+                teamId: user.teamId,
+            }),
     };
 
     next();

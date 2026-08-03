@@ -567,7 +567,8 @@ Returns the current safe authentication context.
     "orgId": "org_891...",
     "role": "EMPLOYEE",
     "permissions": ["chat:send", "chat:view_own"],
-    "sessionId": "session-uuid"
+    "sessionId": "session-uuid",
+    "teamId": "team_21f..."
   },
   "meta": {
     "requestId": "req_01J..."

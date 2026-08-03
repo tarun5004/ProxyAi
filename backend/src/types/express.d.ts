@@ -1,16 +1,5 @@
 import type { Logger } from "pino";
-import type {
-    UserPermission,
-    UserRole,
-} from "../features/users/user.types.js";
-
-export interface AuthContext {
-    userId: string;
-    orgId: string;
-    role: UserRole;
-    permissions: UserPermission[];
-    sessionId: string;
-}
+import type { AuthContext } from "../features/auth/auth-context.types.js";
 
 declare global {
     namespace Express {
