@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 2 — Authentication and Tenant Isolation
-Current Task: P2-07 — Permission-Based RBAC
+Current Task: P2-08 — Logout
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P2-06 — Authentication Middleware
-Last Completed Commit: docs(progress): record P2-06 completion
+Last Completed Task: P2-07 — Permission-Based RBAC
+Last Completed Commit: docs(progress): record P2-07 completion
 ```
 
 ---
@@ -387,14 +387,15 @@ Last Completed Commit: docs(progress): record P2-06 completion
 ## P2-07 — Permission-Based RBAC
 
 **Effort:** ⭐ Ultra
+**Status:** Completed
 
-- [ ] Define roles.
-- [ ] Define permissions.
-- [ ] Map roles to permissions.
-- [ ] Create `requirePermission`.
-- [ ] Add team scope.
-- [ ] Add organisation scope.
-- [ ] Add negative authorization tests.
+- [x] Define roles.
+- [x] Define permissions.
+- [x] Map roles to permissions.
+- [x] Create `requirePermission`.
+- [x] Add team scope.
+- [x] Add organisation scope.
+- [x] Add negative authorization manual checks.
 
 ## P2-08 — Logout
 

@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 2 — Authentication and Tenant Isolation
-- **Task:** P2-07 — Permission-Based RBAC
+- **Task:** P2-08 — Logout
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -24,6 +24,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P2-04 — Tenant-aware login completed on 2026-07-28
 - P2-05 — Refresh token rotation completed on 2026-08-03
 - P2-06 — Authentication middleware completed on 2026-08-03
+- P2-07 — Permission-based RBAC completed on 2026-08-03
 
 ## Important Decisions
 
@@ -118,6 +119,11 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Authenticated request context contains only `userId`, `orgId`, current database `role`, current database `permissions`, and `sessionId`.
 - Missing, malformed, expired, disabled-User, suspended-Organisation, invalid-claim, and stale-token cases return the same public `401 UNAUTHORIZED` response.
 - `GET /api/v1/auth/me` is the minimal protected route integration for validating attached auth context; RBAC remains P2-07.
+- P2-07 authorization checks use current `request.auth.permissions` only. Roles are not trusted alone for authorization decisions.
+- `requirePermission(permission)` validates the configured permission against the canonical lowercase `UserPermission` allowlist before checking the current auth context.
+- Missing auth context returns `401 UNAUTHORIZED`; missing required permission returns `403 FORBIDDEN`.
+- Organisation and team scope helpers accept trusted resource scope values only and compare them against server-derived auth context.
+- P2-07 adds no new feature route because no currently implemented documented route requires a permission guard without starting a later phase.
 
 ## Commands That Work
 
@@ -169,30 +175,31 @@ npm start
 - If access-token signing fails after critical refresh-token persistence, the unissued refresh record is unusable because its raw token is never returned; it remains until TTL cleanup.
 - Successful-login metadata updates are best-effort, so a valid issued session can exist even if `failedLoginCount` reset or `lastLoginAt` update temporarily fails.
 - Logger redaction now covers known authentication paths, but it remains path-based and is never permission to log raw User objects, requests, tokens, or credentials.
-- RBAC, permission middleware, logout, refresh-token rate limiting, durable audit persistence, and session administration remain unimplemented by design.
+- Logout, refresh-token rate limiting, durable audit persistence, session administration, feature-flag gates, and route-level integration on future business APIs remain unimplemented by design.
+- Exact role-derived default permission grants are not encoded because approved docs do not define a complete role-to-permission matrix; authorization uses explicit stored permissions.
 - Without MongoDB transactions, a process crash after old-token claim and before replacement response can force re-login; the flow fails closed and revokes family on known post-claim operational failures.
 - Concurrent replay family revocation uses currently persisted family records; a full session-family state table remains deferred.
 
 ## Latest Task Record
 
-- **Task:** P2-06 — Authentication Middleware
+- **Task:** P2-07 — Permission-Based RBAC
 - **Status:** Completed
-- **Files changed:** `backend/src/features/auth/auth.middleware.ts`, `backend/src/features/auth/token.service.ts`, `backend/src/features/auth/auth.controller.ts`, `backend/src/features/auth/auth.routes.ts`, `backend/src/types/express.d.ts`, `docs/05_OPENAPI_SPEC.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Auth flow:** Extracts `Authorization: Bearer`, verifies the access token contract, reloads current User and Organisation by trusted IDs, requires both ACTIVE, and attaches safe auth context.
-- **JWT validation:** Explicit HS256, `typ: at+jwt`, issuer, audience, expiry, signature, `type: access`, UUID subject, UUID org/session IDs, UUID `jti`, role allowlist, and permission allowlist.
-- **Current state:** Middleware uses current database role and permissions instead of JWT role/permission snapshots.
-- **Generic failures:** Missing, malformed, expired, disabled-User, suspended-Organisation, and invalid-claim auth states return public `401 UNAUTHORIZED`.
+- **Files changed:** `backend/src/features/auth/auth-context.types.ts`, `backend/src/features/auth/auth.middleware.ts`, `backend/src/features/auth/authorization.middleware.ts`, `backend/src/types/express.d.ts`, `docs/05_OPENAPI_SPEC.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Authorization flow:** `requirePermission` checks only current `request.auth.permissions` and never grants access from role alone.
+- **Scope helpers:** Organisation helper compares trusted resource `orgId` with auth `orgId`; team helper also requires trusted resource `teamId` to match auth `teamId`.
+- **Auth context:** Optional trusted `teamId` is attached from the current database User when present.
+- **Route integration:** No permission route was added because current implemented routes do not require permission guard without starting a later phase.
 - **Automated tests:** Not generated or modified by request.
-- **Manual checks:** Pending user-run HTTP checks for missing header, malformed token, expired token, disabled User, suspended Organisation, valid token, and stale JWT role/permission override.
+- **Manual checks:** Pending user-run checks for missing auth, missing permission, valid permission, wrong org scope, and wrong team scope.
 - **Typecheck:** `npm run typecheck` passed.
 - **Build:** `npm run build` passed.
-- **Security scans:** Focused scans found no auth middleware logs containing tokens, headers, cookies, raw JWT payloads, passwords, or token hashes.
-- **Scope check:** No RBAC, permission middleware, logout, password reset, durable audit, session administration, tests, or P2-07 implementation was added.
-- **Recommended completed commits:** `feat(auth): add access token authentication middleware`, `docs(progress): record P2-06 completion`.
+- **Security scans:** Focused scans found no new authorization logs, client-trusted `orgId` scope, future routes, logout, admin feature, or P2-08 implementation.
+- **Scope check:** No admin features, business routes, logout, password reset, durable audit, tests, or P2-08 implementation was added.
+- **Recommended completed commits:** `feat(auth): add permission and scope authorization`, `docs(progress): record P2-07 completion`.
 
 ## Recommended Next Task
 
-- P2-07 — Permission-Based RBAC. Start with design review only after explicit approval.
+- P2-08 — Logout. Start with design review only after explicit approval.
 
 ## Do Not Forget
 
