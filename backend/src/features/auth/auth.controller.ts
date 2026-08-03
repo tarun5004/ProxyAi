@@ -175,3 +175,21 @@ export async function refresh(
         throw error;
     }
 }
+
+export function me(
+    request: Request,
+    response: Response,
+): void {
+    if (!request.auth) {
+        throw new AppError(
+            500,
+            "INTERNAL_ERROR",
+            "An unexpected error occurred.",
+        );
+    }
+
+    response.setHeader("Cache-Control", "no-store");
+    response.status(200).json(
+        createSuccessResponse(request.auth, request.requestId),
+    );
+}

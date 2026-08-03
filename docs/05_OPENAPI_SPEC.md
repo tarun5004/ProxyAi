@@ -555,7 +555,7 @@ Logout is idempotent from the user's perspective. The cookie is cleared even whe
 
 ## 14.4 GET `/auth/me`
 
-Returns the current safe user and organisation context.
+Returns the current safe authentication context.
 
 ### Success — `200 OK`
 
@@ -564,22 +564,10 @@ Returns the current safe user and organisation context.
   "success": true,
   "data": {
     "userId": "usr_7dd6...",
-    "email": "employee@example.com",
-    "displayName": "Example Employee",
-    "role": "employee",
+    "orgId": "org_891...",
+    "role": "EMPLOYEE",
     "permissions": ["chat:send", "chat:view_own"],
-    "teamId": "team_21f...",
-    "organisation": {
-      "orgId": "org_891...",
-      "name": "Example Organisation",
-      "plan": "FREE",
-      "featureFlags": {
-        "autoRouting": false,
-        "teamLeadView": false,
-        "anomalyDetection": false,
-        "auditExport": false
-      }
-    }
+    "sessionId": "session-uuid"
   },
   "meta": {
     "requestId": "req_01J..."
@@ -587,7 +575,7 @@ Returns the current safe user and organisation context.
 }
 ```
 
-The endpoint must not return password hashes, token records, encrypted message content, secret keys, or internal MongoDB identifiers.
+The endpoint must not return password hashes, token records, encrypted message content, secret keys, raw JWT payloads, or internal MongoDB identifiers.
 
 # 15. Conversation APIs
 
