@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 3 — Provider Abstraction and Resilience
-Current Task: P3-03 — Real Provider Adapter
+Current Task: P3-04 — Capability Registry
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P3-02 — Fake Provider Adapter
-Last Completed Commit: feat(providers): add deterministic fake provider adapter
+Last Completed Task: P3-03 — First Real Provider Adapter
+Last Completed Commit: feat(providers): add first real provider adapter
 ```
 
 ---
@@ -425,8 +425,8 @@ Last Completed Commit: feat(providers): add deterministic fake provider adapter
 - [x] Create `ProviderAdapter` interface.
 - [x] Build fake provider adapter first.
 - [x] Simulate success, timeout, 429, 500, and mid-stream failure.
-- [ ] Add one real provider adapter.
-- [ ] Keep SDK code inside adapter.
+- [x] Add one real provider adapter.
+- [x] Keep SDK code inside adapter.
 - [ ] Add capability registry.
 - [ ] Add retry with exponential backoff and jitter.
 - [ ] Retry only approved errors.

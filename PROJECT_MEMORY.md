@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 3 — Provider Abstraction and Resilience
-- **Task:** P3-03 — Real Provider Adapter
+- **Task:** P3-04 — Capability Registry
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -28,6 +28,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P2-08 — Logout completed on 2026-08-07
 - P3-01 — Provider types and interface completed on 2026-08-07
 - P3-02 — Fake provider adapter completed on 2026-08-07
+- P3-03 — First real provider adapter completed on 2026-08-07
 
 ## Important Decisions
 
@@ -135,6 +136,11 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Fake provider uses deterministic configuration only: success, timeout, rate-limit, server-error, and mid-stream-failure modes.
 - Fake provider increments a call counter for completion and stream attempts, including failed calls, so later idempotency/routing checks can verify provider-call counts.
 - Fake provider failures use normalized `ProviderError` shapes and do not include raw prompts, raw responses, headers, keys, or SDK objects.
+- Groq is the approved first real provider adapter.
+- Groq configuration is validated through `GROQ_API_KEY`, `GROQ_MODEL`, and `PROVIDER_REQUEST_TIMEOUT_MS`.
+- `GROQ_MODEL` has no hidden production default; deployments must configure it explicitly.
+- Groq SDK retries are disabled in the adapter because retry/fallback/circuit breaker work is deferred.
+- Provider pricing is not approved yet, so Groq results leave `estimatedCostUsd` undefined.
 
 ## Commands That Work
 
@@ -193,8 +199,19 @@ npm start
 - P3-01 adds contracts only. Fake providers, real SDKs, retry, fallback, circuit breaker, routing, and capability registry remain deferred to later Phase 3 tasks.
 - Normalized `ProviderError` objects are safe contracts, but adapters must still avoid logging raw SDK errors, raw prompts, raw responses, headers, keys, or provider secrets.
 - P3-02 is deterministic test infrastructure, not a real provider. Real SDK integration, retry, fallback, circuit breaker, routing, and capability registry remain deferred.
+- P3-03 has no live Groq network verification in automated tests. Tests inject a no-network mock client and verify mapping, timeout options, streaming, error normalization, health, and capabilities.
 
 ## Latest Task Record
+
+- **Task:** P3-03 — First Real Provider Adapter
+- **Status:** Completed
+- **Files changed:** `backend/package.json`, `backend/package-lock.json`, `backend/.env.example`, `backend/src/config/env.ts`, `backend/src/features/providers/groq-provider.adapter.ts`, `backend/tests/helpers/test-env.mjs`, `backend/tests/groq-provider.adapter.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Groq adapter:** Maps canonical completion and streaming requests into Groq chat completions, maps responses back to canonical results/chunks, disables SDK retries, applies validated timeout, and normalizes SDK failures into `ProviderError`.
+- **Security:** API key stays in validated env; tests use a mock client; adapter does not log prompts, responses, API keys, auth headers, SDK bodies, or raw SDK errors.
+- **Focused tests:** Four focused tests cover completion mapping, streaming mapping, 429 normalization, and health/capabilities without real network calls.
+- **Verification:** `node --test tests/groq-provider.adapter.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Recommended completed commit:** `feat(providers): add first real provider adapter`.
+- **Next task:** P3-04 — Capability Registry. Do not start without approval.
 
 - **Task:** P3-02 — Fake Provider Adapter
 - **Status:** Completed
@@ -243,7 +260,7 @@ npm start
 
 ## Recommended Next Task
 
-- P3-03 — Real Provider Adapter. Start only after explicit approval.
+- P3-04 — Capability Registry. Start only after explicit approval.
 
 ## Do Not Forget
 

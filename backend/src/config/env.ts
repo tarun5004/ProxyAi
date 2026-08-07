@@ -29,6 +29,13 @@ const envSchema = z.object({
     AUTH_RATE_LIMIT_SECRET: base64UrlSecretSchema,
     ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30),
+    GROQ_API_KEY: z.string().trim().min(1),
+    GROQ_MODEL: z.string().trim().min(1),
+    PROVIDER_REQUEST_TIMEOUT_MS: z.coerce
+        .number()
+        .int()
+        .min(1_000)
+        .max(120_000),
     COMMIT_SHA: z.preprocess(
         (value) =>
             typeof value === "string" && value.trim() === "" ? undefined : value,
