@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 2 — Authentication and Tenant Isolation
-- **Task:** P2-08 — Logout
-- **Status:** Completed
+- **Phase:** Phase 3 — Provider Abstraction and Resilience
+- **Task:** P3-02 — Fake Provider Adapter
+- **Status:** Not Started
 
 ## Completed Tasks
 
@@ -26,6 +26,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P2-06 — Authentication middleware completed on 2026-08-03
 - P2-07 — Permission-based RBAC completed on 2026-08-03
 - P2-08 — Logout completed on 2026-08-07
+- P3-01 — Provider types and interface completed on 2026-08-07
 
 ## Important Decisions
 
@@ -125,6 +126,11 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Missing auth context returns `401 UNAUTHORIZED`; missing required permission returns `403 FORBIDDEN`.
 - Organisation and team scope helpers accept trusted resource scope values only and compare them against server-derived auth context.
 - P2-07 adds no new feature route because no currently implemented documented route requires a permission guard without starting a later phase.
+- Provider contracts use canonical `ProviderId` values: `groq`, `gemini`, and `third`.
+- P3-01 keeps provider SDK-specific request, response, stream, and error objects outside shared/domain contracts.
+- Provider messages are readonly canonical role/content objects, and provider calls accept an optional `AbortSignal` for future cancellation.
+- Provider results normalize usage, latency, finish reason, estimated cost, provider identity, and model identity.
+- Temperature is omitted until approved documentation explicitly adds it.
 
 ## Commands That Work
 
@@ -180,8 +186,20 @@ npm start
 - Exact role-derived default permission grants are not encoded because approved docs do not define a complete role-to-permission matrix; authorization uses explicit stored permissions.
 - Without MongoDB transactions, a process crash after old-token claim and before replacement response can force re-login; the flow fails closed and revokes family on known post-claim operational failures.
 - Concurrent replay family revocation uses currently persisted family records; a full session-family state table remains deferred.
+- P3-01 adds contracts only. Fake providers, real SDKs, retry, fallback, circuit breaker, routing, and capability registry remain deferred to later Phase 3 tasks.
+- Normalized `ProviderError` objects are safe contracts, but adapters must still avoid logging raw SDK errors, raw prompts, raw responses, headers, keys, or provider secrets.
 
 ## Latest Task Record
+
+- **Task:** P3-01 — Provider Types and Interface
+- **Status:** Completed
+- **Files changed:** `backend/src/features/providers/provider.types.ts`, `backend/src/features/providers/provider-adapter.ts`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Provider contract:** Defines canonical completion request/result, stream chunk, capabilities, health, and normalized provider error types without SDK-specific types.
+- **Adapter interface:** Supports non-stream completion, streaming completion, health checks, and capabilities.
+- **Automated tests:** Not generated or modified by request.
+- **Verification:** `npm run typecheck` passed; `npm run build` passed.
+- **Recommended completed commit:** `feat(providers): add canonical provider adapter contract`.
+- **Next task:** P3-02 — Fake Provider Adapter. Do not start without approval.
 
 - **Task:** P2-08 — Logout
 - **Status:** Completed
@@ -211,7 +229,7 @@ npm start
 
 ## Recommended Next Task
 
-- P2-08 — Logout. Start with design review only after explicit approval.
+- P3-02 — Fake Provider Adapter. Start only after explicit approval.
 
 ## Do Not Forget
 
