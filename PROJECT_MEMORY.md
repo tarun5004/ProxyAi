@@ -25,6 +25,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P2-05 — Refresh token rotation completed on 2026-08-03
 - P2-06 — Authentication middleware completed on 2026-08-03
 - P2-07 — Permission-based RBAC completed on 2026-08-03
+- P2-08 — Logout completed on 2026-08-07
 
 ## Important Decisions
 
@@ -188,8 +189,9 @@ npm start
 - **Logout flow:** Reads the refresh token only from the `proxiai_refresh` cookie, hashes it, revokes the trusted token family by DB identifiers when present, and clears the cookie with the approved attributes.
 - **Idempotency:** Missing, unknown, or already revoked refresh tokens return the standard success envelope.
 - **Logging:** Logout emits safe `auth.logout_succeeded` and `auth.logout_operational_error` events without raw tokens or cookie data.
+- **Post-completion correction:** Logout is refresh-cookie only and no longer requires Bearer auth; MongoDB lookup or revocation failures now return `503 AUTH_TEMPORARILY_UNAVAILABLE` after clearing the cookie.
 - **Automated tests:** Not generated or modified by request.
-- **Manual checks:** Typecheck and build passed; live logout behavior verification was not executed here.
+- **Manual checks:** Typecheck and build passed after the refresh-cookie-only correction; live logout behavior verification was not executed here.
 - **Recommended completed commits:** `feat(auth): add idempotent logout`, `docs(progress): record P2-08 completion`.
 
 - **Task:** P2-07 — Permission-Based RBAC
