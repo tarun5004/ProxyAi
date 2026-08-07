@@ -751,7 +751,7 @@ export function createAuthService(
                     "MONGODB_QUERY_FAILED",
                 );
 
-                return;
+                throw createAuthUnavailableError();
             }
 
             if (!existingToken) {
@@ -776,7 +776,7 @@ export function createAuthService(
                     "REFRESH_TOKEN_REVOCATION_FAILED",
                 );
 
-                return;
+                throw createAuthUnavailableError();
             }
 
             logLogoutSuccess(

@@ -421,7 +421,7 @@ The database update should use a transaction when available. For the MVP, a guar
 |---|---|---|---|
 | POST | `/auth/login` | Public | Authenticate and create session |
 | POST | `/auth/refresh` | Refresh cookie | Rotate refresh token |
-| POST | `/auth/logout` | Access token | Revoke current session |
+| POST | `/auth/logout` | Refresh cookie | Revoke current session |
 | GET | `/auth/me` | Access token | Return current user profile |
 
 ## 11. RBAC Design

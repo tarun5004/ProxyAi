@@ -391,7 +391,7 @@ enum: [manual, auto, fallback, cache]
 |---|---|---|---|---|
 | POST | `/auth/login` | Public | None | JSON |
 | POST | `/auth/refresh` | Refresh cookie | None | JSON |
-| POST | `/auth/logout` | Bearer | Authenticated | JSON |
+| POST | `/auth/logout` | Refresh cookie | None | JSON |
 | GET | `/auth/me` | Bearer | Authenticated | JSON |
 | POST | `/conversations` | Bearer | `chat:send` | JSON |
 | GET | `/conversations` | Bearer | `chat:view_own` | JSON |
@@ -531,7 +531,7 @@ Revokes the current session and clears the refresh cookie.
 
 ### Authentication
 
-Bearer access token.
+Refresh cookie only.
 
 ### Request
 
@@ -554,6 +554,8 @@ No body.
 Logout is idempotent from the user's perspective. The cookie is cleared even when the stored session is already revoked.
 
 Missing, unknown, or already revoked refresh tokens still return the standard success envelope.
+
+If a required auth dependency fails while resolving or revoking a known refresh token, the API returns `503 AUTH_TEMPORARILY_UNAVAILABLE` after clearing the cookie.
 
 ## 14.4 GET `/auth/me`
 
@@ -1739,6 +1741,8 @@ paths:
   /auth/logout:
     post:
       tags: [Auth]
+      security:
+        - refreshCookie: []
       operationId: logout
       responses:
         '200':
@@ -1747,8 +1751,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LogoutSuccess'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /auth/me:
     get:
       tags: [Auth]
