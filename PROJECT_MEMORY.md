@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 3 — Provider Abstraction and Resilience
-- **Task:** P3-02 — Fake Provider Adapter
+- **Task:** P3-03 — Real Provider Adapter
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -27,6 +27,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P2-07 — Permission-based RBAC completed on 2026-08-03
 - P2-08 — Logout completed on 2026-08-07
 - P3-01 — Provider types and interface completed on 2026-08-07
+- P3-02 — Fake provider adapter completed on 2026-08-07
 
 ## Important Decisions
 
@@ -131,6 +132,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Provider messages are readonly canonical role/content objects, and provider calls accept an optional `AbortSignal` for future cancellation.
 - Provider results normalize usage, latency, finish reason, estimated cost, provider identity, and model identity.
 - Temperature is omitted until approved documentation explicitly adds it.
+- Fake provider uses deterministic configuration only: success, timeout, rate-limit, server-error, and mid-stream-failure modes.
+- Fake provider increments a call counter for completion and stream attempts, including failed calls, so later idempotency/routing checks can verify provider-call counts.
+- Fake provider failures use normalized `ProviderError` shapes and do not include raw prompts, raw responses, headers, keys, or SDK objects.
 
 ## Commands That Work
 
@@ -188,8 +192,18 @@ npm start
 - Concurrent replay family revocation uses currently persisted family records; a full session-family state table remains deferred.
 - P3-01 adds contracts only. Fake providers, real SDKs, retry, fallback, circuit breaker, routing, and capability registry remain deferred to later Phase 3 tasks.
 - Normalized `ProviderError` objects are safe contracts, but adapters must still avoid logging raw SDK errors, raw prompts, raw responses, headers, keys, or provider secrets.
+- P3-02 is deterministic test infrastructure, not a real provider. Real SDK integration, retry, fallback, circuit breaker, routing, and capability registry remain deferred.
 
 ## Latest Task Record
+
+- **Task:** P3-02 — Fake Provider Adapter
+- **Status:** Completed
+- **Files changed:** `backend/src/features/providers/fake-provider.adapter.ts`, `backend/tests/fake-provider.adapter.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Fake behavior:** Supports success completion, streaming completion, timeout, 429, 500, mid-stream failure, health, capabilities, and call counting.
+- **Focused tests:** Five focused tests cover normal completion, streaming, immediate failure modes, call counter, and mid-stream failure.
+- **Verification:** `node --test tests/fake-provider.adapter.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Recommended completed commit:** `feat(providers): add deterministic fake provider adapter`.
+- **Next task:** P3-03 — Real Provider Adapter. Do not start without approval.
 
 - **Task:** P3-01 — Provider Types and Interface
 - **Status:** Completed
@@ -229,7 +243,7 @@ npm start
 
 ## Recommended Next Task
 
-- P3-02 — Fake Provider Adapter. Start only after explicit approval.
+- P3-03 — Real Provider Adapter. Start only after explicit approval.
 
 ## Do Not Forget
 

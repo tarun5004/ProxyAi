@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 3 — Provider Abstraction and Resilience
-Current Task: P3-02 — Fake Provider Adapter
+Current Task: P3-03 — Real Provider Adapter
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P3-01 — Provider Types and Interface
-Last Completed Commit: feat(providers): add canonical provider adapter contract
+Last Completed Task: P3-02 — Fake Provider Adapter
+Last Completed Commit: feat(providers): add deterministic fake provider adapter
 ```
 
 ---
@@ -423,8 +423,8 @@ Last Completed Commit: feat(providers): add canonical provider adapter contract
 
 - [x] Define provider request, response, stream, capability, health, and error types.
 - [x] Create `ProviderAdapter` interface.
-- [ ] Build fake provider adapter first.
-- [ ] Simulate success, timeout, 429, 500, and mid-stream failure.
+- [x] Build fake provider adapter first.
+- [x] Simulate success, timeout, 429, 500, and mid-stream failure.
 - [ ] Add one real provider adapter.
 - [ ] Keep SDK code inside adapter.
 - [ ] Add capability registry.
@@ -436,7 +436,7 @@ Last Completed Commit: feat(providers): add canonical provider adapter contract
 
 ## Exit Criteria
 
-- [ ] Fake provider supports all tests.
+- [x] Fake provider supports all tests.
 - [ ] One real provider works.
 - [ ] Retry is bounded.
 - [ ] Circuit-breaker tests pass.
