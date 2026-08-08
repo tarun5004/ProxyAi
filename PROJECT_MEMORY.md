@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 3 — Provider Abstraction and Resilience
-- **Task:** P3-07 — Ordered Fallback
-- **Status:** Not Started
+- **Task:** Awaiting approval before next phase/task
+- **Status:** P3-07 Completed
 
 ## Completed Tasks
 
@@ -32,6 +32,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P3-04 — Provider capability registry completed on 2026-08-08
 - P3-05 — Retry policy completed on 2026-08-08
 - P3-06 — Provider circuit breaker completed on 2026-08-08
+- P3-07 — Ordered provider fallback completed on 2026-08-08
 
 ## Important Decisions
 
@@ -156,6 +157,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Circuit state is in process memory and kept per provider for the MVP.
 - Circuit failures count only normalized retryable provider availability errors; authentication and invalid-request errors do not open the circuit.
 - OPEN circuits fail fast with normalized `ProviderCircuitOpenError`; after cooldown, one HALF_OPEN trial is allowed.
+- Ordered provider fallback is deterministic and bounded by the supplied candidate list; it does not perform smart routing or pricing decisions.
+- Streaming fallback is allowed only before the first streamed chunk; after any chunk is emitted, mid-stream errors are returned without switching providers.
+- Fallback records only safe metadata: request ID, provider ID, model, attempt number, status, error category, and status code.
 
 ## Commands That Work
 
@@ -217,20 +221,21 @@ npm start
 - P3-03 has no live Groq network verification in automated tests. Tests inject a no-network mock client and verify mapping, timeout options, streaming, error normalization, health, and capabilities.
 - P3-04 does not choose providers or models for requests. Routing, retry, fallback, circuit breaker, and dynamic provider-health overlay remain later Phase 3 work.
 - P3-05 adds only the generic retry helper/policy. It is not wired into routing, fallback, or circuit breaker behavior yet.
-- P3-06 adds only the reusable circuit breaker. It is not wired into provider routing or fallback yet.
+- P3-07 fallback is reusable provider orchestration only; it is not wired into chat endpoints because Phase 5 chat is not started.
+- Circuit breaker state remains in-memory only; distributed provider resilience state is deferred.
 
 ## Latest Task Record
 
-- **Task:** P3-06 — Circuit Breaker
+- **Task:** P3-07 — Ordered Fallback
 - **Status:** Completed
-- **Files changed:** `backend/src/features/providers/provider-circuit-breaker.ts`, `backend/tests/provider-circuit-breaker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Circuit breaker:** Adds reusable per-provider CLOSED, OPEN, and HALF_OPEN state management with configurable failure threshold, cooldown, and half-open trial limit.
-- **Counting rule:** Only retryable provider availability errors count; authentication, invalid-request, client/validation, and non-normalized errors do not open the circuit.
-- **Scope:** No fallback, routing, Redis-distributed state, provider execution wiring, or circuit metrics were added.
-- **Focused tests:** Four tests cover CLOSED to OPEN threshold, OPEN fast rejection, HALF_OPEN success closing the circuit, and HALF_OPEN failure reopening it.
-- **Verification:** `node --test tests/provider-circuit-breaker.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Recommended completed commit:** `feat(providers): add provider circuit breaker`.
-- **Next task:** P3-07 — Ordered Fallback. Do not start without approval.
+- **Files changed:** `backend/src/features/providers/provider-fallback.ts`, `backend/src/features/providers/provider-circuit-breaker.ts`, `backend/tests/provider-fallback.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Fallback:** Adds ordered provider candidate execution with per-candidate retry, OPEN-circuit skipping, safe attempt metadata, and typed all-providers-unavailable failure.
+- **Streaming rule:** Fallback can move to another provider only before the first streamed chunk; after streaming begins, failures do not switch providers.
+- **Scope:** No smart routing, pricing logic, chat endpoint integration, fallback ranking, or provider SDK changes were added.
+- **Focused tests:** Four tests cover primary-to-secondary fallback, OPEN primary skip, normalized all-providers-unavailable error, and no mid-stream provider switch.
+- **Verification:** `node --test tests/provider-fallback.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Recommended completed commit:** `feat(providers): add ordered provider fallback`.
+- **Next task:** Await explicit approval before Phase 3 closure or Phase 4 planning.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -309,7 +314,7 @@ npm start
 
 ## Recommended Next Task
 
-- P3-07 — Ordered Fallback. Start only after explicit approval.
+- Await explicit approval before Phase 3 closure or Phase 4 planning.
 
 ## Do Not Forget
 

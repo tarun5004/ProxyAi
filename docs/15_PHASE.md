@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 3 — Provider Abstraction and Resilience
-Current Task: P3-07 — Ordered Fallback
-Current Status: Not Started
-Current Blocker: None
-Last Completed Task: P3-06 — Circuit Breaker
-Last Completed Commit: feat(providers): add provider circuit breaker
+Current Task: Awaiting approval before next phase/task
+Current Status: P3-07 Completed
+Current Blocker: Phase 3 exit review still needs explicit approval before Phase 4
+Last Completed Task: P3-07 — Ordered Fallback
+Last Completed Commit: feat(providers): add ordered provider fallback
 ```
 
 ---
@@ -431,8 +431,8 @@ Last Completed Commit: feat(providers): add provider circuit breaker
 - [x] Add retry with exponential backoff and jitter.
 - [x] Retry only approved errors.
 - [x] Add CLOSED, OPEN, and HALF_OPEN circuit states.
-- [ ] Add ordered fallback before first token.
-- [ ] Return typed all-providers-unavailable error.
+- [x] Add ordered fallback before first token.
+- [x] Return typed all-providers-unavailable error.
 
 ## Exit Criteria
 
@@ -440,7 +440,7 @@ Last Completed Commit: feat(providers): add provider circuit breaker
 - [ ] One real provider works.
 - [x] Retry is bounded.
 - [x] Circuit-breaker tests pass.
-- [ ] Fallback works before first token.
+- [x] Fallback works before first token.
 - [ ] Provider secrets are redacted.
 
 ---

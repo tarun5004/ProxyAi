@@ -112,6 +112,13 @@ export class ProviderCircuitBreaker {
         return createSnapshot(record);
     }
 
+    public isOpen(providerId: ProviderId): boolean {
+        const record = this.getRecord(providerId);
+
+        return record.state === "OPEN"
+            && !this.hasCooldownElapsed(record);
+    }
+
     public reset(providerId?: ProviderId): void {
         if (providerId === undefined) {
             this.recordsByProviderId.clear();
