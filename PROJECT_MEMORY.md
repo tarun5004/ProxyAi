@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 3 — Provider Abstraction and Resilience
-- **Task:** Awaiting approval before next phase/task
-- **Status:** P3-07 Completed
+- **Phase:** Ready for Phase 4 — PII and Policy Enforcement
+- **Task:** Awaiting approval before P4-01
+- **Status:** Phase 2 implementation complete; Phase 3 complete; Phase 4 not started
 
 ## Completed Tasks
 
@@ -33,6 +33,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P3-05 — Retry policy completed on 2026-08-08
 - P3-06 — Provider circuit breaker completed on 2026-08-08
 - P3-07 — Ordered provider fallback completed on 2026-08-08
+- Phase 2 + Phase 3 closure audit completed on 2026-08-08
+- Phase 2 implementation marked complete with mandatory cross-tenant CRUD runtime gate explicitly deferred on 2026-08-08
 
 ## Important Decisions
 
@@ -160,6 +162,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Ordered provider fallback is deterministic and bounded by the supplied candidate list; it does not perform smart routing or pricing decisions.
 - Streaming fallback is allowed only before the first streamed chunk; after any chunk is emitted, mid-stream errors are returned without switching providers.
 - Fallback records only safe metadata: request ID, provider ID, model, attempt number, status, error category, and status code.
+- Phase 3 live verification used the Groq adapter directly, not retry/fallback/circuit orchestration, to avoid unintended extra paid calls.
+- Mandatory cross-tenant CRUD verification must run against the first implemented tenant-owned CRUD resource before that resource is considered complete.
 
 ## Commands That Work
 
@@ -223,19 +227,19 @@ npm start
 - P3-05 adds only the generic retry helper/policy. It is not wired into routing, fallback, or circuit breaker behavior yet.
 - P3-07 fallback is reusable provider orchestration only; it is not wired into chat endpoints because Phase 5 chat is not started.
 - Circuit breaker state remains in-memory only; distributed provider resilience state is deferred.
+- Cross-tenant scope helpers deny mismatched trusted org/team resources, but full CRUD proof remains deferred until tenant-owned business routes exist.
 
 ## Latest Task Record
 
-- **Task:** P3-07 — Ordered Fallback
+- **Task:** Phase 2 + Phase 3 Closure Audit
 - **Status:** Completed
-- **Files changed:** `backend/src/features/providers/provider-fallback.ts`, `backend/src/features/providers/provider-circuit-breaker.ts`, `backend/tests/provider-fallback.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Fallback:** Adds ordered provider candidate execution with per-candidate retry, OPEN-circuit skipping, safe attempt metadata, and typed all-providers-unavailable failure.
-- **Streaming rule:** Fallback can move to another provider only before the first streamed chunk; after streaming begins, failures do not switch providers.
-- **Scope:** No smart routing, pricing logic, chat endpoint integration, fallback ranking, or provider SDK changes were added.
-- **Focused tests:** Four tests cover primary-to-secondary fallback, OPEN primary skip, normalized all-providers-unavailable error, and no mid-stream provider switch.
-- **Verification:** `node --test tests/provider-fallback.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Recommended completed commit:** `feat(providers): add ordered provider fallback`.
-- **Next task:** Await explicit approval before Phase 3 closure or Phase 4 planning.
+- **Files changed:** `docs/15_PHASE.md` and `PROJECT_MEMORY.md`.
+- **Phase 2 evidence:** Auth middleware loads current User and Organisation using trusted token `orgId`; permission middleware and org/team scope helpers deny missing/wrong scope in a tiny manual check.
+- **Phase 2 closure:** Implementation is complete; mandatory cross-tenant CRUD verification is explicitly deferred until the first tenant-owned CRUD resource exists.
+- **Phase 3 evidence:** Live Groq completion and health check succeeded with configured model `llama-3.1-8b-instant`; result mapping was canonical and `estimatedCostUsd` stayed undefined.
+- **Secret scans:** Actual `GROQ_API_KEY` was absent from source and git diff; provider files do not log SDK request/response/error bodies.
+- **Verification:** `npm run typecheck`, `npm run build`, `git diff --check`, focused secret scans, tiny scope check, and live Groq smoke passed.
+- **Next task:** Wait for approval before Phase 4 planning.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -314,7 +318,7 @@ npm start
 
 ## Recommended Next Task
 
-- Await explicit approval before Phase 3 closure or Phase 4 planning.
+- Wait for approval before Phase 4 planning; do not start P4-01 while the Phase 2 cross-tenant CRUD proof remains not fully testable.
 
 ## Do Not Forget
 

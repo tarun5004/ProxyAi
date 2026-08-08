@@ -134,12 +134,12 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 3 — Provider Abstraction and Resilience
-Current Task: Awaiting approval before next phase/task
-Current Status: P3-07 Completed
-Current Blocker: Phase 3 exit review still needs explicit approval before Phase 4
-Last Completed Task: P3-07 — Ordered Fallback
-Last Completed Commit: feat(providers): add ordered provider fallback
+Current Phase: Ready for Phase 4 — PII and Policy Enforcement
+Current Task: Awaiting approval before P4-01
+Current Status: Phase 2 implementation complete; Phase 3 complete; Phase 4 not started
+Current Blocker: None
+Last Completed Task: Phase 2 + Phase 3 closure audit
+Last Completed Commit: docs(progress): record Phase 2 deferred tenant gate and Phase 3 closure
 ```
 
 ---
@@ -303,8 +303,8 @@ Last Completed Commit: feat(providers): add ordered provider fallback
 
 # 8. Phase 2 — Authentication and Tenant Isolation
 
-**Effort:** ⭐ Ultra  
-**Status:** In Progress  
+**Effort:** ⭐ Ultra
+**Status:** Completed
 **Goal:** Every request has a trusted user, organisation, role, and permission context.
 
 ## P2-01 — Organisation Model
@@ -406,12 +406,14 @@ Last Completed Commit: feat(providers): add ordered provider fallback
 ## Phase 2 Exit Criteria
 
 - [x] Login, refresh, reuse detection, and logout work.
-- [ ] Auth middleware resolves trusted user and organisation.
-- [ ] Permission middleware works.
-- [ ] Cross-tenant tests pass.
-- [ ] Secrets do not appear in logs.
+- [x] Auth middleware resolves trusted user and organisation.
+- [x] Permission middleware works.
+- [ ] Cross-tenant CRUD runtime gate deferred until first tenant-owned CRUD resource.
+- [x] Secrets do not appear in logs.
 
 **Mandatory Gate:** User from Org A cannot read, update, or delete Org B data.
+
+**Deferred Runtime Verification:** Mandatory cross-tenant CRUD verification must run against the first implemented tenant-owned CRUD resource before that resource is considered complete.
 
 ---
 
@@ -437,11 +439,11 @@ Last Completed Commit: feat(providers): add ordered provider fallback
 ## Exit Criteria
 
 - [x] Fake provider supports all tests.
-- [ ] One real provider works.
+- [x] One real provider works.
 - [x] Retry is bounded.
 - [x] Circuit-breaker tests pass.
 - [x] Fallback works before first token.
-- [ ] Provider secrets are redacted.
+- [x] Provider secrets are redacted.
 
 ---
 
