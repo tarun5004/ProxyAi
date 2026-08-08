@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 3 — Provider Abstraction and Resilience
-Current Task: P3-06 — Circuit Breaker
+Current Task: P3-07 — Ordered Fallback
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P3-05 — Retry Policy
-Last Completed Commit: feat(providers): add bounded retry policy
+Last Completed Task: P3-06 — Circuit Breaker
+Last Completed Commit: feat(providers): add provider circuit breaker
 ```
 
 ---
@@ -430,7 +430,7 @@ Last Completed Commit: feat(providers): add bounded retry policy
 - [x] Add capability registry.
 - [x] Add retry with exponential backoff and jitter.
 - [x] Retry only approved errors.
-- [ ] Add CLOSED, OPEN, and HALF_OPEN circuit states.
+- [x] Add CLOSED, OPEN, and HALF_OPEN circuit states.
 - [ ] Add ordered fallback before first token.
 - [ ] Return typed all-providers-unavailable error.
 
@@ -439,7 +439,7 @@ Last Completed Commit: feat(providers): add bounded retry policy
 - [x] Fake provider supports all tests.
 - [ ] One real provider works.
 - [x] Retry is bounded.
-- [ ] Circuit-breaker tests pass.
+- [x] Circuit-breaker tests pass.
 - [ ] Fallback works before first token.
 - [ ] Provider secrets are redacted.
 

@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 3 — Provider Abstraction and Resilience
-- **Task:** P3-06 — Circuit Breaker
+- **Task:** P3-07 — Ordered Fallback
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -31,6 +31,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P3-03 — First real provider adapter completed on 2026-08-07
 - P3-04 — Provider capability registry completed on 2026-08-08
 - P3-05 — Retry policy completed on 2026-08-08
+- P3-06 — Provider circuit breaker completed on 2026-08-08
 
 ## Important Decisions
 
@@ -151,6 +152,10 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Provider retries apply only to normalized retryable provider errors for timeout, rate limit/429, unavailable, and approved transient 500/502/503/504 provider errors.
 - Authentication, invalid request, validation/client errors, and non-normalized errors are not retried.
 - Retry backoff respects `AbortSignal` and returns a normalized `ProviderRetryAbortedError` when aborted.
+- Provider circuit breaker defaults are centralized at 5 consecutive availability failures, 30 seconds cooldown, and 1 half-open trial.
+- Circuit state is in process memory and kept per provider for the MVP.
+- Circuit failures count only normalized retryable provider availability errors; authentication and invalid-request errors do not open the circuit.
+- OPEN circuits fail fast with normalized `ProviderCircuitOpenError`; after cooldown, one HALF_OPEN trial is allowed.
 
 ## Commands That Work
 
@@ -212,8 +217,20 @@ npm start
 - P3-03 has no live Groq network verification in automated tests. Tests inject a no-network mock client and verify mapping, timeout options, streaming, error normalization, health, and capabilities.
 - P3-04 does not choose providers or models for requests. Routing, retry, fallback, circuit breaker, and dynamic provider-health overlay remain later Phase 3 work.
 - P3-05 adds only the generic retry helper/policy. It is not wired into routing, fallback, or circuit breaker behavior yet.
+- P3-06 adds only the reusable circuit breaker. It is not wired into provider routing or fallback yet.
 
 ## Latest Task Record
+
+- **Task:** P3-06 — Circuit Breaker
+- **Status:** Completed
+- **Files changed:** `backend/src/features/providers/provider-circuit-breaker.ts`, `backend/tests/provider-circuit-breaker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Circuit breaker:** Adds reusable per-provider CLOSED, OPEN, and HALF_OPEN state management with configurable failure threshold, cooldown, and half-open trial limit.
+- **Counting rule:** Only retryable provider availability errors count; authentication, invalid-request, client/validation, and non-normalized errors do not open the circuit.
+- **Scope:** No fallback, routing, Redis-distributed state, provider execution wiring, or circuit metrics were added.
+- **Focused tests:** Four tests cover CLOSED to OPEN threshold, OPEN fast rejection, HALF_OPEN success closing the circuit, and HALF_OPEN failure reopening it.
+- **Verification:** `node --test tests/provider-circuit-breaker.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Recommended completed commit:** `feat(providers): add provider circuit breaker`.
+- **Next task:** P3-07 — Ordered Fallback. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -292,7 +309,7 @@ npm start
 
 ## Recommended Next Task
 
-- P3-06 — Circuit Breaker. Start only after explicit approval.
+- P3-07 — Ordered Fallback. Start only after explicit approval.
 
 ## Do Not Forget
 
