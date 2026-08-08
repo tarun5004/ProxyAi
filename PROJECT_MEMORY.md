@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 3 — Provider Abstraction and Resilience
-- **Task:** P3-05 — Retry Policy
+- **Task:** P3-06 — Circuit Breaker
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -30,6 +30,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P3-02 — Fake provider adapter completed on 2026-08-07
 - P3-03 — First real provider adapter completed on 2026-08-07
 - P3-04 — Provider capability registry completed on 2026-08-08
+- P3-05 — Retry policy completed on 2026-08-08
 
 ## Important Decisions
 
@@ -146,6 +147,10 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Registry entries currently include Groq and the deterministic fake provider.
 - Registry model metadata includes supported models, context/output limits, streaming support, and non-streaming support.
 - Cost and latency metadata are omitted because exact approved pricing and latency seed values are not documented yet.
+- Provider retry defaults are centralized at max 3 attempts, 500 ms exponential base delay, 4,000 ms delay cap, and up to 250 ms jitter.
+- Provider retries apply only to normalized retryable provider errors for timeout, rate limit/429, unavailable, and approved transient 500/502/503/504 provider errors.
+- Authentication, invalid request, validation/client errors, and non-normalized errors are not retried.
+- Retry backoff respects `AbortSignal` and returns a normalized `ProviderRetryAbortedError` when aborted.
 
 ## Commands That Work
 
@@ -206,8 +211,19 @@ npm start
 - P3-02 is deterministic test infrastructure, not a real provider. Real SDK integration, retry, fallback, circuit breaker, routing, and capability registry remain deferred.
 - P3-03 has no live Groq network verification in automated tests. Tests inject a no-network mock client and verify mapping, timeout options, streaming, error normalization, health, and capabilities.
 - P3-04 does not choose providers or models for requests. Routing, retry, fallback, circuit breaker, and dynamic provider-health overlay remain later Phase 3 work.
+- P3-05 adds only the generic retry helper/policy. It is not wired into routing, fallback, or circuit breaker behavior yet.
 
 ## Latest Task Record
+
+- **Task:** P3-05 — Retry Policy
+- **Status:** Completed
+- **Files changed:** `backend/src/features/providers/provider-retry.policy.ts`, `backend/tests/provider-retry.policy.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Retry policy:** Adds bounded reusable provider retry helper with exponential backoff, jitter, max-attempt enforcement, approved retry categories, and abort-aware backoff.
+- **Scope:** No circuit breaker, fallback, routing, or provider-specific retry integration was added.
+- **Focused tests:** Four tests cover transient retry success, non-retryable no-retry behavior, max-attempt enforcement, and abort during backoff.
+- **Verification:** `node --test tests/provider-retry.policy.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Recommended completed commit:** `feat(providers): add bounded retry policy`.
+- **Next task:** P3-06 — Circuit Breaker. Do not start without approval.
 
 - **Task:** P3-04 — Capability Registry
 - **Status:** Completed
@@ -276,7 +292,7 @@ npm start
 
 ## Recommended Next Task
 
-- P3-05 — Retry Policy. Start only after explicit approval.
+- P3-06 — Circuit Breaker. Start only after explicit approval.
 
 ## Do Not Forget
 
