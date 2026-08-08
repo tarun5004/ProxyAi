@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 3 — Provider Abstraction and Resilience
-Current Task: P3-04 — Capability Registry
+Current Task: P3-05 — Retry Policy
 Current Status: Not Started
 Current Blocker: None
-Last Completed Task: P3-03 — First Real Provider Adapter
-Last Completed Commit: feat(providers): add first real provider adapter
+Last Completed Task: P3-04 — Capability Registry
+Last Completed Commit: feat(providers): add provider capability registry
 ```
 
 ---
@@ -427,7 +427,7 @@ Last Completed Commit: feat(providers): add first real provider adapter
 - [x] Simulate success, timeout, 429, 500, and mid-stream failure.
 - [x] Add one real provider adapter.
 - [x] Keep SDK code inside adapter.
-- [ ] Add capability registry.
+- [x] Add capability registry.
 - [ ] Add retry with exponential backoff and jitter.
 - [ ] Retry only approved errors.
 - [ ] Add CLOSED, OPEN, and HALF_OPEN circuit states.

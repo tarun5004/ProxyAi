@@ -1,4 +1,11 @@
 import type { ProviderAdapter } from "./provider-adapter.js";
+import {
+    FAKE_MAX_INPUT_TOKENS,
+    FAKE_MAX_OUTPUT_TOKENS,
+    FAKE_PROVIDER_ID,
+    FAKE_PROVIDER_MODEL_ID,
+    getProviderCapabilities,
+} from "./provider-capability.registry.js";
 import type {
     CompletionRequest,
     CompletionResult,
@@ -11,7 +18,7 @@ import type {
     TokenUsage,
 } from "./provider.types.js";
 
-export const FAKE_PROVIDER_DEFAULT_MODEL = "fake-model";
+export const FAKE_PROVIDER_DEFAULT_MODEL = FAKE_PROVIDER_MODEL_ID;
 export const FAKE_PROVIDER_DEFAULT_COMPLETION =
     "Fake provider response.";
 
@@ -92,7 +99,7 @@ export class FakeProviderAdapter implements ProviderAdapter {
     private callCount = 0;
 
     public constructor(options: FakeProviderAdapterOptions = {}) {
-        this.providerId = options.providerId ?? "third";
+        this.providerId = options.providerId ?? FAKE_PROVIDER_ID;
         this.model = options.model ?? FAKE_PROVIDER_DEFAULT_MODEL;
         this.mode = options.mode ?? "success";
         this.completionText =
@@ -157,13 +164,18 @@ export class FakeProviderAdapter implements ProviderAdapter {
     }
 
     public getCapabilities(): ProviderCapabilities {
+        if (this.providerId === FAKE_PROVIDER_ID
+            && this.model === FAKE_PROVIDER_MODEL_ID) {
+            return getProviderCapabilities(FAKE_PROVIDER_ID);
+        }
+
         return {
             providerId: this.providerId,
             supportedModels: [this.model],
             supportsStreaming: true,
             supportsNonStreaming: true,
-            maxInputTokens: 20_000,
-            maxOutputTokens: 4_096,
+            maxInputTokens: FAKE_MAX_INPUT_TOKENS,
+            maxOutputTokens: FAKE_MAX_OUTPUT_TOKENS,
         };
     }
 

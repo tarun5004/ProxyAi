@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 3 — Provider Abstraction and Resilience
-- **Task:** P3-04 — Capability Registry
+- **Task:** P3-05 — Retry Policy
 - **Status:** Not Started
 
 ## Completed Tasks
@@ -29,6 +29,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P3-01 — Provider types and interface completed on 2026-08-07
 - P3-02 — Fake provider adapter completed on 2026-08-07
 - P3-03 — First real provider adapter completed on 2026-08-07
+- P3-04 — Provider capability registry completed on 2026-08-08
 
 ## Important Decisions
 
@@ -141,6 +142,10 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - `GROQ_MODEL` has no hidden production default; deployments must configure it explicitly.
 - Groq SDK retries are disabled in the adapter because retry/fallback/circuit breaker work is deferred.
 - Provider pricing is not approved yet, so Groq results leave `estimatedCostUsd` undefined.
+- Provider capabilities are centralized in a read-only registry instead of duplicated across adapters.
+- Registry entries currently include Groq and the deterministic fake provider.
+- Registry model metadata includes supported models, context/output limits, streaming support, and non-streaming support.
+- Cost and latency metadata are omitted because exact approved pricing and latency seed values are not documented yet.
 
 ## Commands That Work
 
@@ -200,8 +205,19 @@ npm start
 - Normalized `ProviderError` objects are safe contracts, but adapters must still avoid logging raw SDK errors, raw prompts, raw responses, headers, keys, or provider secrets.
 - P3-02 is deterministic test infrastructure, not a real provider. Real SDK integration, retry, fallback, circuit breaker, routing, and capability registry remain deferred.
 - P3-03 has no live Groq network verification in automated tests. Tests inject a no-network mock client and verify mapping, timeout options, streaming, error normalization, health, and capabilities.
+- P3-04 does not choose providers or models for requests. Routing, retry, fallback, circuit breaker, and dynamic provider-health overlay remain later Phase 3 work.
 
 ## Latest Task Record
+
+- **Task:** P3-04 — Capability Registry
+- **Status:** Completed
+- **Files changed:** `backend/src/features/providers/provider-capability.registry.ts`, `backend/src/features/providers/fake-provider.adapter.ts`, `backend/src/features/providers/groq-provider.adapter.ts`, `backend/tests/provider-capability.registry.test.mjs`, `backend/tests/fake-provider.adapter.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Registry:** Adds a read-only provider/model capability registry for Groq and the deterministic fake provider.
+- **Adapter alignment:** Fake and Groq adapters now read shared provider IDs, model IDs, and capability limits from the registry.
+- **Focused tests:** Four registry tests cover provider lookup, model lookup, unsupported provider/model handling, and immutability. Existing fake/Groq focused tests also passed after refactor.
+- **Verification:** `node --test tests/provider-capability.registry.test.mjs tests/fake-provider.adapter.test.mjs tests/groq-provider.adapter.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Recommended completed commit:** `feat(providers): add provider capability registry`.
+- **Next task:** P3-05 — Retry Policy. Do not start without approval.
 
 - **Task:** P3-03 — First Real Provider Adapter
 - **Status:** Completed
@@ -260,7 +276,7 @@ npm start
 
 ## Recommended Next Task
 
-- P3-04 — Capability Registry. Start only after explicit approval.
+- P3-05 — Retry Policy. Start only after explicit approval.
 
 ## Do Not Forget
 

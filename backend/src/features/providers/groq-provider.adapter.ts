@@ -17,6 +17,11 @@ import type { CompletionUsage } from "groq-sdk/resources/completions.js";
 
 import { env } from "../../config/env.js";
 import type { ProviderAdapter } from "./provider-adapter.js";
+import {
+    GROQ_PROVIDER_ID,
+    getProviderCapabilities,
+    getProviderModelCapability,
+} from "./provider-capability.registry.js";
 import type {
     CompletionRequest,
     CompletionResult,
@@ -25,14 +30,9 @@ import type {
     ProviderErrorCategory,
     ProviderFinishReason,
     ProviderHealth,
-    ProviderId,
     StreamChunk,
     TokenUsage,
 } from "./provider.types.js";
-
-export const GROQ_PROVIDER_ID = "groq" satisfies ProviderId;
-export const GROQ_MAX_INPUT_TOKENS = 20_000;
-export const GROQ_MAX_OUTPUT_TOKENS = 4_096;
 
 interface GroqRequestOptions {
     timeout: number;
@@ -222,14 +222,7 @@ export class GroqProviderAdapter implements ProviderAdapter {
     }
 
     public getCapabilities(): ProviderCapabilities {
-        return {
-            providerId: this.providerId,
-            supportedModels: [this.model],
-            supportsStreaming: true,
-            supportsNonStreaming: true,
-            maxInputTokens: GROQ_MAX_INPUT_TOKENS,
-            maxOutputTokens: GROQ_MAX_OUTPUT_TOKENS,
-        };
+        return getProviderCapabilities(this.providerId);
     }
 
     private async *createStream(
@@ -299,6 +292,8 @@ export class GroqProviderAdapter implements ProviderAdapter {
                 request.model,
             );
         }
+
+        getProviderModelCapability(this.providerId, request.model);
     }
 
     private createRequestOptions(
