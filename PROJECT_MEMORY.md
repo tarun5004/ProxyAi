@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Ready for Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-01
-- **Status:** Phase 2 implementation complete; Phase 3 complete; Phase 4 not started
+- **Phase:** Phase 4 — PII and Policy Enforcement
+- **Task:** Awaiting approval before P4-02
+- **Status:** P4-01 Completed
 
 ## Completed Tasks
 
@@ -35,6 +35,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P3-07 — Ordered provider fallback completed on 2026-08-08
 - Phase 2 + Phase 3 closure audit completed on 2026-08-08
 - Phase 2 implementation marked complete with mandatory cross-tenant CRUD runtime gate explicitly deferred on 2026-08-08
+- P4-01 — PII detection completed on 2026-08-08
 
 ## Important Decisions
 
@@ -164,6 +165,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Fallback records only safe metadata: request ID, provider ID, model, attempt number, status, error category, and status code.
 - Phase 3 live verification used the Groq adapter directly, not retry/fallback/circuit orchestration, to avoid unintended extra paid calls.
 - Mandatory cross-tenant CRUD verification must run against the first implemented tenant-owned CRUD resource before that resource is considered complete.
+- PII detection is deterministic regex/rule-based only for MVP; no ML/NLP, masking, risk scoring, policy decisions, or provider calls were added in P4-01.
+- PII overlap precedence is credential/internal-secret first, then financial, government ID, and contact info; lower-priority overlapping spans are dropped.
+- PII detection metadata contains only category, detector, offsets, confidence, length, and normalized length where useful; raw detected values are excluded.
 
 ## Commands That Work
 
@@ -228,18 +232,19 @@ npm start
 - P3-07 fallback is reusable provider orchestration only; it is not wired into chat endpoints because Phase 5 chat is not started.
 - Circuit breaker state remains in-memory only; distributed provider resilience state is deferred.
 - Cross-tenant scope helpers deny mismatched trusted org/team resources, but full CRUD proof remains deferred until tenant-owned business routes exist.
+- P4-01 regex detectors can produce false positives/negatives and are not a complete DLP system.
 
 ## Latest Task Record
 
-- **Task:** Phase 2 + Phase 3 Closure Audit
+- **Task:** P4-01 — PII Detection
 - **Status:** Completed
-- **Files changed:** `docs/15_PHASE.md` and `PROJECT_MEMORY.md`.
-- **Phase 2 evidence:** Auth middleware loads current User and Organisation using trusted token `orgId`; permission middleware and org/team scope helpers deny missing/wrong scope in a tiny manual check.
-- **Phase 2 closure:** Implementation is complete; mandatory cross-tenant CRUD verification is explicitly deferred until the first tenant-owned CRUD resource exists.
-- **Phase 3 evidence:** Live Groq completion and health check succeeded with configured model `llama-3.1-8b-instant`; result mapping was canonical and `estimatedCostUsd` stayed undefined.
-- **Secret scans:** Actual `GROQ_API_KEY` was absent from source and git diff; provider files do not log SDK request/response/error bodies.
-- **Verification:** `npm run typecheck`, `npm run build`, `git diff --check`, focused secret scans, tiny scope check, and live Groq smoke passed.
-- **Next task:** Wait for approval before Phase 4 planning.
+- **Files changed:** `backend/src/features/pii/pii-detector.ts`, `backend/tests/pii-detector.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Detector:** Adds reusable provider-independent detection for email, phone, card-like numbers with Luhn validation, selected government IDs, API-key-like values, and connection strings.
+- **Safety:** Returns exact source offsets plus safe metadata only; no raw detected value is included in span metadata, logs, audit, masking, risk scoring, or policy logic.
+- **Overlap rule:** Higher-priority credential/internal-secret/financial/government spans suppress lower-priority overlapping contact spans and avoid duplicates.
+- **Focused tests:** Four tests cover email + phone, credential/API-key metadata safety, overlap handling, and exact offsets for card/government ID.
+- **Verification:** `node --test tests/pii-detector.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Next task:** P4-02 — Classification. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
