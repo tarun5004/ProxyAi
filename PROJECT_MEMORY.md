@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-03
-- **Status:** P4-02 Completed
+- **Task:** Awaiting approval before P4-04
+- **Status:** P4-03 Completed
 
 ## Completed Tasks
 
@@ -37,6 +37,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Phase 2 implementation marked complete with mandatory cross-tenant CRUD runtime gate explicitly deferred on 2026-08-08
 - P4-01 — PII detection completed on 2026-08-08
 - P4-02 — PII classification completed on 2026-08-12
+- P4-03 — Explainable risk scoring completed on 2026-08-12
 
 ## Important Decisions
 
@@ -171,6 +172,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - PII detection metadata contains only category, detector, offsets, confidence, length, and normalized length where useful; raw detected values are excluded.
 - PII classification preserves the canonical `CONTACT_INFO`, `FINANCIAL`, `GOVERNMENT_ID`, `CREDENTIAL`, `INTERNAL_SECRET`, and `BUSINESS_CONFIDENTIAL` names from the approved PRD/TDD/ADR.
 - Classification deterministically derives categories from detector IDs using a static map; it preserves offsets, confidence, detector identity, and safe metadata without accepting raw source values.
+- PII risk weights follow the approved TDD exactly: contact 10, financial 25, government ID 30, credential 40, internal secret 40, and business confidential 20 per unique classified span.
+- Risk scoring sums per-span category weights, ignores exact duplicate spans, exposes safe per-category contribution metadata, and caps the normalized score at 100.
 
 ## Commands That Work
 
@@ -237,17 +240,18 @@ npm start
 - Cross-tenant scope helpers deny mismatched trusted org/team resources, but full CRUD proof remains deferred until tenant-owned business routes exist.
 - P4-01 regex detectors can produce false positives/negatives and are not a complete DLP system.
 - `BUSINESS_CONFIDENTIAL` remains an approved category but is not emitted until an approved organisation-configured confidential-term detector exists.
+- Risk accuracy depends on P4-01 detection accuracy; P4-03 intentionally adds no confidence weighting, masking, thresholds, or policy decisions.
 
 ## Latest Task Record
 
-- **Task:** P4-02 — PII Classification
+- **Task:** P4-03 — Explainable Risk Score
 - **Status:** Completed
-- **Files changed:** `backend/src/features/pii/pii-classifier.ts`, `backend/tests/pii-classifier.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Classifier:** Maps P4-01 detector IDs to approved canonical categories through one deterministic static mapping.
-- **Safety:** Classification results contain only category, exact offsets, detector identity, confidence, and copied safe metadata; raw detected values are never accepted or returned.
-- **Focused tests:** Four tests cover contact classification and determinism, financial classification, credential/internal-secret classification without raw values, and government-ID offsets.
-- **Verification:** `node --test tests/pii-classifier.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Next task:** P4-03 — Explainable Risk Score. Do not start without approval.
+- **Files changed:** `backend/src/features/pii/pii-risk-scorer.ts`, `backend/tests/pii-risk-scorer.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Scoring:** Adds centralized canonical category weights and a deterministic per-span weighted sum capped at 100.
+- **Explainability:** Returns normalized and uncapped scores, cap status, and safe category-level weight, span-count, and subtotal contributions without raw detected values.
+- **Focused tests:** Four tests cover a single category, multiple categories, exact-duplicate normalization with multiple spans, and the 100 cap.
+- **Verification:** `node --test tests/pii-risk-scorer.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Next task:** P4-04 — Safe Span Masking. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -326,7 +330,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P4-03 — Explainable Risk Score; do not start it automatically.
+- Wait for approval before P4-04 — Safe Span Masking; do not start it automatically.
 
 ## Do Not Forget
 

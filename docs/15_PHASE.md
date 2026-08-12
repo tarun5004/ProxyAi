@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 4 — PII and Policy Enforcement
-Current Task: Awaiting approval before P4-03
-Current Status: P4-02 Completed
+Current Task: Awaiting approval before P4-04
+Current Status: P4-03 Completed
 Current Blocker: None
-Last Completed Task: P4-02 — PII Classification
-Last Completed Commit: feat(pii): add sensitive-data classification
+Last Completed Task: P4-03 — Explainable Risk Score
+Last Completed Commit: feat(pii): add explainable risk scoring
 ```
 
 ---
@@ -455,7 +455,7 @@ Last Completed Commit: feat(pii): add sensitive-data classification
 
 - [x] Detect email, phone, card-like numbers, government IDs, API keys, and connection strings.
 - [x] Classify contact, financial, government ID, credential, internal secret, and business-confidential data.
-- [ ] Calculate explainable 0–100 risk score.
+- [x] Calculate explainable 0–100 risk score.
 - [ ] Mask spans safely.
 - [ ] Never mutate the original prompt object.
 - [ ] Implement `ALLOW`.
