@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 4 — PII and Policy Enforcement
-Current Task: Awaiting approval before P4-02
-Current Status: P4-01 Completed
+Current Task: Awaiting approval before P4-03
+Current Status: P4-02 Completed
 Current Blocker: None
-Last Completed Task: P4-01 — PII Detection
-Last Completed Commit: feat(pii): add deterministic sensitive-data detection
+Last Completed Task: P4-02 — PII Classification
+Last Completed Commit: feat(pii): add sensitive-data classification
 ```
 
 ---
@@ -454,7 +454,7 @@ Last Completed Commit: feat(pii): add deterministic sensitive-data detection
 ## Tasks
 
 - [x] Detect email, phone, card-like numbers, government IDs, API keys, and connection strings.
-- [ ] Classify contact, financial, government ID, credential, internal secret, and business-confidential data.
+- [x] Classify contact, financial, government ID, credential, internal secret, and business-confidential data.
 - [ ] Calculate explainable 0–100 risk score.
 - [ ] Mask spans safely.
 - [ ] Never mutate the original prompt object.

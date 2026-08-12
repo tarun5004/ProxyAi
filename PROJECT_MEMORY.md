@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-02
-- **Status:** P4-01 Completed
+- **Task:** Awaiting approval before P4-03
+- **Status:** P4-02 Completed
 
 ## Completed Tasks
 
@@ -36,6 +36,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Phase 2 + Phase 3 closure audit completed on 2026-08-08
 - Phase 2 implementation marked complete with mandatory cross-tenant CRUD runtime gate explicitly deferred on 2026-08-08
 - P4-01 — PII detection completed on 2026-08-08
+- P4-02 — PII classification completed on 2026-08-12
 
 ## Important Decisions
 
@@ -168,6 +169,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - PII detection is deterministic regex/rule-based only for MVP; no ML/NLP, masking, risk scoring, policy decisions, or provider calls were added in P4-01.
 - PII overlap precedence is credential/internal-secret first, then financial, government ID, and contact info; lower-priority overlapping spans are dropped.
 - PII detection metadata contains only category, detector, offsets, confidence, length, and normalized length where useful; raw detected values are excluded.
+- PII classification preserves the canonical `CONTACT_INFO`, `FINANCIAL`, `GOVERNMENT_ID`, `CREDENTIAL`, `INTERNAL_SECRET`, and `BUSINESS_CONFIDENTIAL` names from the approved PRD/TDD/ADR.
+- Classification deterministically derives categories from detector IDs using a static map; it preserves offsets, confidence, detector identity, and safe metadata without accepting raw source values.
 
 ## Commands That Work
 
@@ -233,18 +236,18 @@ npm start
 - Circuit breaker state remains in-memory only; distributed provider resilience state is deferred.
 - Cross-tenant scope helpers deny mismatched trusted org/team resources, but full CRUD proof remains deferred until tenant-owned business routes exist.
 - P4-01 regex detectors can produce false positives/negatives and are not a complete DLP system.
+- `BUSINESS_CONFIDENTIAL` remains an approved category but is not emitted until an approved organisation-configured confidential-term detector exists.
 
 ## Latest Task Record
 
-- **Task:** P4-01 — PII Detection
+- **Task:** P4-02 — PII Classification
 - **Status:** Completed
-- **Files changed:** `backend/src/features/pii/pii-detector.ts`, `backend/tests/pii-detector.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Detector:** Adds reusable provider-independent detection for email, phone, card-like numbers with Luhn validation, selected government IDs, API-key-like values, and connection strings.
-- **Safety:** Returns exact source offsets plus safe metadata only; no raw detected value is included in span metadata, logs, audit, masking, risk scoring, or policy logic.
-- **Overlap rule:** Higher-priority credential/internal-secret/financial/government spans suppress lower-priority overlapping contact spans and avoid duplicates.
-- **Focused tests:** Four tests cover email + phone, credential/API-key metadata safety, overlap handling, and exact offsets for card/government ID.
-- **Verification:** `node --test tests/pii-detector.test.mjs` passed after build; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Next task:** P4-02 — Classification. Do not start without approval.
+- **Files changed:** `backend/src/features/pii/pii-classifier.ts`, `backend/tests/pii-classifier.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Classifier:** Maps P4-01 detector IDs to approved canonical categories through one deterministic static mapping.
+- **Safety:** Classification results contain only category, exact offsets, detector identity, confidence, and copied safe metadata; raw detected values are never accepted or returned.
+- **Focused tests:** Four tests cover contact classification and determinism, financial classification, credential/internal-secret classification without raw values, and government-ID offsets.
+- **Verification:** `node --test tests/pii-classifier.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Next task:** P4-03 — Explainable Risk Score. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -323,7 +326,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before Phase 4 planning; do not start P4-01 while the Phase 2 cross-tenant CRUD proof remains not fully testable.
+- Wait for approval before P4-03 — Explainable Risk Score; do not start it automatically.
 
 ## Do Not Forget
 
