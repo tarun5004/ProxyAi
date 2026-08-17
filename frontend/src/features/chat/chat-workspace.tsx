@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { useAuth } from "@/features/auth/auth-provider";
@@ -13,11 +14,22 @@ import {
 } from "@/features/conversations/conversation.api";
 import { ConversationSidebar } from "@/features/conversations/conversation-sidebar";
 import type { ConversationSummary } from "@/features/conversations/conversation.types";
+import { PolicyInspector } from "@/features/policy/policy-inspector";
 import { ApiError } from "@/lib/errors/api-error";
 
 import { streamChat } from "./chat.api";
 import { ChatCenter } from "./chat-center";
-import type { UiChatMessage } from "./chat.types";
+import type {
+    DoneEvent,
+    PolicyEvent,
+    RoutingEvent,
+    UiChatMessage,
+} from "./chat.types";
+
+const policyBlockedDetailsSchema = z.object({
+    riskScore: z.number().min(0).max(100),
+    categories: z.array(z.string()),
+});
 
 export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConversationId?: string }>) {
     const auth = useAuth();
@@ -27,10 +39,14 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
     const [activeConversation, setActiveConversation] = useState<ConversationSummary>();
     const [retainedMessageCount, setRetainedMessageCount] = useState(0);
     const [messages, setMessages] = useState<UiChatMessage[]>([]);
+    const [policy, setPolicy] = useState<PolicyEvent>();
+    const [routing, setRouting] = useState<RoutingEvent>();
+    const [completion, setCompletion] = useState<DoneEvent>();
     const [requestError, setRequestError] = useState<string>();
     const [streaming, setStreaming] = useState(false);
     const [creating, setCreating] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [inspectorOpen, setInspectorOpen] = useState(false);
 
     useEffect(() => () => activeRequest.current?.abort(), []);
 
@@ -87,6 +103,9 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
             setActiveConversation(response.data);
             setMessages([]);
             setRetainedMessageCount(0);
+            setPolicy(undefined);
+            setRouting(undefined);
+            setCompletion(undefined);
             setSidebarOpen(false);
             router.push(`/chat/${response.data.conversationId}`);
         } catch {
@@ -103,6 +122,10 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
 
         setStreaming(true);
         setRequestError(undefined);
+        setPolicy(undefined);
+        setRouting(undefined);
+        setCompletion(undefined);
+        setInspectorOpen(true);
 
         let conversation = activeConversation;
 
@@ -142,12 +165,17 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 prompt,
                 signal: abortController.signal,
             })) {
-                if (event.type === "token") {
+                if (event.type === "policy") {
+                    setPolicy(event.data);
+                } else if (event.type === "routing") {
+                    setRouting(event.data);
+                } else if (event.type === "token") {
                     updateAssistantMessage(setMessages, assistantId, (message) => ({
                         ...message,
                         content: message.content + event.data.text,
                     }));
                 } else if (event.type === "done") {
+                    setCompletion(event.data);
                     updateAssistantMessage(setMessages, assistantId, (message) => ({
                         ...message,
                         state: "complete",
@@ -162,7 +190,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
             }
         } catch (error: unknown) {
             setMessages((current) => current.filter((message) => message.state !== "streaming"));
-            handleChatError(error, setRequestError);
+            handleChatError(error, setPolicy, setRequestError);
         } finally {
             activeRequest.current = undefined;
             setStreaming(false);
@@ -198,10 +226,20 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 error={requestError}
                 onSend={handleSend}
                 onOpenConversations={() => setSidebarOpen(true)}
+                onOpenPolicy={() => setInspectorOpen(true)}
             />}
-            inspector={null}
-            panelOpen={sidebarOpen}
-            onDismissPanels={() => setSidebarOpen(false)}
+            inspector={<PolicyInspector
+                policy={policy}
+                routing={routing}
+                completion={completion}
+                open={inspectorOpen}
+                onClose={() => setInspectorOpen(false)}
+            />}
+            panelOpen={sidebarOpen || inspectorOpen}
+            onDismissPanels={() => {
+                setSidebarOpen(false);
+                setInspectorOpen(false);
+            }}
         />
     );
 }
@@ -218,9 +256,28 @@ function updateAssistantMessage(
 
 function handleChatError(
     error: unknown,
+    setPolicy: React.Dispatch<React.SetStateAction<PolicyEvent | undefined>>,
     setRequestError: React.Dispatch<React.SetStateAction<string | undefined>>,
 ) {
     if (error instanceof ApiError && error.code === "POLICY_BLOCKED") {
+        const details = policyBlockedDetailsSchema.safeParse(error.details);
+        setPolicy({
+            action: "BLOCK",
+            riskScore: details.success ? details.data.riskScore : 100,
+            categories: details.success
+                ? details.data.categories.filter((category): category is PolicyEvent["categories"][number] =>
+                    [
+                        "CONTACT_INFO",
+                        "FINANCIAL",
+                        "GOVERNMENT_ID",
+                        "CREDENTIAL",
+                        "INTERNAL_SECRET",
+                        "BUSINESS_CONFIDENTIAL",
+                    ].includes(category),
+                )
+                : [],
+            masked: false,
+        });
         setRequestError("Your organisation policy blocked this request before provider execution.");
         return;
     }
