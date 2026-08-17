@@ -23,14 +23,16 @@ export function ProxyFlowVisual() {
 
             <div className="absolute top-1/2 left-1/2 grid size-40 -translate-x-1/2 -translate-y-1/2 place-items-center lg:size-48">
                 <ShieldChevron className="absolute inset-0 size-full text-white drop-shadow-[0_18px_38px_rgb(17_83_40_/_10%)]" weight="fill" />
-                <Image
-                    className="relative z-10 h-auto w-23 object-contain lg:w-28"
-                    src="/proxiai-logo.png"
-                    alt="ProxiAI proxy"
-                    width={360}
-                    height={90}
-                    priority
-                />
+                <div className="relative z-10 h-14 w-14 overflow-hidden lg:h-16 lg:w-16">
+                    <Image
+                        className="h-14 w-56 max-w-none object-contain object-left lg:h-16 lg:w-64"
+                        src="/proxiai-logo.png"
+                        alt="ProxiAI proxy"
+                        width={360}
+                        height={90}
+                        priority
+                    />
+                </div>
             </div>
 
             <FlowNode className="top-[12%] right-[4%]" label="AI provider">
