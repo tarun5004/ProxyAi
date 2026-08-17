@@ -134,12 +134,12 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 4 — PII and Policy Enforcement (Implementation Completed)
-Current Task: Awaiting approval to start Phase 5
-Current Status: Phase 4 implementation closed; two integration gates deferred to Phase 5 chat wiring
+Current Phase: Phase 5 — Chat, Conversations, and Streaming
+Current Task: Awaiting approval before P5-02 — Message Model
+Current Status: P5-01 Completed
 Current Blocker: None
-Last Completed Task: Phase 4 implementation closure
-Last Completed Commit: docs(progress): record Phase 4 closure and deferred integration gates
+Last Completed Task: P5-01 — Conversation Model
+Last Completed Commit: feat(conversations): add tenant-scoped conversation model
 ```
 
 ---
@@ -494,10 +494,11 @@ remains owned by Phase 9.
 # 11. Phase 5 — Chat, Conversations, and Streaming
 
 **Effort:** High
+**Status:** In Progress
 
 ## Tasks
 
-- [ ] Create Conversation model with `orgId`, user ID, title, message count, and indexes.
+- [x] P5-01 — Create Conversation model with `orgId`, user ID, title, message count, and indexes.
 - [ ] Create Message model with encrypted-content structure.
 - [ ] Add create-conversation API.
 - [ ] Add list and read APIs using tenant scope.

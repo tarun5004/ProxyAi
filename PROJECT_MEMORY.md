@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 4 — PII and Policy Enforcement (Implementation Completed)
-- **Task:** Awaiting approval to start Phase 5; do not start automatically
-- **Status:** Phase 4 implementation closed with two explicit Phase 5 integration gates deferred
+- **Phase:** Phase 5 — Chat, Conversations, and Streaming
+- **Task:** Awaiting approval before P5-02 — Message Model
+- **Status:** P5-01 Conversation Model completed
 
 ## Completed Tasks
 
@@ -45,6 +45,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-08 — `BLOCK` policy decision and budget-exhausted BLOCK criterion completed on 2026-08-17
 - P4-10 — Safe structured policy decision events completed on 2026-08-17
 - Phase 4 — PII and policy implementation closed on 2026-08-17; integration gates remain deferred
+- P5-01 — Tenant-scoped Conversation model completed on 2026-08-17
 
 ## Important Decisions
 
@@ -270,8 +271,24 @@ npm start
 - P4-10 emits structured application events only. Durable append-only audit persistence remains owned by Phase 9.
 - Phase 4 implementation is complete, but two runtime gates remain explicitly deferred: `BLOCK` must cause zero provider calls, and `ALLOW_WITH_MASK` must send only masked `providerPrompt`.
 - Both deferred gates must be proven when the first Phase 5 chat pipeline wires policy decisions to provider execution; no temporary provider/chat route will be created merely to mark them passed.
+- P5-01 resolves the Conversation documentation conflict in favour of the approved task contract: plain `title`, default `"New conversation"`, nullable `lastMessageAt`, and no `status`, `titleEnc`, or `titlePreview` fields.
+- Conversation title encryption remains deferred to Phase 9. Future title-writing APIs must follow the approved retention behavior and must not generate titles from sensitive prompt content without the required protection.
+- Conversation ownership identifiers `conversationId`, `orgId`, and `userId` are immutable UUID v4 values; `conversationId` is generated only by the backend.
+- Conversation declares only the approved unique `{ conversationId: 1 }` index and owner-list `{ orgId: 1, userId: 1, lastMessageAt: -1 }` index.
+- Future tenant-owned Conversation queries must use trusted `orgId` plus authenticated `userId` and the resource identifier where applicable; ordinary client input never establishes tenant scope.
+- Phase 5 UI reference: light/white theme, ProxyAI green accent, minimal Claude-style layout, left conversation sidebar, center chat workspace, right policy/risk panel, subtle borders/shadows, clean whitespace, and no generic AI-dashboard styling.
 
 ## Latest Task Record
+
+- **Task:** P5-01 — Conversation Model
+- **Status:** Completed
+- **Files changed:** `backend/src/features/conversations/conversation.types.ts`, `backend/src/features/conversations/conversation.model.ts`, `backend/tests/conversation.model.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Model:** Adds strict `conversations` schema with immutable tenant/owner/public UUIDs, generic title default, safe-integer message count, nullable last-message timestamp, and Mongoose timestamps.
+- **Indexes:** Declares only unique public-ID and tenant-owner activity-list indexes approved for P5-01.
+- **Focused tests:** Four tests cover valid defaults, immutable/required UUID identifiers, title/message-count constraints, strict unknown-field rejection, timestamps, collection, and index declarations.
+- **Verification:** `node --test tests/conversation.model.test.mjs` passed 4/4; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Scope:** No routes, controllers, repositories, Message model, chat/provider integration, encrypted title fields, or P5-02 work was added.
+- **Next task:** P5-02 — Message Model. Do not start without approval.
 
 - **Task:** Phase 4 implementation closure
 - **Status:** Completed with two deferred integration gates
@@ -379,7 +396,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for explicit approval before Phase 5 planning or implementation; do not start automatically.
+- Wait for approval before P5-02 — Message Model; do not start automatically.
 
 ## Do Not Forget
 
