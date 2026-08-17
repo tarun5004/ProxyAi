@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-08
-- **Status:** P4-07 Completed
+- **Task:** Awaiting approval before P4-10 — Audit Decisions Without Raw Values
+- **Status:** P4-08 Completed, including the documented budget-exhausted BLOCK criterion
 
 ## Completed Tasks
 
@@ -42,6 +42,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-05 — Original prompt immutability completed on 2026-08-17
 - P4-06 — `ALLOW` policy decision completed on 2026-08-17
 - P4-07 — `ALLOW_WITH_MASK` policy decision completed on 2026-08-17
+- P4-08 — `BLOCK` policy decision and budget-exhausted BLOCK criterion completed on 2026-08-17
 
 ## Important Decisions
 
@@ -187,6 +188,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Policy evaluation uses the repository-canonical `maskThreshold`/`blockThreshold` Organisation fields and returns `risk_below_mask_threshold` with safe score/category/count metadata only.
 - `ALLOW_WITH_MASK` requires an available budget and `maskThreshold <= risk.score < blockThreshold`; exact mask-threshold equality is included.
 - Masked decisions use the P4-05 sanitized prompt as the TDD-defined `providerPrompt`, return `mask_threshold_reached`, and never include the original detected value.
+- `BLOCK` uses the approved order: `budget_exceeded` takes precedence, otherwise `risk.score >= blockThreshold` returns `high_risk_pii`.
+- BLOCK decisions intentionally have no `providerPrompt`; they contain only frozen safe reason, score, category, and detector-count metadata.
+- `docs/02_SDD.md` now uses the TDD-canonical `providerPrompt` name, resolving the previous `effectivePrompt` naming mismatch.
 
 ## Commands That Work
 
@@ -256,20 +260,19 @@ npm start
 - Risk accuracy depends on P4-01 detection accuracy; P4-03 intentionally adds no confidence weighting, masking, thresholds, or policy decisions.
 - Masking protects only spans found by P4-01; regex false negatives remain unmasked, and unspecified categories intentionally use the generic placeholder.
 - The sanitized prompt representation is not yet integrated with policy or provider execution; those boundaries remain later Phase 4/5 tasks.
-- P4-06 trusts the separately computed `BudgetStatus.exceeded` flag; budget calculation and exhausted-budget blocking are not implemented in this task.
-- P4-07 returns `null` for exhausted budgets and scores at or above `blockThreshold`; BLOCK behavior remains unimplemented until P4-08.
-- The SDD names the downstream field `effectivePrompt` while the implementation-level TDD names it `providerPrompt`; P4-07 follows the TDD contract.
+- Policy evaluation trusts the separately computed `BudgetStatus.exceeded` flag; billing-rollup calculation and strict in-flight budget reservation remain later work.
+- Zero provider calls are structurally guaranteed inside the policy module because it has no provider dependency; end-to-end blocked-chat proof remains deferred until chat integration exists.
 
 ## Latest Task Record
 
-- **Task:** P4-07 — Implement `ALLOW_WITH_MASK`
+- **Task:** P4-08 — Implement `BLOCK`
 - **Status:** Completed
-- **Files changed:** `backend/src/features/policy/policy.types.ts`, `backend/src/features/policy/policy-evaluator.ts`, `backend/tests/policy-mask.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Policy:** Extends the canonical decision union with deterministic `ALLOW_WITH_MASK` behavior for the approved mask range.
-- **Safety:** The decision carries only the sanitized provider prompt and safe reason, score, category, and detector-count metadata; the original request stays unchanged.
-- **Focused tests:** Four tests cover the mask range, exact mask-threshold boundary, sanitized prompt handoff without raw PII, and original-request immutability.
-- **Verification:** `node --test tests/policy-mask.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Next task:** P4-08 — Implement `BLOCK`. Do not start without approval.
+- **Files changed:** `backend/src/features/policy/policy.types.ts`, `backend/src/features/policy/policy-evaluator.ts`, `backend/tests/policy-block.test.mjs`, `docs/02_SDD.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Policy:** Extends the canonical decision union with deterministic high-risk and budget-exhausted BLOCK behavior using approved reason codes.
+- **Safety:** BLOCK carries no provider prompt or raw PII, preserves the original request, and has no provider integration or call path.
+- **Focused tests:** Four tests cover exact block-threshold, above-threshold, budget-exhausted precedence, and absence of provider/raw-sensitive data.
+- **Verification:** `node --test tests/policy-block.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed; focused source scan found no policy-to-provider or logging calls.
+- **Next task:** P4-10 — Audit Decisions Without Raw Values. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -348,7 +351,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P4-08 — Implement `BLOCK`; do not start it automatically.
+- Wait for approval before P4-10 — Audit Decisions Without Raw Values; do not start it automatically.
 
 ## Do Not Forget
 

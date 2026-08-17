@@ -423,14 +423,14 @@ Raw matched values must not be returned in audit metadata.
 PolicyDecision
 - action: ALLOW | ALLOW_WITH_MASK | BLOCK
 - reasonCode: string
-- effectivePrompt?: string
+- providerPrompt?: string
 - riskScore: number
 - categories: string[]
 ```
 
 ### Safety invariant
 
-Only `effectivePrompt` may be passed to the routing and provider layers. The original prompt must not be passed after a masking decision.
+Only `providerPrompt` may be passed to the routing and provider layers. The original prompt must not be passed after a masking decision.
 
 ## 8.9 Provider Abstraction
 

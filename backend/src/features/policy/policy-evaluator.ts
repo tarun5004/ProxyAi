@@ -1,5 +1,6 @@
 import type {
     AllowPolicyDecision,
+    BlockPolicyDecision,
     MaskedAllowPolicyDecision,
     PolicyEvaluationInput,
 } from "./policy.types.js";
@@ -44,6 +45,31 @@ export function evaluateAllowWithMask(
         action: "ALLOW_WITH_MASK",
         reasonCode: "mask_threshold_reached",
         providerPrompt: input.pii.sanitizedRequest.prompt,
+        riskScore: input.risk.score,
+        categories: Object.freeze([
+            ...input.pii.classification.categories,
+        ]),
+        detectorCount: input.pii.classification.spans.length,
+    });
+}
+
+export function evaluateBlock(
+    input: PolicyEvaluationInput,
+): BlockPolicyDecision | null {
+    assertValidEvaluationInput(input);
+
+    if (
+        !input.budget.exceeded
+        && input.risk.score < input.thresholds.blockThreshold
+    ) {
+        return null;
+    }
+
+    return Object.freeze({
+        action: "BLOCK",
+        reasonCode: input.budget.exceeded
+            ? "budget_exceeded"
+            : "high_risk_pii",
         riskScore: input.risk.score,
         categories: Object.freeze([
             ...input.pii.classification.categories,
