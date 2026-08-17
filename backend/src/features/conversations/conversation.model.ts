@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import type { Model } from "mongoose";
 
-import type { Conversation } from "./conversation.types.js";
+import {
+    DEFAULT_CONVERSATION_TITLE,
+    type Conversation,
+} from "./conversation.types.js";
 
 const UUID_V4_PATTERN =
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -32,7 +35,7 @@ const conversationSchema = new Schema<Conversation>(
         },
         title: {
             type: String,
-            default: "New conversation",
+            default: DEFAULT_CONVERSATION_TITLE,
             trim: true,
             minlength: 1,
             maxlength: 120,

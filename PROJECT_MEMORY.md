@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** Awaiting approval before P5-03 — Create Conversation API
-- **Status:** P5-02 Message Model completed
+- **Task:** Awaiting approval before P5-04 — List and Read Conversation APIs
+- **Status:** P5-03 Create Conversation API completed
 
 ## Completed Tasks
 
@@ -47,6 +47,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Phase 4 — PII and policy implementation closed on 2026-08-17; integration gates remain deferred
 - P5-01 — Tenant-scoped Conversation model completed on 2026-08-17
 - P5-02 — Tenant-scoped Message model completed on 2026-08-17
+- P5-03 — Authenticated Create Conversation API completed on 2026-08-17
 
 ## Important Decisions
 
@@ -284,8 +285,23 @@ npm start
 - Message declares only unique `{ messageId: 1 }` and tenant-conversation `{ orgId: 1, conversationId: 1, createdAt: 1 }` indexes.
 - `requestId`, provider/model metadata, `expiresAt`/TTL, and the encryption service remain deferred. Actual AES-256-GCM encryption and retention writing remain Phase 9 responsibilities.
 - Future Message reads must first establish Conversation ownership and query with trusted tenant/owner scope; client-supplied `orgId`, `userId`, or conversation ownership is never authoritative.
+- `POST /api/v1/conversations` requires a valid access token and current `chat:send` permission before request validation or persistence.
+- Create-conversation input is a strict Zod object containing only optional `title`; client-supplied `orgId`, `userId`, or unknown fields are rejected.
+- Conversation ownership is copied only from trusted `request.auth.orgId` and `request.auth.userId`; the repository receives no client-selected ownership fields.
+- The create response uses the standard `201` success envelope with request ID and a safe Conversation summary that excludes tenant IDs and MongoDB internals.
+- The mandatory Phase 2 cross-tenant read/update/delete runtime gate remains deferred because P5-03 creates resources but exposes no read/update/delete operation. P5-04 must prove cross-tenant and cross-user read denial.
 
 ## Latest Task Record
+
+- **Task:** P5-03 — Create Conversation API
+- **Status:** Completed
+- **Files changed:** `backend/src/app.ts`, `backend/src/features/conversations/conversation.types.ts`, `backend/src/features/conversations/conversation.model.ts`, `backend/src/features/conversations/conversation.schema.ts`, `backend/src/features/conversations/conversation.repository.ts`, `backend/src/features/conversations/conversation.service.ts`, `backend/src/features/conversations/conversation.controller.ts`, `backend/src/features/conversations/conversation.routes.ts`, `backend/tests/conversation.create.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Flow:** Authenticates, checks `chat:send`, strictly validates optional title, derives ownership from trusted auth context, creates through service/repository boundaries, and returns the approved `201` envelope.
+- **Security:** Client tenant/user selectors are rejected, persistence receives trusted ownership only, and the response omits `orgId`, `userId`, `_id`, and internal model fields.
+- **Focused tests:** Four HTTP tests cover valid trusted-owner creation, client ownership-field rejection with zero writes, default title, and missing auth context.
+- **Verification:** `node --test tests/conversation.create.test.mjs` passed 4/4; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Scope:** No Message creation, provider/chat call, list/read route, cursor pagination, or P5-04 work was added.
+- **Next task:** P5-04 — List and Read Conversation APIs. Do not start without approval.
 
 - **Task:** P5-02 — Message Model
 - **Status:** Completed
@@ -414,7 +430,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P5-03 — Create Conversation API; do not start automatically.
+- Wait for approval before P5-04 — List and Read Conversation APIs; do not start automatically.
 
 ## Do Not Forget
 

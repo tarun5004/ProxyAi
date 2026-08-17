@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: Awaiting approval before P5-03 — Create Conversation API
-Current Status: P5-02 Completed
+Current Task: Awaiting approval before P5-04 — List and Read Conversation APIs
+Current Status: P5-03 Completed
 Current Blocker: None
-Last Completed Task: P5-02 — Message Model
-Last Completed Commit: feat(messages): add tenant-scoped message model
+Last Completed Task: P5-03 — Create Conversation API
+Last Completed Commit: feat(conversations): add create conversation endpoint
 ```
 
 ---
@@ -500,7 +500,7 @@ remains owned by Phase 9.
 
 - [x] P5-01 — Create Conversation model with `orgId`, user ID, title, message count, and indexes.
 - [x] P5-02 — Create Message model with encrypted-content structure.
-- [ ] Add create-conversation API.
+- [x] P5-03 — Add create-conversation API.
 - [ ] Add list and read APIs using tenant scope.
 - [ ] Add cursor pagination.
 - [ ] Add authenticated `POST /api/v1/chat/stream`.
