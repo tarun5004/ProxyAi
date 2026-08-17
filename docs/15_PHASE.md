@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 4 — PII and Policy Enforcement
-Current Task: Awaiting approval before P4-07
-Current Status: P4-06 Completed
+Current Task: Awaiting approval before P4-08
+Current Status: P4-07 Completed
 Current Blocker: None
-Last Completed Task: P4-06 — Implement `ALLOW`
-Last Completed Commit: feat(policy): add allow decision
+Last Completed Task: P4-07 — Implement `ALLOW_WITH_MASK`
+Last Completed Commit: feat(policy): add masked allow decision
 ```
 
 ---
@@ -459,7 +459,7 @@ Last Completed Commit: feat(policy): add allow decision
 - [x] Mask spans safely.
 - [x] Never mutate the original prompt object.
 - [x] Implement `ALLOW`.
-- [ ] Implement `ALLOW_WITH_MASK`.
+- [x] Implement `ALLOW_WITH_MASK`.
 - [ ] Implement `BLOCK`.
 - [ ] Add budget-exhausted block.
 - [ ] Audit decisions without raw values.

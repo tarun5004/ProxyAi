@@ -13,8 +13,13 @@ export const ALLOW_REASON_CODES = [
     "risk_below_mask_threshold",
 ] as const;
 
+export const MASK_REASON_CODES = [
+    "mask_threshold_reached",
+] as const;
+
 export type PolicyAction = (typeof POLICY_ACTIONS)[number];
 export type AllowReasonCode = (typeof ALLOW_REASON_CODES)[number];
+export type MaskReasonCode = (typeof MASK_REASON_CODES)[number];
 
 export interface BudgetStatus {
     readonly monthlyBudgetTokens: number;
@@ -39,4 +44,15 @@ export interface AllowPolicyDecision {
     readonly detectorCount: number;
 }
 
-export type PolicyDecision = AllowPolicyDecision;
+export interface MaskedAllowPolicyDecision {
+    readonly action: "ALLOW_WITH_MASK";
+    readonly reasonCode: MaskReasonCode;
+    readonly providerPrompt: string;
+    readonly riskScore: number;
+    readonly categories: readonly PiiCategory[];
+    readonly detectorCount: number;
+}
+
+export type PolicyDecision =
+    | AllowPolicyDecision
+    | MaskedAllowPolicyDecision;

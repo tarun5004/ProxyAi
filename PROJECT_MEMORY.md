@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-07
-- **Status:** P4-06 Completed
+- **Task:** Awaiting approval before P4-08
+- **Status:** P4-07 Completed
 
 ## Completed Tasks
 
@@ -41,6 +41,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-04 — Safe span masking completed on 2026-08-17
 - P4-05 — Original prompt immutability completed on 2026-08-17
 - P4-06 — `ALLOW` policy decision completed on 2026-08-17
+- P4-07 — `ALLOW_WITH_MASK` policy decision completed on 2026-08-17
 
 ## Important Decisions
 
@@ -184,6 +185,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - The canonical policy action allowlist is `ALLOW`, `ALLOW_WITH_MASK`, and `BLOCK`; P4-06 implements only the `ALLOW` decision branch.
 - `ALLOW` requires `budget.exceeded === false` and `risk.score < policy.maskThreshold`; exact threshold equality is not allowed and remains for P4-07.
 - Policy evaluation uses the repository-canonical `maskThreshold`/`blockThreshold` Organisation fields and returns `risk_below_mask_threshold` with safe score/category/count metadata only.
+- `ALLOW_WITH_MASK` requires an available budget and `maskThreshold <= risk.score < blockThreshold`; exact mask-threshold equality is included.
+- Masked decisions use the P4-05 sanitized prompt as the TDD-defined `providerPrompt`, return `mask_threshold_reached`, and never include the original detected value.
 
 ## Commands That Work
 
@@ -254,17 +257,19 @@ npm start
 - Masking protects only spans found by P4-01; regex false negatives remain unmasked, and unspecified categories intentionally use the generic placeholder.
 - The sanitized prompt representation is not yet integrated with policy or provider execution; those boundaries remain later Phase 4/5 tasks.
 - P4-06 trusts the separately computed `BudgetStatus.exceeded` flag; budget calculation and exhausted-budget blocking are not implemented in this task.
+- P4-07 returns `null` for exhausted budgets and scores at or above `blockThreshold`; BLOCK behavior remains unimplemented until P4-08.
+- The SDD names the downstream field `effectivePrompt` while the implementation-level TDD names it `providerPrompt`; P4-07 follows the TDD contract.
 
 ## Latest Task Record
 
-- **Task:** P4-06 — Implement `ALLOW`
+- **Task:** P4-07 — Implement `ALLOW_WITH_MASK`
 - **Status:** Completed
-- **Files changed:** `backend/src/features/policy/policy.types.ts`, `backend/src/features/policy/policy-evaluator.ts`, `backend/tests/policy-allow.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Policy:** Adds canonical policy actions, budget/evaluation contracts, safe ALLOW metadata, and deterministic ALLOW-only evaluation.
-- **Safety:** Eligible requests return a frozen decision without prompt text or raw PII; non-ALLOW conditions return `null` without implementing MASK or BLOCK.
-- **Focused tests:** Four tests cover safe ALLOW, the mask-threshold boundary, determinism, and absence of detected values from decision output.
-- **Verification:** `node --test tests/policy-allow.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Next task:** P4-07 — Implement `ALLOW_WITH_MASK`. Do not start without approval.
+- **Files changed:** `backend/src/features/policy/policy.types.ts`, `backend/src/features/policy/policy-evaluator.ts`, `backend/tests/policy-mask.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Policy:** Extends the canonical decision union with deterministic `ALLOW_WITH_MASK` behavior for the approved mask range.
+- **Safety:** The decision carries only the sanitized provider prompt and safe reason, score, category, and detector-count metadata; the original request stays unchanged.
+- **Focused tests:** Four tests cover the mask range, exact mask-threshold boundary, sanitized prompt handoff without raw PII, and original-request immutability.
+- **Verification:** `node --test tests/policy-mask.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Next task:** P4-08 — Implement `BLOCK`. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -343,7 +348,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P4-07 — Implement `ALLOW_WITH_MASK`; do not start it automatically.
+- Wait for approval before P4-08 — Implement `BLOCK`; do not start it automatically.
 
 ## Do Not Forget
 
