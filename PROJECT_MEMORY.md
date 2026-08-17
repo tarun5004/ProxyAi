@@ -164,6 +164,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Groq is the approved first real provider adapter.
 - Groq configuration is validated through `GROQ_API_KEY`, `GROQ_MODEL`, and `PROVIDER_REQUEST_TIMEOUT_MS`.
 - `GROQ_MODEL` has no hidden production default; deployments must configure it explicitly.
+- `llama-3.1-8b-instant` is deprecated/shut down for the current developer tier and is not an active project model.
+- `openai/gpt-oss-20b` is the current Groq production model for this project; selection remains explicit through `GROQ_MODEL` and is not hardcoded in the adapter.
 - Groq SDK retries are disabled in the adapter because retry/fallback/circuit breaker work is deferred.
 - Provider pricing is not approved yet, so Groq results leave `estimatedCostUsd` undefined.
 - Provider capabilities are centralized in a read-only registry instead of duplicated across adapters.
@@ -326,6 +328,17 @@ npm start
 - Stream usage is optional in the canonical done chunk because the provider may not report it; pricing and `estimatedCostUsd` remain absent because pricing is not approved.
 
 ## Latest Task Record
+
+- **Task:** P5-06 live Groq model configuration correction and authenticated smoke verification
+- **Status:** Completed
+- **Files changed:** `backend/.env.example`, `backend/tests/helpers/test-env.mjs`, `backend/tests/groq-provider.adapter.test.mjs`, and `PROJECT_MEMORY.md`; ignored local `backend/.env` was aligned separately.
+- **Model:** Replaced the unavailable `llama-3.1-8b-instant` active configuration with canonical `openai/gpt-oss-20b` while preserving explicit env-controlled registry and adapter selection.
+- **Live smoke:** An authenticated owner received ordered `request_started`, `policy`, `routing`, `token`, and `done` SSE events with real streamed content from Groq. Reusing the same client request ID returned `409 DUPLICATE_REQUEST` without another accounting record.
+- **Accounting:** Groq supplied known input/output/total usage; the tenant RequestLog persisted the exact values and BillingRollup reconciled them. The intentionally aborted second stream persisted unknown usage rather than inventing token counts.
+- **Disconnect and safety:** In-flight client disconnect aborted the request, finalized safe accounting, and left liveness healthy. Exact prompt, PII sentinel, and API-key scans found no leak in captured logs, tracked source, or diff; pricing remains undefined.
+- **Verification:** Focused Groq adapter tests passed 4/4; `npm run typecheck`, `npm run build`, live authenticated smoke, and `git diff --check` passed.
+- **Scope:** No adapter hardcoding, policy/chat behavior, pricing, routing, retry, fallback, circuit-breaker, or P5-07 behavior changed.
+- **Next task:** P5-07 — Login and Chat Frontend. Do not start without approval.
 
 - **Task:** P5-06 — Authenticated Chat Stream
 - **Status:** Completed

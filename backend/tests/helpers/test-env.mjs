@@ -8,7 +8,7 @@ export const authTestEnvironment = Object.freeze({
     CHAT_RATE_LIMIT_PRO_ORG_RPM: "300",
     CHAT_RATE_LIMIT_PRO_USER_RPM: "30",
     GROQ_API_KEY: "gsk_test_value_for_unit_tests",
-    GROQ_MODEL: "llama-3.1-8b-instant",
+    GROQ_MODEL: "openai/gpt-oss-20b",
     JWT_ACCESS_SECRET: Buffer.alloc(32, 1).toString("base64url"),
     PROVIDER_REQUEST_TIMEOUT_MS: "30000",
     REFRESH_TOKEN_TTL_DAYS: "7",

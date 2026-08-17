@@ -19,7 +19,7 @@ function createRequest(overrides = {}) {
     return {
         requestId: "req_groq_provider_test",
         providerId: "groq",
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-20b",
         messages: [
             {
                 role: "system",
@@ -51,7 +51,7 @@ function createAdapter(create, nowValues = [100, 125]) {
     const now = () => nowValues.shift() ?? 125;
     const adapter = new GroqProviderAdapter({
         apiKey: "gsk_test_value",
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-20b",
         requestTimeoutMs: 30_000,
         client,
         now,
@@ -66,7 +66,7 @@ test("Groq adapter maps completion request and response", async () => {
         id: "chatcmpl_test",
         object: "chat.completion",
         created: 1,
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-20b",
         choices: [
             {
                 index: 0,
@@ -90,7 +90,7 @@ test("Groq adapter maps completion request and response", async () => {
 
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].body, {
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-20b",
         messages: [
             {
                 role: "system",
@@ -109,7 +109,7 @@ test("Groq adapter maps completion request and response", async () => {
     assert.equal(calls[0].options.signal, abortController.signal);
     assert.deepEqual(result, {
         providerId: "groq",
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-20b",
         outputText: "Mapped response",
         finishReason: "stop",
         usage: {
@@ -127,7 +127,7 @@ test("Groq adapter maps streaming chunks", async () => {
             id: "chunk_1",
             object: "chat.completion.chunk",
             created: 1,
-            model: "llama-3.1-8b-instant",
+            model: "openai/gpt-oss-20b",
             choices: [
                 {
                     index: 0,
@@ -142,7 +142,7 @@ test("Groq adapter maps streaming chunks", async () => {
             id: "chunk_2",
             object: "chat.completion.chunk",
             created: 1,
-            model: "llama-3.1-8b-instant",
+            model: "openai/gpt-oss-20b",
             choices: [
                 {
                     index: 0,
@@ -216,7 +216,7 @@ test("Groq adapter exposes configured health and capabilities", async () => {
         id: "chatcmpl_health",
         object: "chat.completion",
         created: 1,
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-20b",
         choices: [
             {
                 index: 0,
@@ -241,7 +241,7 @@ test("Groq adapter exposes configured health and capabilities", async () => {
     assert.equal(health.status, "healthy");
     assert.equal(health.latencyMs, 25);
     assert.deepEqual(capabilities.supportedModels, [
-        "llama-3.1-8b-instant",
+        "openai/gpt-oss-20b",
     ]);
     assert.equal(capabilities.supportsStreaming, true);
     assert.equal(capabilities.supportsNonStreaming, true);
