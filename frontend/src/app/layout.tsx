@@ -14,6 +14,9 @@ const inter = Inter({
 export const metadata: Metadata = {
     title: "ProxyAi",
     description: "Secure, policy-aware AI chat workspace.",
+    icons: {
+        icon: "/proxiai-logo.png",
+    },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

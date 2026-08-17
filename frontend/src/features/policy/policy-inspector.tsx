@@ -2,11 +2,17 @@
 
 import { CheckCircle, ShieldCheck, X } from "@phosphor-icons/react";
 
-import type { DoneEvent, PolicyEvent, RoutingEvent } from "@/features/chat/chat.types";
+import type {
+    DoneEvent,
+    FallbackEvent,
+    PolicyEvent,
+    RoutingEvent,
+} from "@/features/chat/chat.types";
 
 interface PolicyInspectorProps {
     policy?: PolicyEvent;
     routing?: RoutingEvent;
+    fallback?: FallbackEvent;
     completion?: DoneEvent;
     open: boolean;
     onClose(): void;
@@ -18,7 +24,7 @@ export function PolicyInspector(props: PolicyInspectorProps) {
     const categories = props.policy?.categories ?? [];
 
     return (
-        <aside className={`flex min-w-0 flex-col gap-3.5 overflow-y-auto border-l border-border-default bg-surface px-[18px] pt-7 pb-[22px] max-[1280px]:fixed max-[1280px]:inset-y-0 max-[1280px]:right-0 max-[1280px]:z-45 max-[1280px]:w-[min(90vw,360px)] max-[1280px]:translate-x-[105%] max-[1280px]:shadow-[-18px_0_48px_rgb(8_22_14_/_12%)] max-[1280px]:transition-transform max-[1280px]:duration-200 ${props.open ? "max-[1280px]:translate-x-0" : ""}`}>
+        <aside className={`flex min-w-0 flex-col gap-3.5 overflow-y-auto border-l border-border-default bg-surface px-[18px] pt-7 pb-[22px] max-[1280px]:fixed max-[1280px]:inset-y-0 max-[1280px]:right-0 max-[1280px]:z-45 max-[1280px]:w-[min(90vw,360px)] max-[1280px]:shadow-[-18px_0_48px_rgb(8_22_14_/_12%)] max-[1280px]:transition-transform max-[1280px]:duration-200 ${props.open ? "max-[1280px]:translate-x-0" : "max-[1280px]:translate-x-[105%]"}`}>
             <header className="flex min-h-[47px] items-center justify-between border-b border-border-default">
                 <div className="grid gap-[3px]">
                     <strong className="text-sm text-brand-dark">Policy</strong>
@@ -89,12 +95,25 @@ export function PolicyInspector(props: PolicyInspectorProps) {
                     <Detail label="Provider" value={props.routing?.provider ?? "Pending"} />
                     <Detail label="Model" value={props.completion?.model ?? "openai/gpt-oss-20b"} />
                     <Detail label="Routing" value={props.routing?.routingReason ?? "Manual"} />
+                    <Detail label="Fallback" value={formatFallback(props.fallback)} />
                     <Detail label="Latency" value={props.completion ? `${props.completion.latencyMs} ms` : "—"} />
                     <Detail label="Tokens" value={String(props.completion?.usage?.totalTokens ?? "—")} />
                 </dl>
             </section>
         </aside>
     );
+}
+
+function formatFallback(fallback?: FallbackEvent): string {
+    if (!fallback) {
+        return "None";
+    }
+
+    if (fallback.fromProvider && fallback.toProvider) {
+        return `${fallback.fromProvider} → ${fallback.toProvider}`;
+    }
+
+    return fallback.reason ?? "Applied";
 }
 
 function Detail({ label, value }: Readonly<{ label: string; value: string }>) {

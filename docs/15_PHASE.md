@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: Awaiting approval before P5-07 — Login and Chat Frontend
-Current Status: P5-06 Completed; Phase 4 provider-call integration gates passed
+Current Task: P5-07 — Login and Chat Frontend
+Current Status: Phase 5 Completed; awaiting approval before Phase 6
 Current Blocker: None
-Last Completed Task: P5-06 — Authenticated Chat Stream
-Last Completed Commit: feat(chat): add authenticated policy-aware streaming
+Last Completed Task: P5-07 — Login and Chat Frontend
+Last Completed Commit: test(frontend): verify Phase 5 frontend flows
 ```
 
 ---
@@ -493,7 +493,7 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 # 11. Phase 5 — Chat, Conversations, and Streaming
 
 **Effort:** High
-**Status:** In Progress
+**Status:** Completed
 
 ## Tasks
 
@@ -506,12 +506,12 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 - [x] P5-06 — Add authenticated `POST /api/v1/chat/stream`.
 - [x] Send canonical `request_started`, `policy`, `routing`, `fallback`, `token`, `done`, and `error` events where applicable.
 - [x] Handle client disconnect.
-- [ ] P5-07 — Build login and chat frontend.
-- [ ] Show mask, block, fallback, and interruption messages.
+- [x] P5-07 — Build login and chat frontend.
+- [x] Show mask, block, fallback, and interruption messages.
 
 ## Exit Criteria
 
-- [ ] User can log in, create conversation, and stream a safe response.
+- [x] User can log in, create conversation, and stream a safe response.
 - [x] User sees only their conversations.
 - [x] Cross-tenant conversation tests pass.
 - [x] Mid-stream provider splice is not implemented.
@@ -873,7 +873,7 @@ Do not randomly change several files.
 | Phase 2 | Not Started | |
 | Phase 3 | Not Started | |
 | Phase 4 | Not Started | |
-| Phase 5 | Not Started | |
+| Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
 | Phase 6 | Not Started | |
 | Phase 7 | Not Started | |
 | Phase 8 | Not Started | |

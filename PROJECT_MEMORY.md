@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** Awaiting approval before P5-07 — Login and Chat Frontend
-- **Status:** P5-06 authenticated policy-aware streaming completed; Phase 4 integration gates passed
+- **Task:** P5-07 — Login and Chat Frontend
+- **Status:** Completed; awaiting approval before Phase 6
 
 ## Completed Tasks
 
@@ -54,6 +54,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-06 prerequisite — Minimal authoritative token accounting completed on 2026-08-18
 - P5-06 — Authenticated policy-aware chat streaming completed on 2026-08-18
 - Phase 4 deferred BLOCK and masked-providerPrompt integration gates passed through P5-06 on 2026-08-18
+- P5-07 — Login and Chat Frontend completed on 2026-08-18
+- Phase 5 — Chat, Conversations, and Streaming completed on 2026-08-18
 
 ## Important Decisions
 
@@ -220,6 +222,13 @@ node --test tests/refresh.integration.mjs
 # After providing a valid .env:
 npm run dev
 npm start
+
+cd frontend
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run dev
 ```
 
 ## Known Blockers
@@ -326,8 +335,27 @@ npm start
 - Client disconnect aborts the provider signal, stops SSE writes, and finalizes safe accounting/idempotency state without logging request bodies, prompts, headers, cookies, SDK payloads, or raw provider errors.
 - Known provider token usage is appended to RequestLog and immediately reconciles BillingRollup. Missing provider usage is persisted as unknown, never converted to zero, and makes the next budget check fail closed.
 - Stream usage is optional in the canonical done chunk because the provider may not report it; pricing and `estimatedCostUsd` remain absent because pricing is not approved.
+- The frontend uses Next.js 16 App Router, strict TypeScript, and Tailwind CSS v4 through the official `@tailwindcss/postcss` setup. No legacy Tailwind configuration file is required, and all CSS Modules were removed after equivalent utility migration.
+- Frontend routes remain composition-only. Authentication, conversations, chat, and policy state live in feature modules; API, environment, error, and SSE boundaries live under `src/lib`.
+- The access token remains in React memory only. The backend-owned HttpOnly refresh cookie is used with credentialed requests; no token, cookie, provider key, policy logic, billing logic, database state, or filesystem session state is persisted by the frontend.
+- Direct browser-to-backend requests use validated `NEXT_PUBLIC_API_BASE_URL`; backend authentication, tenant scope, permissions, policy, provider routing, and accounting remain authoritative.
+- Tailwind theme tokens preserve the approved true-white, dark-text, ProxyAi-green visual system. Desktop uses conversation/chat/policy columns; mobile uses mutually exclusive off-canvas conversation and policy drawers.
+- React Strict Mode aborts are treated as expected cleanup so cancelled development-effect requests cannot show false errors or redirect valid owned Conversation reads.
+- The policy inspector consumes only safe SSE metadata and presents ALLOW, ALLOW_WITH_MASK, BLOCK, risk score, category names, masking, routing, fallback, provider, model, latency, and token usage without raw prompt or response data.
 
 ## Latest Task Record
+
+- **Task:** P5-07 — Login and Chat Frontend
+- **Status:** Completed
+- **Files changed:** Frontend package/config foundation; `frontend/src/app`; shared layout and UI primitives; auth, conversation, chat, and policy feature modules; API/error/environment/SSE libraries; four focused tests; `docs/15_PHASE.md`; and `PROJECT_MEMORY.md`.
+- **Architecture:** Adds a stateless Next.js App Router frontend with feature-owned interactive state, direct credentialed backend integration, in-memory access-token handling, scoped Conversation workflows, streaming SSE chat, and a safe policy/risk inspector.
+- **Styling:** Uses Tailwind CSS v4 as the primary styling system with theme tokens and base rules in `globals.css`; no `*.module.css`, inline style object, or unnecessary legacy Tailwind config remains.
+- **Focused tests:** Four tests cover password-space-preserving login normalization, approved API error-envelope parsing, split SSE frame preservation, and ordered multi-chunk SSE parsing.
+- **Browser verification:** Playwright fallback verified generic login, authenticated login, owned Conversation list/read, Conversation creation, one live Groq SSE completion, one chat-stream request, desktop at `1536x1024`, mobile at `390x844`, and both responsive drawers. The in-app browser backend was unavailable.
+- **QA fixes:** Strict Mode request aborts no longer produce false Conversation errors/redirects; mobile panel transforms are mutually exclusive; favicon metadata uses the approved ProxyAi asset; safe fallback status is presented.
+- **Security:** Frontend source/diff scans found no provider key, cookie, token, secret, console logging, CSS Module, or environment-file staging. The live prompt appeared only in the intended browser conversation UI and was absent from application source and console output.
+- **Scope:** No backend behavior, provider policy, billing logic, admin/audit/usage page, server-side session store, P5-08, or Phase 6 work was added.
+- **Next task:** Await explicit approval before Phase 6 — Redis Cache and Idempotency. Do not start P5-08 or Phase 6 automatically.
 
 - **Task:** P5-06 live Groq model configuration correction and authenticated smoke verification
 - **Status:** Completed
@@ -517,7 +545,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P5-07 — Login and Chat Frontend; do not start automatically.
+- Wait for approval before Phase 6 — Redis Cache and Idempotency; do not start P5-08 or Phase 6 automatically.
 
 ## Do Not Forget
 

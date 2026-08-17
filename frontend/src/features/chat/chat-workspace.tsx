@@ -21,6 +21,7 @@ import { streamChat } from "./chat.api";
 import { ChatCenter } from "./chat-center";
 import type {
     DoneEvent,
+    FallbackEvent,
     PolicyEvent,
     RoutingEvent,
     UiChatMessage,
@@ -41,6 +42,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
     const [messages, setMessages] = useState<UiChatMessage[]>([]);
     const [policy, setPolicy] = useState<PolicyEvent>();
     const [routing, setRouting] = useState<RoutingEvent>();
+    const [fallback, setFallback] = useState<FallbackEvent>();
     const [completion, setCompletion] = useState<DoneEvent>();
     const [requestError, setRequestError] = useState<string>();
     const [streaming, setStreaming] = useState(false);
@@ -59,7 +61,11 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
 
         void listConversations(auth.accessToken, abortController.signal)
             .then((response) => setConversations(response.data.items))
-            .catch(() => setRequestError("Conversations could not be loaded."));
+            .catch((error: unknown) => {
+                if (!isAbortError(error)) {
+                    setRequestError("Conversations could not be loaded.");
+                }
+            });
 
         return () => abortController.abort();
     }, [auth.accessToken, auth.status]);
@@ -81,7 +87,11 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
         ]).then(([conversationResponse, messageResponse]) => {
             setActiveConversation(conversationResponse.data);
             setRetainedMessageCount(messageResponse.data.items.length);
-        }).catch(() => {
+        }).catch((error: unknown) => {
+            if (isAbortError(error)) {
+                return;
+            }
+
             setRequestError("This conversation could not be loaded.");
             router.replace("/chat");
         });
@@ -105,6 +115,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
             setRetainedMessageCount(0);
             setPolicy(undefined);
             setRouting(undefined);
+            setFallback(undefined);
             setCompletion(undefined);
             setSidebarOpen(false);
             router.push(`/chat/${response.data.conversationId}`);
@@ -124,6 +135,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
         setRequestError(undefined);
         setPolicy(undefined);
         setRouting(undefined);
+        setFallback(undefined);
         setCompletion(undefined);
         setInspectorOpen(true);
 
@@ -169,6 +181,8 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                     setPolicy(event.data);
                 } else if (event.type === "routing") {
                     setRouting(event.data);
+                } else if (event.type === "fallback") {
+                    setFallback(event.data);
                 } else if (event.type === "token") {
                     updateAssistantMessage(setMessages, assistantId, (message) => ({
                         ...message,
@@ -231,6 +245,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
             inspector={<PolicyInspector
                 policy={policy}
                 routing={routing}
+                fallback={fallback}
                 completion={completion}
                 open={inspectorOpen}
                 onClose={() => setInspectorOpen(false)}
@@ -242,6 +257,10 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
             }}
         />
     );
+}
+
+function isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.name === "AbortError";
 }
 
 function updateAssistantMessage(

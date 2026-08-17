@@ -69,6 +69,7 @@ export const chatEventSchemas = {
 
 export type PolicyEvent = z.infer<typeof policyEventSchema>;
 export type RoutingEvent = z.infer<typeof routingEventSchema>;
+export type FallbackEvent = z.infer<typeof fallbackEventSchema>;
 export type DoneEvent = z.infer<typeof doneEventSchema>;
 
 export type ChatEvent = {

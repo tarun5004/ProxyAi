@@ -48,7 +48,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
         .join("");
 
     return (
-        <aside className={`flex min-w-0 flex-col border-r border-border-default bg-surface px-6 pt-7 pb-[22px] max-[1100px]:fixed max-[1100px]:inset-y-0 max-[1100px]:left-0 max-[1100px]:z-40 max-[1100px]:w-[min(88vw,340px)] max-[1100px]:-translate-x-[105%] max-[1100px]:shadow-[18px_0_48px_rgb(8_22_14_/_12%)] max-[1100px]:transition-transform max-[1100px]:duration-200 ${props.open ? "max-[1100px]:translate-x-0" : ""}`}>
+        <aside className={`flex min-w-0 flex-col border-r border-border-default bg-surface px-6 pt-7 pb-[22px] max-[1100px]:fixed max-[1100px]:inset-y-0 max-[1100px]:left-0 max-[1100px]:z-40 max-[1100px]:w-[min(88vw,340px)] max-[1100px]:shadow-[18px_0_48px_rgb(8_22_14_/_12%)] max-[1100px]:transition-transform max-[1100px]:duration-200 ${props.open ? "max-[1100px]:translate-x-0" : "max-[1100px]:-translate-x-[105%]"}`}>
             <div className="flex min-h-12 items-center justify-between">
                 <BrandLogo compact />
                 <button
