@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** Awaiting approval before P5-02 — Message Model
-- **Status:** P5-01 Conversation Model completed
+- **Task:** Awaiting approval before P5-03 — Create Conversation API
+- **Status:** P5-02 Message Model completed
 
 ## Completed Tasks
 
@@ -46,6 +46,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-10 — Safe structured policy decision events completed on 2026-08-17
 - Phase 4 — PII and policy implementation closed on 2026-08-17; integration gates remain deferred
 - P5-01 — Tenant-scoped Conversation model completed on 2026-08-17
+- P5-02 — Tenant-scoped Message model completed on 2026-08-17
 
 ## Important Decisions
 
@@ -277,8 +278,25 @@ npm start
 - Conversation declares only the approved unique `{ conversationId: 1 }` index and owner-list `{ orgId: 1, userId: 1, lastMessageAt: -1 }` index.
 - Future tenant-owned Conversation queries must use trusted `orgId` plus authenticated `userId` and the resource identifier where applicable; ordinary client input never establishes tenant scope.
 - Phase 5 UI reference: light/white theme, ProxyAI green accent, minimal Claude-style layout, left conversation sidebar, center chat workspace, right policy/risk panel, subtle borders/shadows, clean whitespace, and no generic AI-dashboard styling.
+- P5-02 resolves Message persistence conflicts with immutable UUID v4 `messageId`, `orgId`, `conversationId`, and `userId`, plus uppercase `USER`, `ASSISTANT`, and `SYSTEM` roles.
+- Message documents have no plaintext content field. Optional `contentEnc` uses a strict encrypted shape and is excluded from normal selection and serialization; `contentStored` defaults to `false` and must match encrypted-content presence on creation.
+- Message is append-oriented and uses `createdAt` only. `tokenCount` is optional but must be a non-negative safe integer.
+- Message declares only unique `{ messageId: 1 }` and tenant-conversation `{ orgId: 1, conversationId: 1, createdAt: 1 }` indexes.
+- `requestId`, provider/model metadata, `expiresAt`/TTL, and the encryption service remain deferred. Actual AES-256-GCM encryption and retention writing remain Phase 9 responsibilities.
+- Future Message reads must first establish Conversation ownership and query with trusted tenant/owner scope; client-supplied `orgId`, `userId`, or conversation ownership is never authoritative.
 
 ## Latest Task Record
+
+- **Task:** P5-02 — Message Model
+- **Status:** Completed
+- **Files changed:** `backend/src/features/messages/message.types.ts`, `backend/src/features/messages/message.model.ts`, `backend/tests/message.model.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Model:** Adds strict tenant-owned Message metadata with immutable UUIDs, approved uppercase roles, encrypted-only optional content, storage-state consistency, optional token count, and created-at-only timestamps.
+- **Safety:** Plaintext `content` is rejected, unknown encrypted fields fail, and `contentEnc` is excluded from normal queries and object/JSON serialization.
+- **Indexes:** Declares only the approved unique message ID and tenant-conversation chronological indexes.
+- **Focused tests:** Four tests cover valid metadata/encrypted messages, immutable UUID ownership, role/token validation, strict plaintext/nested-field rejection, timestamp shape, collection, and indexes.
+- **Verification:** `node --test tests/message.model.test.mjs` passed 4/4; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Scope:** No routes, controllers, provider/chat integration, raw content, encryption service, request/provider metadata, TTL, or P5-03 work was added.
+- **Next task:** P5-03 — Create Conversation API. Do not start without approval.
 
 - **Task:** P5-01 — Conversation Model
 - **Status:** Completed
@@ -396,7 +414,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P5-02 — Message Model; do not start automatically.
+- Wait for approval before P5-03 — Create Conversation API; do not start automatically.
 
 ## Do Not Forget
 
