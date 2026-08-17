@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-04
-- **Status:** P4-03 Completed
+- **Task:** Awaiting approval before P4-05
+- **Status:** P4-04 Completed
 
 ## Completed Tasks
 
@@ -38,6 +38,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-01 — PII detection completed on 2026-08-08
 - P4-02 — PII classification completed on 2026-08-12
 - P4-03 — Explainable risk scoring completed on 2026-08-12
+- P4-04 — Safe span masking completed on 2026-08-17
 
 ## Important Decisions
 
@@ -174,6 +175,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Classification deterministically derives categories from detector IDs using a static map; it preserves offsets, confidence, detector identity, and safe metadata without accepting raw source values.
 - PII risk weights follow the approved TDD exactly: contact 10, financial 25, government ID 30, credential 40, internal secret 40, and business confidential 20 per unique classified span.
 - Risk scoring sums per-span category weights, ignores exact duplicate spans, exposes safe per-category contribution metadata, and caps the normalized score at 100.
+- PII masking uses the documented email, phone, and credential placeholders; unspecified detectors and overlapping span clusters use the consistent `[PII_REDACTED]` fallback.
+- Masking removes exact duplicates, merges overlapping ranges, applies replacements from the end, and returns safe source/masked offsets plus canonical categories without raw detected values.
 
 ## Commands That Work
 
@@ -241,17 +244,18 @@ npm start
 - P4-01 regex detectors can produce false positives/negatives and are not a complete DLP system.
 - `BUSINESS_CONFIDENTIAL` remains an approved category but is not emitted until an approved organisation-configured confidential-term detector exists.
 - Risk accuracy depends on P4-01 detection accuracy; P4-03 intentionally adds no confidence weighting, masking, thresholds, or policy decisions.
+- Masking protects only spans found by P4-01; regex false negatives remain unmasked, and unspecified categories intentionally use the generic placeholder.
 
 ## Latest Task Record
 
-- **Task:** P4-03 — Explainable Risk Score
+- **Task:** P4-04 — Safe Span Masking
 - **Status:** Completed
-- **Files changed:** `backend/src/features/pii/pii-risk-scorer.ts`, `backend/tests/pii-risk-scorer.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Scoring:** Adds centralized canonical category weights and a deterministic per-span weighted sum capped at 100.
-- **Explainability:** Returns normalized and uncapped scores, cap status, and safe category-level weight, span-count, and subtotal contributions without raw detected values.
-- **Focused tests:** Four tests cover a single category, multiple categories, exact-duplicate normalization with multiple spans, and the 100 cap.
-- **Verification:** `node --test tests/pii-risk-scorer.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Next task:** P4-04 — Safe Span Masking. Do not start without approval.
+- **Files changed:** `backend/src/features/pii/pii-masker.ts`, `backend/tests/pii-masker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Masking:** Replaces classified source ranges without mutating the input text or classification, while preserving all non-sensitive text exactly.
+- **Safety:** Returns masked text and immutable safe metadata containing source offsets, post-mask offsets, placeholder, and canonical categories only.
+- **Focused tests:** Four tests cover single-span masking, multiple spans, duplicate/overlap normalization, and input immutability.
+- **Verification:** `node --test tests/pii-masker.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Next task:** P4-05 — Never Mutate the Original Prompt Object. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -330,7 +334,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P4-04 — Safe Span Masking; do not start it automatically.
+- Wait for approval before P4-05 — Never Mutate the Original Prompt Object; do not start it automatically.
 
 ## Do Not Forget
 
