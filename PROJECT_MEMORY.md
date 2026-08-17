@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting Phase 4 closure approval; do not start Phase 5
-- **Status:** P4-10 Completed; blocked/masked chat-integration exit gates remain pending
+- **Phase:** Phase 4 — PII and Policy Enforcement (Implementation Completed)
+- **Task:** Awaiting approval to start Phase 5; do not start automatically
+- **Status:** Phase 4 implementation closed with two explicit Phase 5 integration gates deferred
 
 ## Completed Tasks
 
@@ -44,6 +44,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-07 — `ALLOW_WITH_MASK` policy decision completed on 2026-08-17
 - P4-08 — `BLOCK` policy decision and budget-exhausted BLOCK criterion completed on 2026-08-17
 - P4-10 — Safe structured policy decision events completed on 2026-08-17
+- Phase 4 — PII and policy implementation closed on 2026-08-17; integration gates remain deferred
 
 ## Important Decisions
 
@@ -260,15 +261,27 @@ npm start
 - `BUSINESS_CONFIDENTIAL` remains an approved category but is not emitted until an approved organisation-configured confidential-term detector exists.
 - Risk accuracy depends on P4-01 detection accuracy; P4-03 intentionally adds no confidence weighting, masking, thresholds, or policy decisions.
 - Masking protects only spans found by P4-01; regex false negatives remain unmasked, and unspecified categories intentionally use the generic placeholder.
-- The sanitized prompt representation is not yet integrated with policy or provider execution; those boundaries remain later Phase 4/5 tasks.
+- The sanitized prompt representation is not yet wired from policy into provider execution; Phase 5 must prove that only masked `providerPrompt` reaches a provider for `ALLOW_WITH_MASK`.
 - Policy evaluation trusts the separately computed `BudgetStatus.exceeded` flag; billing-rollup calculation and strict in-flight budget reservation remain later work.
 - Zero provider calls are structurally guaranteed inside the policy module because it has no provider dependency; end-to-end blocked-chat proof remains deferred until chat integration exists.
 - Policy decisions emit only allowlisted metadata: request ID, action, risk score, approved reason code, category names, detector count, and trusted auth-derived organisation/user IDs when available.
 - Stable policy event names are `policy.allow`, `policy.mask`, `policy.block`, and `policy.budget_block`; budget exhaustion remains distinguishable without exposing budget details or prompt content.
 - Policy event creation never spreads the decision or auth objects, so `providerPrompt`, role, permissions, session ID, and unexpected fields are not forwarded to logs.
 - P4-10 emits structured application events only. Durable append-only audit persistence remains owned by Phase 9.
+- Phase 4 implementation is complete, but two runtime gates remain explicitly deferred: `BLOCK` must cause zero provider calls, and `ALLOW_WITH_MASK` must send only masked `providerPrompt`.
+- Both deferred gates must be proven when the first Phase 5 chat pipeline wires policy decisions to provider execution; no temporary provider/chat route will be created merely to mark them passed.
 
 ## Latest Task Record
+
+- **Task:** Phase 4 implementation closure
+- **Status:** Completed with two deferred integration gates
+- **Files changed:** `docs/15_PHASE.md` and `PROJECT_MEMORY.md` only.
+- **Completed scope:** P4-01 through P4-10 implementation is recorded complete.
+- **Deferred gates:** Integrated chat must prove zero provider calls for `BLOCK` and masked-only `providerPrompt` for `ALLOW_WITH_MASK` when Phase 5 wires policy to providers.
+- **Audit boundary:** P4-10 provides safe structured events; durable append-only audit persistence remains Phase 9.
+- **Scope:** No temporary provider/chat code was added, and Phase 5 was not started.
+- **Verification:** `npm run typecheck`, `npm run build`, `git diff --check`, and clean post-commit `git status --short` are required for closure.
+- **Next task:** Await explicit approval before starting Phase 5.
 
 - **Task:** P4-10 — Audit Decisions Without Raw Values
 - **Status:** Completed
@@ -366,7 +379,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for Phase 4 closure approval; do not start Phase 5 automatically.
+- Wait for explicit approval before Phase 5 planning or implementation; do not start automatically.
 
 ## Do Not Forget
 

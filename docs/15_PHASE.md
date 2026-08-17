@@ -134,12 +134,12 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 4 — PII and Policy Enforcement
-Current Task: Awaiting Phase 4 closure approval
-Current Status: P4-10 Completed; chat-integration exit gates remain pending
+Current Phase: Phase 4 — PII and Policy Enforcement (Implementation Completed)
+Current Task: Awaiting approval to start Phase 5
+Current Status: Phase 4 implementation closed; two integration gates deferred to Phase 5 chat wiring
 Current Blocker: None
-Last Completed Task: P4-10 — Audit Decisions Without Raw Values
-Last Completed Commit: feat(policy): add safe policy decision events
+Last Completed Task: Phase 4 implementation closure
+Last Completed Commit: docs(progress): record Phase 4 closure and deferred integration gates
 ```
 
 ---
@@ -450,19 +450,20 @@ Last Completed Commit: feat(policy): add safe policy decision events
 # 10. Phase 4 — PII and Policy Enforcement
 
 **Effort:** ⭐ Ultra
+**Status:** Implementation Completed — integration gates explicitly deferred to Phase 5
 
 ## Tasks
 
-- [x] Detect email, phone, card-like numbers, government IDs, API keys, and connection strings.
-- [x] Classify contact, financial, government ID, credential, internal secret, and business-confidential data.
-- [x] Calculate explainable 0–100 risk score.
-- [x] Mask spans safely.
-- [x] Never mutate the original prompt object.
-- [x] Implement `ALLOW`.
-- [x] Implement `ALLOW_WITH_MASK`.
-- [x] Implement `BLOCK`.
-- [x] Add budget-exhausted block.
-- [x] Audit decisions without raw values.
+- [x] P4-01 — Detect email, phone, card-like numbers, government IDs, API keys, and connection strings.
+- [x] P4-02 — Classify contact, financial, government ID, credential, internal secret, and business-confidential data.
+- [x] P4-03 — Calculate explainable 0–100 risk score.
+- [x] P4-04 — Mask spans safely.
+- [x] P4-05 — Never mutate the original prompt object.
+- [x] P4-06 — Implement `ALLOW`.
+- [x] P4-07 — Implement `ALLOW_WITH_MASK`.
+- [x] P4-08 — Implement `BLOCK`.
+- [x] P4-09 — Add budget-exhausted block.
+- [x] P4-10 — Audit decisions without raw values.
 
 ## Mandatory Security Test
 
@@ -478,10 +479,15 @@ API key in prompt
 
 ## Exit Criteria
 
-- [ ] Detection, classification, score, mask, and block tests pass.
-- [ ] Blocked prompt causes zero provider calls.
-- [ ] Masked prompt sends only masked text.
+- [x] Detection, classification, score, mask, and block focused tests pass.
+- [ ] **DEFERRED:** `BLOCK` causes zero provider calls in the integrated chat pipeline.
+- [ ] **DEFERRED:** `ALLOW_WITH_MASK` sends only masked `providerPrompt` to the provider.
 - [x] Structured policy decision events contain no raw sensitive values.
+
+The two deferred integration gates must be proven when Phase 5 first wires the
+chat policy decision to provider execution. Do not create temporary provider or
+chat code solely to satisfy these gates. Durable append-only audit persistence
+remains owned by Phase 9.
 
 ---
 
