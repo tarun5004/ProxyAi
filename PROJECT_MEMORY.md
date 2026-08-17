@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-06
-- **Status:** P4-05 Completed
+- **Task:** Awaiting approval before P4-07
+- **Status:** P4-06 Completed
 
 ## Completed Tasks
 
@@ -40,6 +40,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-03 — Explainable risk scoring completed on 2026-08-12
 - P4-04 — Safe span masking completed on 2026-08-17
 - P4-05 — Original prompt immutability completed on 2026-08-17
+- P4-06 — `ALLOW` policy decision completed on 2026-08-17
 
 ## Important Decisions
 
@@ -180,6 +181,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Masking removes exact duplicates, merges overlapping ranges, applies replacements from the end, and returns safe source/masked offsets plus canonical categories without raw detected values.
 - Immutable PII processing reads only the original root prompt and derives a separate frozen sanitized request containing the masked prompt.
 - Arbitrary nested request fields are neither spread nor forwarded into the sanitized representation, preventing shallow-copy mutation and accidental raw-context propagation.
+- The canonical policy action allowlist is `ALLOW`, `ALLOW_WITH_MASK`, and `BLOCK`; P4-06 implements only the `ALLOW` decision branch.
+- `ALLOW` requires `budget.exceeded === false` and `risk.score < policy.maskThreshold`; exact threshold equality is not allowed and remains for P4-07.
+- Policy evaluation uses the repository-canonical `maskThreshold`/`blockThreshold` Organisation fields and returns `risk_below_mask_threshold` with safe score/category/count metadata only.
 
 ## Commands That Work
 
@@ -249,17 +253,18 @@ npm start
 - Risk accuracy depends on P4-01 detection accuracy; P4-03 intentionally adds no confidence weighting, masking, thresholds, or policy decisions.
 - Masking protects only spans found by P4-01; regex false negatives remain unmasked, and unspecified categories intentionally use the generic placeholder.
 - The sanitized prompt representation is not yet integrated with policy or provider execution; those boundaries remain later Phase 4/5 tasks.
+- P4-06 trusts the separately computed `BudgetStatus.exceeded` flag; budget calculation and exhausted-budget blocking are not implemented in this task.
 
 ## Latest Task Record
 
-- **Task:** P4-05 — Never Mutate Original Prompt Object
+- **Task:** P4-06 — Implement `ALLOW`
 - **Status:** Completed
-- **Files changed:** `backend/src/features/pii/pii-prompt-processor.ts`, `backend/tests/pii-prompt-processor.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Processing:** Composes detection, classification, and masking around an immutable source prompt and produces a minimal frozen sanitized request.
-- **Safety:** Original and nested request data remain unchanged; nested fields are not forwarded, and the sanitized request contains no detected raw value.
-- **Focused tests:** Four tests cover prompt immutability after detection and masking, nested-object immutability, and the separate frozen sanitized representation.
-- **Verification:** `node --test tests/pii-prompt-processor.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Next task:** P4-06 — Implement `ALLOW`. Do not start without approval.
+- **Files changed:** `backend/src/features/policy/policy.types.ts`, `backend/src/features/policy/policy-evaluator.ts`, `backend/tests/policy-allow.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Policy:** Adds canonical policy actions, budget/evaluation contracts, safe ALLOW metadata, and deterministic ALLOW-only evaluation.
+- **Safety:** Eligible requests return a frozen decision without prompt text or raw PII; non-ALLOW conditions return `null` without implementing MASK or BLOCK.
+- **Focused tests:** Four tests cover safe ALLOW, the mask-threshold boundary, determinism, and absence of detected values from decision output.
+- **Verification:** `node --test tests/policy-allow.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Next task:** P4-07 — Implement `ALLOW_WITH_MASK`. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -338,7 +343,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P4-06 — Implement `ALLOW`; do not start it automatically.
+- Wait for approval before P4-07 — Implement `ALLOW_WITH_MASK`; do not start it automatically.
 
 ## Do Not Forget
 

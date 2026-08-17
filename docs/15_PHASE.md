@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 4 — PII and Policy Enforcement
-Current Task: Awaiting approval before P4-06
-Current Status: P4-05 Completed
+Current Task: Awaiting approval before P4-07
+Current Status: P4-06 Completed
 Current Blocker: None
-Last Completed Task: P4-05 — Never Mutate Original Prompt Object
-Last Completed Commit: feat(pii): preserve original prompt immutability
+Last Completed Task: P4-06 — Implement `ALLOW`
+Last Completed Commit: feat(policy): add allow decision
 ```
 
 ---
@@ -458,7 +458,7 @@ Last Completed Commit: feat(pii): preserve original prompt immutability
 - [x] Calculate explainable 0–100 risk score.
 - [x] Mask spans safely.
 - [x] Never mutate the original prompt object.
-- [ ] Implement `ALLOW`.
+- [x] Implement `ALLOW`.
 - [ ] Implement `ALLOW_WITH_MASK`.
 - [ ] Implement `BLOCK`.
 - [ ] Add budget-exhausted block.
