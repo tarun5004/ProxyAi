@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** Awaiting approval before P5-06 — Authenticated Chat Stream
-- **Status:** P5-05 Conversation Messages API completed with safe summary-only responses
+- **Task:** Awaiting approval to resume P5-06 — Authenticated Chat Stream
+- **Status:** Minimal authoritative token-accounting prerequisite completed; P5-06 endpoint not started
 
 ## Completed Tasks
 
@@ -51,6 +51,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-04 — Scoped Conversation list/read APIs and cursor pagination completed on 2026-08-17
 - Phase 2 deferred cross-tenant Conversation READ gate passed with real MongoDB on 2026-08-17; UPDATE/DELETE gates remain deferred
 - P5-05 — Scoped Conversation Message listing completed on 2026-08-18
+- P5-06 prerequisite — Minimal authoritative token accounting completed on 2026-08-18
 
 ## Important Decisions
 
@@ -303,8 +304,25 @@ npm start
 - Message listing queries always include trusted `orgId` and `conversationId`, use chronological `createdAt` ordering with `messageId` as the public tie-breaker, and return an opaque validated cursor.
 - Phase 5 Message API responses expose only `messageId`, lowercase API `role`, optional `tokenCount`, `createdAt`, and `contentAvailable: false`; they never expose `content`, `contentEnc`, ciphertext, IV, authentication tags, key versions, or other encryption metadata.
 - Message reads use an explicit safe-field projection. Actual content decryption and any future content-bearing response remain deferred to Phase 9.
+- The P5-06 budget prerequisite was explicitly pulled forward because policy evaluation must never assume that usage is zero or that budget is available.
+- Minimal `RequestLog` records are tenant-scoped, append-only provider-usage records containing trusted request, organisation, and user IDs plus canonical provider/model metadata. Token fields are persisted only as a complete known input/output/total set.
+- RequestLog persistence contains no prompt, response, PII value, credential, secret, pricing, or cost field. All persisted identifiers and usage fields are immutable, and normal update/delete operations are rejected.
+- The current UTC-month BillingRollup is deterministically reconciled from persisted tenant-scoped RequestLog records before BudgetStatus is returned; Redis is never used as the budget source of truth.
+- Any persisted provider-usage record with unavailable token usage makes budget accounting operationally unavailable and fails closed with `BUDGET_ACCOUNTING_UNAVAILABLE`; it never becomes `exceeded: false`.
+- Budget status reads the current `Organisation.monthlyTokenBudget` and uses the approved boundary `usedTokens >= monthlyTokenBudget`; therefore a zero-token budget is exhausted even when persisted usage is zero.
+- The synchronous reconciliation is intentionally minimal. Full idempotent workers, replay protection, user/provider rollups, pricing, invoices, alerts, and generalized billing infrastructure remain Phase 7 work.
 
 ## Latest Task Record
+
+- **Task:** P5-06 prerequisite — Minimal Authoritative Token Accounting
+- **Status:** Completed; P5-06 chat endpoint not started
+- **Files changed:** `backend/src/features/billing/billing.types.ts`, `backend/src/features/billing/request-log.model.ts`, `backend/src/features/billing/billing-rollup.model.ts`, `backend/src/features/billing/billing.repository.ts`, `backend/src/features/billing/billing.service.ts`, `backend/tests/billing.accounting.integration.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Accounting:** Adds append-only tenant RequestLog usage records, organisation-month BillingRollup reconciliation, UTC period boundaries, and deterministic BudgetStatus from current organisation budget plus persisted known usage.
+- **Fail closed:** Missing organisation accounting, database failures, incomplete token usage, or rollup persistence failures return safe `503 BUDGET_ACCOUNTING_UNAVAILABLE`; Redis and invented zero usage are never accepted.
+- **Focused tests:** Four real-Mongo tests cover persisted usage status, exact exhausted boundary, tenant isolation, and unknown usage fail-closed behavior.
+- **Verification:** `node --test tests/billing.accounting.integration.mjs` passed 4/4; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Scope:** No chat route, provider call, idempotency, Redis rate limit, billing worker, pricing, invoice, alert, or Phase 7 expansion was added.
+- **Next task:** P5-06 — Authenticated Chat Stream. Do not resume without approval.
 
 - **Task:** P5-05 — Conversation Messages API
 - **Status:** Completed
@@ -463,7 +481,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P5-06 — Authenticated Chat Stream; do not start automatically.
+- Wait for approval to resume P5-06 — Authenticated Chat Stream; do not start automatically.
 
 ## Do Not Forget
 

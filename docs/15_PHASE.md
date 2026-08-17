@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: Awaiting approval before P5-06 — Authenticated Chat Stream
-Current Status: P5-05 Completed; retained Message reads are tenant and owner scoped
+Current Task: Awaiting approval to resume P5-06 — Authenticated Chat Stream
+Current Status: P5-06 authoritative token-accounting prerequisite completed; chat endpoint not started
 Current Blocker: None
-Last Completed Task: P5-05 — Conversation Messages API
-Last Completed Commit: feat(messages): add scoped conversation message listing
+Last Completed Task: P5-06 prerequisite — Minimal authoritative token accounting
+Last Completed Commit: feat(billing): add minimal authoritative token accounting
 ```
 
 ---
@@ -504,6 +504,7 @@ remains owned by Phase 9.
 - [x] P5-03 — Add create-conversation API.
 - [x] P5-04 — Add Conversation list/read APIs using tenant scope and cursor pagination.
 - [x] P5-05 — Add retained Message-list API using tenant-scoped Conversation ownership.
+- [x] P5-06 prerequisite — Add minimal authoritative RequestLog and BillingRollup accounting required for fail-closed policy budget checks.
 - [ ] P5-06 — Add authenticated `POST /api/v1/chat/stream`.
 - [ ] Send `meta`, `token`, `done`, and `error` events.
 - [ ] Handle client disconnect.
@@ -516,6 +517,13 @@ remains owned by Phase 9.
 - [ ] User sees only their conversations.
 - [ ] Cross-tenant conversation tests pass.
 - [ ] Mid-stream provider splice is not implemented.
+
+The P5-06 accounting prerequisite was explicitly pulled forward because policy
+cannot safely evaluate budget state without persisted usage. It is limited to
+append-only provider usage records, an organisation-month rollup derived from
+those records, and a fail-closed budget reader. Redis is not a budget source of
+truth. Generalised asynchronous billing, replay protection, workers, alerts,
+costs, and dashboard rollups remain Phase 7 responsibilities.
 
 ---
 
