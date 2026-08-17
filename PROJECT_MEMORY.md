@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-05
-- **Status:** P4-04 Completed
+- **Task:** Awaiting approval before P4-06
+- **Status:** P4-05 Completed
 
 ## Completed Tasks
 
@@ -39,6 +39,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-02 — PII classification completed on 2026-08-12
 - P4-03 — Explainable risk scoring completed on 2026-08-12
 - P4-04 — Safe span masking completed on 2026-08-17
+- P4-05 — Original prompt immutability completed on 2026-08-17
 
 ## Important Decisions
 
@@ -177,6 +178,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Risk scoring sums per-span category weights, ignores exact duplicate spans, exposes safe per-category contribution metadata, and caps the normalized score at 100.
 - PII masking uses the documented email, phone, and credential placeholders; unspecified detectors and overlapping span clusters use the consistent `[PII_REDACTED]` fallback.
 - Masking removes exact duplicates, merges overlapping ranges, applies replacements from the end, and returns safe source/masked offsets plus canonical categories without raw detected values.
+- Immutable PII processing reads only the original root prompt and derives a separate frozen sanitized request containing the masked prompt.
+- Arbitrary nested request fields are neither spread nor forwarded into the sanitized representation, preventing shallow-copy mutation and accidental raw-context propagation.
 
 ## Commands That Work
 
@@ -245,17 +248,18 @@ npm start
 - `BUSINESS_CONFIDENTIAL` remains an approved category but is not emitted until an approved organisation-configured confidential-term detector exists.
 - Risk accuracy depends on P4-01 detection accuracy; P4-03 intentionally adds no confidence weighting, masking, thresholds, or policy decisions.
 - Masking protects only spans found by P4-01; regex false negatives remain unmasked, and unspecified categories intentionally use the generic placeholder.
+- The sanitized prompt representation is not yet integrated with policy or provider execution; those boundaries remain later Phase 4/5 tasks.
 
 ## Latest Task Record
 
-- **Task:** P4-04 — Safe Span Masking
+- **Task:** P4-05 — Never Mutate Original Prompt Object
 - **Status:** Completed
-- **Files changed:** `backend/src/features/pii/pii-masker.ts`, `backend/tests/pii-masker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Masking:** Replaces classified source ranges without mutating the input text or classification, while preserving all non-sensitive text exactly.
-- **Safety:** Returns masked text and immutable safe metadata containing source offsets, post-mask offsets, placeholder, and canonical categories only.
-- **Focused tests:** Four tests cover single-span masking, multiple spans, duplicate/overlap normalization, and input immutability.
-- **Verification:** `node --test tests/pii-masker.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
-- **Next task:** P4-05 — Never Mutate the Original Prompt Object. Do not start without approval.
+- **Files changed:** `backend/src/features/pii/pii-prompt-processor.ts`, `backend/tests/pii-prompt-processor.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Processing:** Composes detection, classification, and masking around an immutable source prompt and produces a minimal frozen sanitized request.
+- **Safety:** Original and nested request data remain unchanged; nested fields are not forwarded, and the sanitized request contains no detected raw value.
+- **Focused tests:** Four tests cover prompt immutability after detection and masking, nested-object immutability, and the separate frozen sanitized representation.
+- **Verification:** `node --test tests/pii-prompt-processor.test.mjs`, `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Next task:** P4-06 — Implement `ALLOW`. Do not start without approval.
 
 - **Task:** P3-05 — Retry Policy
 - **Status:** Completed
@@ -334,7 +338,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P4-05 — Never Mutate the Original Prompt Object; do not start it automatically.
+- Wait for approval before P4-06 — Implement `ALLOW`; do not start it automatically.
 
 ## Do Not Forget
 
