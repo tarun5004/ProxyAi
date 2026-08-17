@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** Awaiting approval before P5-04 — List and Read Conversation APIs
-- **Status:** P5-03 Create Conversation API completed
+- **Task:** Awaiting approval before P5-05 — Conversation Messages API
+- **Status:** P5-04 Conversation list/read APIs completed; cross-tenant READ gate passed
 
 ## Completed Tasks
 
@@ -48,6 +48,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-01 — Tenant-scoped Conversation model completed on 2026-08-17
 - P5-02 — Tenant-scoped Message model completed on 2026-08-17
 - P5-03 — Authenticated Create Conversation API completed on 2026-08-17
+- P5-04 — Scoped Conversation list/read APIs and cursor pagination completed on 2026-08-17
+- Phase 2 deferred cross-tenant Conversation READ gate passed with real MongoDB on 2026-08-17; UPDATE/DELETE gates remain deferred
 
 ## Important Decisions
 
@@ -289,9 +291,25 @@ npm start
 - Create-conversation input is a strict Zod object containing only optional `title`; client-supplied `orgId`, `userId`, or unknown fields are rejected.
 - Conversation ownership is copied only from trusted `request.auth.orgId` and `request.auth.userId`; the repository receives no client-selected ownership fields.
 - The create response uses the standard `201` success envelope with request ID and a safe Conversation summary that excludes tenant IDs and MongoDB internals.
-- The mandatory Phase 2 cross-tenant read/update/delete runtime gate remains deferred because P5-03 creates resources but exposes no read/update/delete operation. P5-04 must prove cross-tenant and cross-user read denial.
+- P5-03 could not prove cross-tenant reads because it exposed creation only; P5-04 now proves cross-tenant and cross-user Conversation read denial.
+- `GET /api/v1/conversations` and `GET /api/v1/conversations/:conversationId` require authentication and current `chat:view_own` permission.
+- Conversation list/read repository methods always query using trusted `orgId` and `userId`; single-resource reads additionally require `conversationId` in the same database filter.
+- Foreign-organisation, foreign-user, and nonexistent Conversation identifiers share the same generic `404 NOT_FOUND` response.
+- Conversation pagination sorts by descending `lastMessageAt` with descending public `conversationId` as the stable tie-breaker, fetches `limit + 1`, and returns an opaque base64url cursor.
+- Cursor data is treated as untrusted and validated before use. It contains no tenant identity and cannot override auth-derived scope; cursor HMAC remains unimplemented because no dedicated signing key is approved.
+- Real MongoDB HTTP tests prove the previously deferred cross-tenant and cross-user READ gate. UPDATE and DELETE gates remain deferred because no such endpoints exist.
 
 ## Latest Task Record
+
+- **Task:** P5-04 — List and Read Conversation APIs
+- **Status:** Completed
+- **Files changed:** `backend/src/features/conversations/conversation.types.ts`, `backend/src/features/conversations/conversation.cursor.ts`, `backend/src/features/conversations/conversation.schema.ts`, `backend/src/features/conversations/conversation.repository.ts`, `backend/src/features/conversations/conversation.service.ts`, `backend/src/features/conversations/conversation.controller.ts`, `backend/src/features/conversations/conversation.routes.ts`, `backend/tests/conversation.query.integration.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Flow:** Adds authenticated `chat:view_own` list/read routes, trusted owner-scoped Mongo queries, safe summaries, generic scoped 404 behavior, and validated cursor pagination.
+- **Tenant gate:** Real MongoDB tests prove an authenticated user cannot list or read another organisation's or another user's Conversations using their public IDs.
+- **Focused tests:** Four tests cover owned-only listing, own-record reading, foreign org/user generic 404, and stable non-overlapping cursor pages.
+- **Verification:** `node --test tests/conversation.query.integration.mjs` passed 4/4 against dedicated MongoDB; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Scope:** No Message-list endpoint, update/delete operation, chat/provider integration, or P5-05 work was added.
+- **Next task:** P5-05 — Conversation Messages API. Do not start without approval.
 
 - **Task:** P5-03 — Create Conversation API
 - **Status:** Completed
@@ -430,7 +448,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P5-04 — List and Read Conversation APIs; do not start automatically.
+- Wait for approval before P5-05 — Conversation Messages API; do not start automatically.
 
 ## Do Not Forget
 

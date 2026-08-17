@@ -28,3 +28,20 @@ export interface ConversationSummary {
     readonly createdAt: Date;
     readonly lastMessageAt: Date | null;
 }
+
+export interface ConversationListCursor {
+    readonly lastMessageAt: Date | null;
+    readonly conversationId: string;
+}
+
+export interface ListOwnedConversationsInput {
+    readonly orgId: string;
+    readonly userId: string;
+    readonly limit: number;
+    readonly cursor?: ConversationListCursor;
+}
+
+export interface ConversationPage {
+    readonly items: readonly ConversationSummary[];
+    readonly nextCursor: string | null;
+}

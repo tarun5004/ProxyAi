@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: Awaiting approval before P5-04 — List and Read Conversation APIs
-Current Status: P5-03 Completed
+Current Task: Awaiting approval before P5-05 — Conversation Messages API
+Current Status: P5-04 Completed; cross-tenant READ gate passed
 Current Blocker: None
-Last Completed Task: P5-03 — Create Conversation API
-Last Completed Commit: feat(conversations): add create conversation endpoint
+Last Completed Task: P5-04 — List and Read Conversation APIs
+Last Completed Commit: feat(conversations): add scoped conversation queries
 ```
 
 ---
@@ -408,12 +408,13 @@ Last Completed Commit: feat(conversations): add create conversation endpoint
 - [x] Login, refresh, reuse detection, and logout work.
 - [x] Auth middleware resolves trusted user and organisation.
 - [x] Permission middleware works.
-- [ ] Cross-tenant CRUD runtime gate deferred until first tenant-owned CRUD resource.
+- [x] Cross-tenant Conversation READ gate passes with trusted `orgId`, `userId`, and `conversationId` scope.
+- [ ] Cross-tenant UPDATE and DELETE runtime gates remain deferred until those endpoints exist.
 - [x] Secrets do not appear in logs.
 
 **Mandatory Gate:** User from Org A cannot read, update, or delete Org B data.
 
-**Deferred Runtime Verification:** Mandatory cross-tenant CRUD verification must run against the first implemented tenant-owned CRUD resource before that resource is considered complete.
+**Runtime Verification:** Cross-tenant and cross-user Conversation reads return the same generic `404` as missing records. Mandatory UPDATE and DELETE verification must run when the first tenant-owned update/delete endpoints are implemented.
 
 ---
 
@@ -501,8 +502,8 @@ remains owned by Phase 9.
 - [x] P5-01 — Create Conversation model with `orgId`, user ID, title, message count, and indexes.
 - [x] P5-02 — Create Message model with encrypted-content structure.
 - [x] P5-03 — Add create-conversation API.
-- [ ] Add list and read APIs using tenant scope.
-- [ ] Add cursor pagination.
+- [x] P5-04 — Add Conversation list/read APIs using tenant scope and cursor pagination.
+- [ ] P5-05 — Add retained Message-list API using tenant-scoped Conversation ownership.
 - [ ] Add authenticated `POST /api/v1/chat/stream`.
 - [ ] Send `meta`, `token`, `done`, and `error` events.
 - [ ] Handle client disconnect.
