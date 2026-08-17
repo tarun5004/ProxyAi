@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** P5-07 — Login and Chat Frontend
+- **Task:** P5-07 addendum — Public Landing Page
 - **Status:** Completed; awaiting approval before Phase 6
 
 ## Completed Tasks
@@ -55,6 +55,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-06 — Authenticated policy-aware chat streaming completed on 2026-08-18
 - Phase 4 deferred BLOCK and masked-providerPrompt integration gates passed through P5-06 on 2026-08-18
 - P5-07 — Login and Chat Frontend completed on 2026-08-18
+- P5-07 addendum — Public Landing Page completed on 2026-08-18
 - Phase 5 — Chat, Conversations, and Streaming completed on 2026-08-18
 
 ## Important Decisions
@@ -342,8 +343,21 @@ npm run dev
 - Tailwind theme tokens preserve the approved true-white, dark-text, ProxyAi-green visual system. Desktop uses conversation/chat/policy columns; mobile uses mutually exclusive off-canvas conversation and policy drawers.
 - React Strict Mode aborts are treated as expected cleanup so cancelled development-effect requests cannot show false errors or redirect valid owned Conversation reads.
 - The policy inspector consumes only safe SSE metadata and presents ALLOW, ALLOW_WITH_MASK, BLOCK, risk score, category names, masking, routing, fallback, provider, model, latency, and token usage without raw prompt or response data.
+- The public `/` route is a statically rendered marketing page composed from `features/marketing`; `/login` and `/chat` remain the unchanged authenticated product entry points.
+- The landing page uses the supplied 2026-08-18 visual reference as its primary design specification: true white surfaces, dark typography, restrained ProxiAI green, thin borders, soft shadows, product-flow visuals, and responsive mobile composition.
+- Marketing claims remain limited to capabilities already implemented or explicitly architectural; no fake customer logos, compliance certifications, provider pricing, or future-product promises are presented.
 
 ## Latest Task Record
+
+- **Task:** P5-07 addendum — Public Landing Page
+- **Status:** Completed
+- **Files changed:** `frontend/src/app/page.tsx`, `frontend/src/app/globals.css`, `frontend/src/features/marketing`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Implementation:** Replaces the root login redirect with a static public landing route, adds reference-led header, hero, proxy flow, trust, feature, workflow, enterprise, CTA, and footer sections, and keeps every workspace CTA wired to `/login`.
+- **Styling and motion:** Uses Tailwind CSS v4 utilities and existing theme foundations; code-native visuals and CSS-only reduced-motion-safe reveals add no browser state, image-generation dependency, or provider logic.
+- **Focused tests:** Three tests cover the core product story and login CTAs, section-anchor navigation, and preservation of the existing login route composition.
+- **Visual verification:** Playwright with installed Chrome compared full-page desktop `1536x1024` and mobile `390x844` captures against the supplied reference; spacing, separator contrast, central mark treatment, and mobile stacking were corrected during QA.
+- **Security and scope:** No backend behavior, authentication contract, provider secret, policy/billing logic, fake compliance claim, Phase 6 feature, environment file, or temporary QA asset was added.
+- **Next task:** Await explicit approval before Phase 6 — Redis Cache and Idempotency. Do not start P5-08 or Phase 6 automatically.
 
 - **Task:** P5-07 — Login and Chat Frontend
 - **Status:** Completed

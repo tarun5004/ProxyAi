@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: P5-07 — Login and Chat Frontend
+Current Task: P5-07 addendum — Public Landing Page
 Current Status: Phase 5 Completed; awaiting approval before Phase 6
 Current Blocker: None
-Last Completed Task: P5-07 — Login and Chat Frontend
-Last Completed Commit: test(frontend): verify Phase 5 frontend flows
+Last Completed Task: P5-07 addendum — Public Landing Page
+Last Completed Commit: test(marketing): verify landing experience
 ```
 
 ---
@@ -508,6 +508,7 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 - [x] Handle client disconnect.
 - [x] P5-07 — Build login and chat frontend.
 - [x] Show mask, block, fallback, and interruption messages.
+- [x] P5-07 addendum — Add a public ProxiAI landing page while preserving `/login` and `/chat`.
 
 ## Exit Criteria
 
