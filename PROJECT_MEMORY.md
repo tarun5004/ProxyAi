@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** Awaiting approval before P5-05 — Conversation Messages API
-- **Status:** P5-04 Conversation list/read APIs completed; cross-tenant READ gate passed
+- **Task:** Awaiting approval before P5-06 — Authenticated Chat Stream
+- **Status:** P5-05 Conversation Messages API completed with safe summary-only responses
 
 ## Completed Tasks
 
@@ -50,6 +50,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-03 — Authenticated Create Conversation API completed on 2026-08-17
 - P5-04 — Scoped Conversation list/read APIs and cursor pagination completed on 2026-08-17
 - Phase 2 deferred cross-tenant Conversation READ gate passed with real MongoDB on 2026-08-17; UPDATE/DELETE gates remain deferred
+- P5-05 — Scoped Conversation Message listing completed on 2026-08-18
 
 ## Important Decisions
 
@@ -298,8 +299,22 @@ npm start
 - Conversation pagination sorts by descending `lastMessageAt` with descending public `conversationId` as the stable tie-breaker, fetches `limit + 1`, and returns an opaque base64url cursor.
 - Cursor data is treated as untrusted and validated before use. It contains no tenant identity and cannot override auth-derived scope; cursor HMAC remains unimplemented because no dedicated signing key is approved.
 - Real MongoDB HTTP tests prove the previously deferred cross-tenant and cross-user READ gate. UPDATE and DELETE gates remain deferred because no such endpoints exist.
+- `GET /api/v1/conversations/:conversationId/messages` requires authentication and current `chat:view_own` permission, then verifies Conversation ownership through trusted `orgId`, `userId`, and `conversationId` before reading Messages.
+- Message listing queries always include trusted `orgId` and `conversationId`, use chronological `createdAt` ordering with `messageId` as the public tie-breaker, and return an opaque validated cursor.
+- Phase 5 Message API responses expose only `messageId`, lowercase API `role`, optional `tokenCount`, `createdAt`, and `contentAvailable: false`; they never expose `content`, `contentEnc`, ciphertext, IV, authentication tags, key versions, or other encryption metadata.
+- Message reads use an explicit safe-field projection. Actual content decryption and any future content-bearing response remain deferred to Phase 9.
 
 ## Latest Task Record
+
+- **Task:** P5-05 — Conversation Messages API
+- **Status:** Completed
+- **Files changed:** `backend/src/features/conversations/conversation.routes.ts`, `backend/src/features/messages/message.types.ts`, `backend/src/features/messages/message.cursor.ts`, `backend/src/features/messages/message.schema.ts`, `backend/src/features/messages/message.repository.ts`, `backend/src/features/messages/message.service.ts`, `backend/src/features/messages/message.controller.ts`, `backend/tests/message.query.integration.mjs`, `docs/05_OPENAPI_SPEC.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Flow:** Authenticates, checks `chat:view_own`, verifies trusted Conversation ownership, runs an `orgId`-scoped Message query, and returns stable chronological cursor pages through the standard envelope.
+- **Safety:** The repository explicitly selects safe metadata fields, maps persistence roles to lowercase API values, sets `contentAvailable: false`, and never returns encrypted content or encryption metadata.
+- **Focused tests:** Four real-Mongo HTTP tests cover safe owner summaries, foreign organisation/user generic `404`, cross-conversation and cross-tenant isolation, and stable chronological cursor pagination.
+- **Verification:** `node --test tests/message.query.integration.mjs` passed 4/4; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Scope:** No Message creation, content decryption, provider/chat integration, or P5-06 work was added.
+- **Next task:** P5-06 — Authenticated Chat Stream. Do not start without approval.
 
 - **Task:** P5-04 — List and Read Conversation APIs
 - **Status:** Completed
@@ -448,7 +463,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P5-05 — Conversation Messages API; do not start automatically.
+- Wait for approval before P5-06 — Authenticated Chat Stream; do not start automatically.
 
 ## Do Not Forget
 

@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: Awaiting approval before P5-05 — Conversation Messages API
-Current Status: P5-04 Completed; cross-tenant READ gate passed
+Current Task: Awaiting approval before P5-06 — Authenticated Chat Stream
+Current Status: P5-05 Completed; retained Message reads are tenant and owner scoped
 Current Blocker: None
-Last Completed Task: P5-04 — List and Read Conversation APIs
-Last Completed Commit: feat(conversations): add scoped conversation queries
+Last Completed Task: P5-05 — Conversation Messages API
+Last Completed Commit: feat(messages): add scoped conversation message listing
 ```
 
 ---
@@ -503,8 +503,8 @@ remains owned by Phase 9.
 - [x] P5-02 — Create Message model with encrypted-content structure.
 - [x] P5-03 — Add create-conversation API.
 - [x] P5-04 — Add Conversation list/read APIs using tenant scope and cursor pagination.
-- [ ] P5-05 — Add retained Message-list API using tenant-scoped Conversation ownership.
-- [ ] Add authenticated `POST /api/v1/chat/stream`.
+- [x] P5-05 — Add retained Message-list API using tenant-scoped Conversation ownership.
+- [ ] P5-06 — Add authenticated `POST /api/v1/chat/stream`.
 - [ ] Send `meta`, `token`, `done`, and `error` events.
 - [ ] Handle client disconnect.
 - [ ] Build login and chat frontend.

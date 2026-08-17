@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { authenticateRequest } from "../auth/auth.middleware.js";
 import { requirePermission } from "../auth/authorization.middleware.js";
+import { listConversationMessages } from "../messages/message.controller.js";
 import {
     createConversation,
     getConversation,
@@ -27,4 +28,10 @@ conversationRouter.get(
     authenticateRequest,
     requirePermission("chat:view_own"),
     getConversation,
+);
+conversationRouter.get(
+    "/:conversationId/messages",
+    authenticateRequest,
+    requirePermission("chat:view_own"),
+    listConversationMessages,
 );

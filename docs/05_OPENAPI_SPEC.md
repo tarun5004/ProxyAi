@@ -715,7 +715,7 @@ Returns retained messages for a conversation owned by the authenticated user.
 | `limit` | integer | 50 | 1–100 |
 | `cursor` | string | none | Opaque message cursor |
 
-### Success — encrypted-storage mode
+### Success — Phase 5 safe message summaries
 
 ```json
 {
@@ -725,19 +725,18 @@ Returns retained messages for a conversation owned by the authenticated user.
       {
         "messageId": "msg_f1a...",
         "role": "user",
-        "content": "Explain the adapter pattern.",
         "tokenCount": 6,
-        "createdAt": "2026-07-23T10:16:00.000Z"
+        "createdAt": "2026-07-23T10:16:00.000Z",
+        "contentAvailable": false
       },
       {
         "messageId": "msg_d7b...",
         "role": "assistant",
-        "content": "The adapter pattern provides...",
         "tokenCount": 120,
-        "createdAt": "2026-07-23T10:16:02.000Z"
+        "createdAt": "2026-07-23T10:16:02.000Z",
+        "contentAvailable": false
       }
-    ],
-    "contentAvailable": true
+    ]
   },
   "meta": {
     "requestId": "req_01J...",
@@ -746,24 +745,10 @@ Returns retained messages for a conversation owned by the authenticated user.
 }
 ```
 
-### Success — metadata-only mode
-
-```json
-{
-  "success": true,
-  "data": {
-    "items": [],
-    "contentAvailable": false,
-    "contentUnavailableReason": "METADATA_ONLY_RETENTION"
-  },
-  "meta": {
-    "requestId": "req_01J...",
-    "nextCursor": null
-  }
-}
-```
-
-The API decrypts content only after tenant and ownership authorization. Decryption failures become safe internal errors and must be logged without ciphertext or keys.
+Phase 5 returns metadata summaries only. It never returns `content`, `contentEnc`,
+or encryption metadata. Phase 9 may extend encrypted-storage responses with
+decrypted content only after tenant and ownership authorization; metadata-only
+retention continues to expose no content.
 
 # 16. Chat Streaming API
 

@@ -28,3 +28,23 @@ export interface Message {
 }
 
 export type MessageDocument = HydratedDocument<Message>;
+
+export type ApiMessageRole = "user" | "assistant" | "system";
+
+export interface MessageListCursor {
+    readonly createdAt: Date;
+    readonly messageId: string;
+}
+
+export interface SafeMessageSummary {
+    readonly messageId: string;
+    readonly role: ApiMessageRole;
+    readonly tokenCount?: number;
+    readonly createdAt: Date;
+    readonly contentAvailable: false;
+}
+
+export interface MessagePage {
+    readonly items: readonly SafeMessageSummary[];
+    readonly nextCursor: string | null;
+}
