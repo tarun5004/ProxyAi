@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 4 — PII and Policy Enforcement
-Current Task: Awaiting approval before P4-10
-Current Status: P4-08 Completed, including budget-exhausted BLOCK
+Current Task: Awaiting Phase 4 closure approval
+Current Status: P4-10 Completed; chat-integration exit gates remain pending
 Current Blocker: None
-Last Completed Task: P4-08 — Implement `BLOCK`
-Last Completed Commit: feat(policy): add block decision
+Last Completed Task: P4-10 — Audit Decisions Without Raw Values
+Last Completed Commit: feat(policy): add safe policy decision events
 ```
 
 ---
@@ -462,7 +462,7 @@ Last Completed Commit: feat(policy): add block decision
 - [x] Implement `ALLOW_WITH_MASK`.
 - [x] Implement `BLOCK`.
 - [x] Add budget-exhausted block.
-- [ ] Audit decisions without raw values.
+- [x] Audit decisions without raw values.
 
 ## Mandatory Security Test
 
@@ -481,7 +481,7 @@ API key in prompt
 - [ ] Detection, classification, score, mask, and block tests pass.
 - [ ] Blocked prompt causes zero provider calls.
 - [ ] Masked prompt sends only masked text.
-- [ ] Audit contains no raw sensitive values.
+- [x] Structured policy decision events contain no raw sensitive values.
 
 ---
 

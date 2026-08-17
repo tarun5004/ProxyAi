@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 4 — PII and Policy Enforcement
-- **Task:** Awaiting approval before P4-10 — Audit Decisions Without Raw Values
-- **Status:** P4-08 Completed, including the documented budget-exhausted BLOCK criterion
+- **Task:** Awaiting Phase 4 closure approval; do not start Phase 5
+- **Status:** P4-10 Completed; blocked/masked chat-integration exit gates remain pending
 
 ## Completed Tasks
 
@@ -43,6 +43,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P4-06 — `ALLOW` policy decision completed on 2026-08-17
 - P4-07 — `ALLOW_WITH_MASK` policy decision completed on 2026-08-17
 - P4-08 — `BLOCK` policy decision and budget-exhausted BLOCK criterion completed on 2026-08-17
+- P4-10 — Safe structured policy decision events completed on 2026-08-17
 
 ## Important Decisions
 
@@ -262,8 +263,22 @@ npm start
 - The sanitized prompt representation is not yet integrated with policy or provider execution; those boundaries remain later Phase 4/5 tasks.
 - Policy evaluation trusts the separately computed `BudgetStatus.exceeded` flag; billing-rollup calculation and strict in-flight budget reservation remain later work.
 - Zero provider calls are structurally guaranteed inside the policy module because it has no provider dependency; end-to-end blocked-chat proof remains deferred until chat integration exists.
+- Policy decisions emit only allowlisted metadata: request ID, action, risk score, approved reason code, category names, detector count, and trusted auth-derived organisation/user IDs when available.
+- Stable policy event names are `policy.allow`, `policy.mask`, `policy.block`, and `policy.budget_block`; budget exhaustion remains distinguishable without exposing budget details or prompt content.
+- Policy event creation never spreads the decision or auth objects, so `providerPrompt`, role, permissions, session ID, and unexpected fields are not forwarded to logs.
+- P4-10 emits structured application events only. Durable append-only audit persistence remains owned by Phase 9.
 
 ## Latest Task Record
+
+- **Task:** P4-10 — Audit Decisions Without Raw Values
+- **Status:** Completed
+- **Files changed:** `backend/src/features/policy/policy-events.ts`, `backend/tests/policy-events.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Events:** Adds stable `policy.allow`, `policy.mask`, `policy.block`, and `policy.budget_block` events through an explicit safe-field allowlist.
+- **Safety:** Raw prompts, masked prompts, detected values, `providerPrompt`, credentials, full auth context, and unexpected decision fields are never copied into event data; `orgId` and `userId` are included only from an existing trusted `AuthContext`.
+- **Focused tests:** Four tests cover safe ALLOW, MASK, high-risk BLOCK, and budget BLOCK events, including raw-sensitive sentinel absence from captured logger output.
+- **Verification:** `node --test tests/policy-events.test.mjs` passed 4/4; `npm run typecheck`, `npm run build`, and `git diff --check` passed; focused policy source/console scans found no forbidden content access or console logging.
+- **Limitation:** This task does not add durable audit storage; Phase 9 owns append-only audit persistence. End-to-end blocked/masked provider gates remain pending chat integration.
+- **Next task:** Phase 4 closure audit/approval. Do not start Phase 5 automatically.
 
 - **Task:** P4-08 — Implement `BLOCK`
 - **Status:** Completed
@@ -351,7 +366,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval before P4-10 — Audit Decisions Without Raw Values; do not start it automatically.
+- Wait for Phase 4 closure approval; do not start Phase 5 automatically.
 
 ## Do Not Forget
 
