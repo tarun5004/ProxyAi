@@ -29,6 +29,12 @@ const envSchema = z.object({
     AUTH_RATE_LIMIT_SECRET: base64UrlSecretSchema,
     ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30),
+    CHAT_RATE_LIMIT_FREE_USER_RPM: z.coerce.number().int().min(1),
+    CHAT_RATE_LIMIT_FREE_ORG_RPM: z.coerce.number().int().min(1),
+    CHAT_RATE_LIMIT_PRO_USER_RPM: z.coerce.number().int().min(1),
+    CHAT_RATE_LIMIT_PRO_ORG_RPM: z.coerce.number().int().min(1),
+    CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM: z.coerce.number().int().min(1),
+    CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM: z.coerce.number().int().min(1),
     GROQ_API_KEY: z.string().trim().min(1),
     GROQ_MODEL: z.string().trim().min(1),
     PROVIDER_REQUEST_TIMEOUT_MS: z.coerce

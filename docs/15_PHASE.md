@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: Awaiting approval to resume P5-06 — Authenticated Chat Stream
-Current Status: P5-06 authoritative token-accounting prerequisite completed; chat endpoint not started
+Current Task: Awaiting approval before P5-07 — Login and Chat Frontend
+Current Status: P5-06 Completed; Phase 4 provider-call integration gates passed
 Current Blocker: None
-Last Completed Task: P5-06 prerequisite — Minimal authoritative token accounting
-Last Completed Commit: feat(billing): add minimal authoritative token accounting
+Last Completed Task: P5-06 — Authenticated Chat Stream
+Last Completed Commit: feat(chat): add authenticated policy-aware streaming
 ```
 
 ---
@@ -451,7 +451,7 @@ Last Completed Commit: feat(billing): add minimal authoritative token accounting
 # 10. Phase 4 — PII and Policy Enforcement
 
 **Effort:** ⭐ Ultra
-**Status:** Implementation Completed — integration gates explicitly deferred to Phase 5
+**Status:** Completed
 
 ## Tasks
 
@@ -481,14 +481,12 @@ API key in prompt
 ## Exit Criteria
 
 - [x] Detection, classification, score, mask, and block focused tests pass.
-- [ ] **DEFERRED:** `BLOCK` causes zero provider calls in the integrated chat pipeline.
-- [ ] **DEFERRED:** `ALLOW_WITH_MASK` sends only masked `providerPrompt` to the provider.
+- [x] Integrated `BLOCK` causes zero provider calls.
+- [x] Integrated `ALLOW_WITH_MASK` sends only masked `providerPrompt` to the provider.
 - [x] Structured policy decision events contain no raw sensitive values.
 
-The two deferred integration gates must be proven when Phase 5 first wires the
-chat policy decision to provider execution. Do not create temporary provider or
-chat code solely to satisfy these gates. Durable append-only audit persistence
-remains owned by Phase 9.
+P5-06 proves both integration gates through the production chat orchestration
+boundary. Durable append-only audit persistence remains owned by Phase 9.
 
 ---
 
@@ -505,18 +503,18 @@ remains owned by Phase 9.
 - [x] P5-04 — Add Conversation list/read APIs using tenant scope and cursor pagination.
 - [x] P5-05 — Add retained Message-list API using tenant-scoped Conversation ownership.
 - [x] P5-06 prerequisite — Add minimal authoritative RequestLog and BillingRollup accounting required for fail-closed policy budget checks.
-- [ ] P5-06 — Add authenticated `POST /api/v1/chat/stream`.
-- [ ] Send `meta`, `token`, `done`, and `error` events.
-- [ ] Handle client disconnect.
-- [ ] Build login and chat frontend.
+- [x] P5-06 — Add authenticated `POST /api/v1/chat/stream`.
+- [x] Send canonical `request_started`, `policy`, `routing`, `fallback`, `token`, `done`, and `error` events where applicable.
+- [x] Handle client disconnect.
+- [ ] P5-07 — Build login and chat frontend.
 - [ ] Show mask, block, fallback, and interruption messages.
 
 ## Exit Criteria
 
 - [ ] User can log in, create conversation, and stream a safe response.
-- [ ] User sees only their conversations.
-- [ ] Cross-tenant conversation tests pass.
-- [ ] Mid-stream provider splice is not implemented.
+- [x] User sees only their conversations.
+- [x] Cross-tenant conversation tests pass.
+- [x] Mid-stream provider splice is not implemented.
 
 The P5-06 accounting prerequisite was explicitly pulled forward because policy
 cannot safely evaluate budget state without persisted usage. It is limited to

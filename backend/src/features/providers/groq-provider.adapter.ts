@@ -229,7 +229,7 @@ export class GroqProviderAdapter implements ProviderAdapter {
         request: CompletionRequest,
     ): AsyncIterable<StreamChunk> {
         const startedAt = this.now();
-        let usage: TokenUsage = createUnknownUsage();
+        let usage: TokenUsage | undefined;
         let finishReason: ProviderFinishReason = "stop";
 
         try {
@@ -263,12 +263,17 @@ export class GroqProviderAdapter implements ProviderAdapter {
                 }
             }
 
-            yield {
+            const doneChunk: StreamChunk = {
                 type: "done",
                 finishReason,
-                usage,
                 latencyMs: this.elapsedSince(startedAt),
             };
+
+            if (usage !== undefined) {
+                doneChunk.usage = usage;
+            }
+
+            yield doneChunk;
         } catch (error: unknown) {
             throw normalizeGroqError(
                 error,

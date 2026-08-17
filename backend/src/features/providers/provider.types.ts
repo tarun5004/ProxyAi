@@ -81,7 +81,7 @@ export type StreamChunk =
     | {
         type: "done";
         finishReason: ProviderFinishReason;
-        usage: TokenUsage;
+        usage?: TokenUsage;
         latencyMs: number;
         estimatedCostUsd?: number;
       };

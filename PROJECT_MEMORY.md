@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** Awaiting approval to resume P5-06 — Authenticated Chat Stream
-- **Status:** Minimal authoritative token-accounting prerequisite completed; P5-06 endpoint not started
+- **Task:** Awaiting approval before P5-07 — Login and Chat Frontend
+- **Status:** P5-06 authenticated policy-aware streaming completed; Phase 4 integration gates passed
 
 ## Completed Tasks
 
@@ -52,6 +52,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Phase 2 deferred cross-tenant Conversation READ gate passed with real MongoDB on 2026-08-17; UPDATE/DELETE gates remain deferred
 - P5-05 — Scoped Conversation Message listing completed on 2026-08-18
 - P5-06 prerequisite — Minimal authoritative token accounting completed on 2026-08-18
+- P5-06 — Authenticated policy-aware chat streaming completed on 2026-08-18
+- Phase 4 deferred BLOCK and masked-providerPrompt integration gates passed through P5-06 on 2026-08-18
 
 ## Important Decisions
 
@@ -311,8 +313,29 @@ npm start
 - Any persisted provider-usage record with unavailable token usage makes budget accounting operationally unavailable and fails closed with `BUDGET_ACCOUNTING_UNAVAILABLE`; it never becomes `exceeded: false`.
 - Budget status reads the current `Organisation.monthlyTokenBudget` and uses the approved boundary `usedTokens >= monthlyTokenBudget`; therefore a zero-token budget is exhausted even when persisted usage is zero.
 - The synchronous reconciliation is intentionally minimal. Full idempotent workers, replay protection, user/provider rollups, pricing, invoices, alerts, and generalized billing infrastructure remain Phase 7 work.
+- `POST /api/v1/chat/stream` requires current authentication plus `chat:send`, strictly validates the body, and verifies Conversation ownership with trusted `orgId`, `userId`, and `conversationId` before any Redis or provider work.
+- P5-06 processing order is ownership, minimal tenant/user idempotency, both plan-selected Redis rate limits, authoritative persisted budget status, PII/classification/risk, policy, then provider routing and streaming.
+- Chat idempotency and rate-limit Redis keys use domain-separated HMAC-SHA-256 digests of trusted identifiers. No prompt, email, raw identifier, token, or secret enters a key or log.
+- Canonical per-minute limits are FREE `10/60`, PRO `30/300`, and ENTERPRISE `60/1200` for user/organisation respectively. All six values are required validated environment settings with no hidden defaults.
+- P5-06 idempotency is a five-minute fail-closed processing/completed reservation only. Generalized replay, completed-response storage, and concurrent duplicate proofs remain Phase 6.
+- `BLOCK` completes before SSE headers with JSON `403 POLICY_BLOCKED` and zero provider calls. `ALLOW_WITH_MASK` constructs the provider request only from `decision.providerPrompt`; the original sensitive prompt is absent from provider, policy-event, and SSE metadata paths.
+- OpenAPI event names are canonical: `request_started`, `policy`, `routing`, `fallback`, `token`, `done`, and `error`. The initial production candidate chain contains only configured Groq while retaining retry/circuit/fallback abstractions.
+- Provider streaming starts before SSE commitment so pre-token provider exhaustion can still return a safe JSON error. After the first token, failures emit terminal `error` and never splice another provider response.
+- Client disconnect aborts the provider signal, stops SSE writes, and finalizes safe accounting/idempotency state without logging request bodies, prompts, headers, cookies, SDK payloads, or raw provider errors.
+- Known provider token usage is appended to RequestLog and immediately reconciles BillingRollup. Missing provider usage is persisted as unknown, never converted to zero, and makes the next budget check fail closed.
+- Stream usage is optional in the canonical done chunk because the provider may not report it; pricing and `estimatedCostUsd` remain absent because pricing is not approved.
 
 ## Latest Task Record
+
+- **Task:** P5-06 — Authenticated Chat Stream
+- **Status:** Completed
+- **Files changed:** `backend/src/app.ts`, `backend/src/config/env.ts`, `backend/.env.example`, `backend/src/features/chat/chat.schema.ts`, `backend/src/features/chat/chat-control.service.ts`, `backend/src/features/chat/chat.repository.ts`, `backend/src/features/chat/chat.service.ts`, `backend/src/features/chat/chat.sse.ts`, `backend/src/features/chat/chat.controller.ts`, `backend/src/features/chat/chat.routes.ts`, `backend/src/features/providers/provider.types.ts`, `backend/src/features/providers/groq-provider.adapter.ts`, `backend/tests/chat.stream.test.mjs`, `backend/tests/helpers/test-env.mjs`, `backend/tests/policy-events.test.mjs`, `backend/tests/provider-fallback.test.mjs`, `docs/03_TDD.md`, `docs/05_OPENAPI_SPEC.md`, `docs/09_README.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Flow:** Adds authenticated `chat:send` POST streaming with scoped ownership, opaque Redis idempotency, dual plan-aware rate limiting, authoritative budget checks, immutable PII processing, deterministic policy, one-candidate Groq fallback stack, SSE, disconnect abort, and usage accounting.
+- **Phase 4 gates:** Focused HTTP tests prove BLOCK performs zero provider calls and MASK sends only `[EMAIL_REDACTED]` while the raw email sentinel is absent from captured provider requests, policy events, and SSE output.
+- **Focused tests:** Four tests cover BLOCK, masked-only provider input, ALLOW streaming with known usage persistence, foreign ownership denial, budget fail-closed behavior, and pre-PII execution order.
+- **Verification:** `npm test` passed 160/160; focused chat tests passed 4/4; billing integration passed 4/4; `npm run typecheck`, `npm run build`, `git diff --check`, and sensitive/provider scans passed.
+- **Scope:** No second production provider, prompt cache, replay framework, message persistence, encryption, pricing, billing worker, frontend, or P5-07 work was added.
+- **Next task:** P5-07 — Login and Chat Frontend. Do not start without approval.
 
 - **Task:** P5-06 prerequisite — Minimal Authoritative Token Accounting
 - **Status:** Completed; P5-06 chat endpoint not started
@@ -481,7 +504,7 @@ npm start
 
 ## Recommended Next Task
 
-- Wait for approval to resume P5-06 — Authenticated Chat Stream; do not start automatically.
+- Wait for approval before P5-07 — Login and Chat Frontend; do not start automatically.
 
 ## Do Not Forget
 

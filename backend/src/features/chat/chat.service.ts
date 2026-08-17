@@ -1,0 +1,348 @@
+import { env } from "../../config/env.js";
+import { AppError } from "../../shared/errors/app-error.js";
+import type { AuthContext } from "../auth/auth-context.types.js";
+import {
+    appendRequestUsage,
+    readAuthoritativeBudgetStatus,
+} from "../billing/billing.service.js";
+import { getConversationForOwner } from "../conversations/conversation.service.js";
+import { processPiiPromptImmutably } from "../pii/pii-prompt-processor.js";
+import { calculatePiiRisk } from "../pii/pii-risk-scorer.js";
+import { emitPolicyDecisionEvent } from "../policy/policy-events.js";
+import {
+    evaluateAllow,
+    evaluateAllowWithMask,
+    evaluateBlock,
+} from "../policy/policy-evaluator.js";
+import type {
+    BudgetStatus,
+    PolicyDecision,
+    PolicyEvaluationInput,
+} from "../policy/policy.types.js";
+import {
+    type ProviderFallbackCandidate,
+    type ProviderFallbackEvent,
+    streamWithOrderedFallback,
+} from "../providers/provider-fallback.js";
+import { createGroqProviderAdapter } from "../providers/groq-provider.adapter.js";
+import type {
+    CompletionRequest,
+    StreamChunk,
+    TokenUsage,
+} from "../providers/provider.types.js";
+import {
+    chatControlService,
+    type ChatControlService,
+    type ChatIdempotencyReservation,
+} from "./chat-control.service.js";
+import {
+    loadChatOrganisationContext,
+    type ChatOrganisationContext,
+} from "./chat.repository.js";
+import type { ChatStreamRequest } from "./chat.schema.js";
+
+const groqAdapter = createGroqProviderAdapter();
+const productionCandidates = Object.freeze([
+    Object.freeze({
+        adapter: groqAdapter,
+        model: env.GROQ_MODEL,
+    }),
+]);
+
+export interface ChatPipelineDependencies {
+    readonly assertConversationOwner: (
+        orgId: string,
+        userId: string,
+        conversationId: string,
+    ) => Promise<unknown>;
+    readonly loadOrganisationContext: (
+        orgId: string,
+    ) => Promise<ChatOrganisationContext>;
+    readonly controls: ChatControlService;
+    readonly readBudgetStatus: (
+        orgId: string,
+    ) => Promise<Readonly<BudgetStatus>>;
+    readonly processPrompt: typeof processPiiPromptImmutably;
+    readonly candidates: readonly ProviderFallbackCandidate[];
+    readonly streamProvider: typeof streamWithOrderedFallback;
+    readonly appendUsage: typeof appendRequestUsage;
+    readonly reconcileBudget: (
+        orgId: string,
+    ) => Promise<Readonly<BudgetStatus>>;
+    readonly emitPolicyEvent: typeof emitPolicyDecisionEvent;
+}
+
+export interface PreparedChatStream {
+    readonly requestId: string;
+    readonly clientRequestId: string;
+    readonly orgId: string;
+    readonly userId: string;
+    readonly decision: PolicyDecision;
+    readonly routingReason: "manual" | "auto";
+    readonly providerId: "groq";
+    readonly model: string;
+    readonly iterator: AsyncIterator<StreamChunk>;
+    readonly firstChunk: StreamChunk;
+    readonly fallbackEvents: readonly ProviderFallbackEvent[];
+    readonly reservation: ChatIdempotencyReservation;
+}
+
+export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
+    assertConversationOwner: getConversationForOwner,
+    loadOrganisationContext: loadChatOrganisationContext,
+    controls: chatControlService,
+    readBudgetStatus: readAuthoritativeBudgetStatus,
+    processPrompt: processPiiPromptImmutably,
+    candidates: productionCandidates,
+    streamProvider: streamWithOrderedFallback,
+    appendUsage: appendRequestUsage,
+    reconcileBudget: readAuthoritativeBudgetStatus,
+    emitPolicyEvent: emitPolicyDecisionEvent,
+};
+
+export async function prepareChatStream(
+    input: {
+        readonly auth: Readonly<AuthContext>;
+        readonly requestId: string;
+        readonly request: Readonly<ChatStreamRequest>;
+        readonly abortSignal: AbortSignal;
+    },
+    dependencies: ChatPipelineDependencies = defaultChatPipelineDependencies,
+): Promise<PreparedChatStream> {
+    await dependencies.assertConversationOwner(
+        input.auth.orgId,
+        input.auth.userId,
+        input.request.conversationId,
+    );
+    const organisation = await dependencies.loadOrganisationContext(
+        input.auth.orgId,
+    );
+    assertRoutingAllowed(input.request, organisation);
+
+    const reservation = await dependencies.controls.reserveIdempotency({
+        orgId: input.auth.orgId,
+        userId: input.auth.userId,
+        clientRequestId: input.request.clientRequestId,
+        reservationToken: input.requestId,
+    });
+    let providerStarted = false;
+    let reservationFinalized = false;
+
+    try {
+        await dependencies.controls.consumeRateLimit({
+            orgId: input.auth.orgId,
+            userId: input.auth.userId,
+            plan: organisation.plan,
+        });
+        const budget = await dependencies.readBudgetStatus(input.auth.orgId);
+        const pii = dependencies.processPrompt({
+            prompt: input.request.prompt,
+        });
+        const risk = calculatePiiRisk(pii.classification);
+        const decision = evaluatePolicy({
+            pii,
+            risk,
+            budget,
+            thresholds: organisation.policy,
+        });
+
+        dependencies.emitPolicyEvent({
+            requestId: input.requestId,
+            decision,
+            auth: input.auth,
+        });
+
+        if (decision.action === "BLOCK") {
+            await reservation.complete();
+            reservationFinalized = true;
+
+            throw new AppError(
+                403,
+                "POLICY_BLOCKED",
+                "This request was blocked by your organisation's data policy.",
+                {
+                    riskScore: decision.riskScore,
+                    categories: decision.categories,
+                },
+            );
+        }
+
+        const approvedPrompt = decision.action === "ALLOW_WITH_MASK"
+            ? decision.providerPrompt
+            : input.request.prompt;
+        const candidate = selectProductionCandidate(
+            input.request,
+            dependencies.candidates,
+        );
+        const fallbackEvents: ProviderFallbackEvent[] = [];
+        const providerStream = dependencies.streamProvider(
+            {
+                requestId: input.requestId,
+                messages: Object.freeze([
+                    Object.freeze({
+                        role: "user" as const,
+                        content: approvedPrompt,
+                    }),
+                ]),
+                maxOutputTokens:
+                    candidate.adapter.getCapabilities().maxOutputTokens,
+                abortSignal: input.abortSignal,
+            },
+            [candidate],
+            {
+                recordEvent: (event) => {
+                    fallbackEvents.push(Object.freeze({ ...event }));
+                },
+            },
+        );
+        const iterator = providerStream[Symbol.asyncIterator]();
+
+        providerStarted = true;
+        const firstResult = await iterator.next();
+
+        if (firstResult.done === true) {
+            throw new AppError(
+                503,
+                "PROVIDER_UNAVAILABLE",
+                "No provider response was available.",
+            );
+        }
+
+        return {
+            requestId: input.requestId,
+            clientRequestId: input.request.clientRequestId,
+            orgId: input.auth.orgId,
+            userId: input.auth.userId,
+            decision,
+            routingReason: input.request.routingMode,
+            providerId: "groq",
+            model: candidate.model,
+            iterator,
+            firstChunk: firstResult.value,
+            fallbackEvents: Object.freeze(fallbackEvents),
+            reservation,
+        };
+    } catch (error: unknown) {
+        if (!reservationFinalized) {
+            if (providerStarted) {
+                await recordUsageAndComplete(
+                    {
+                        requestId: input.requestId,
+                        orgId: input.auth.orgId,
+                        userId: input.auth.userId,
+                        providerId: "groq",
+                        model: env.GROQ_MODEL,
+                        reservation,
+                    },
+                    undefined,
+                    dependencies,
+                );
+            } else {
+                await reservation.release();
+            }
+        }
+
+        throw normalizePreStreamError(error);
+    }
+}
+
+export async function finalizeChatStream(
+    prepared: PreparedChatStream,
+    usage: Readonly<TokenUsage> | undefined,
+    dependencies: ChatPipelineDependencies = defaultChatPipelineDependencies,
+): Promise<void> {
+    await recordUsageAndComplete(prepared, usage, dependencies);
+}
+
+function evaluatePolicy(input: PolicyEvaluationInput): PolicyDecision {
+    const decision = evaluateBlock(input)
+        ?? evaluateAllowWithMask(input)
+        ?? evaluateAllow(input);
+
+    if (decision === null) {
+        throw new Error("Policy evaluation did not produce a decision.");
+    }
+
+    return decision;
+}
+
+function assertRoutingAllowed(
+    request: Readonly<ChatStreamRequest>,
+    organisation: ChatOrganisationContext,
+): void {
+    if (
+        request.routingMode === "auto"
+        && !organisation.autoRoutingEnabled
+    ) {
+        throw new AppError(
+            403,
+            "FEATURE_DISABLED",
+            "Automatic provider routing is not enabled.",
+        );
+    }
+}
+
+function selectProductionCandidate(
+    request: Readonly<ChatStreamRequest>,
+    candidates: readonly ProviderFallbackCandidate[],
+): ProviderFallbackCandidate {
+    const candidate = candidates.find(
+        (entry) => entry.adapter.providerId === "groq",
+    );
+
+    if (
+        candidate === undefined
+        || (
+            request.routingMode === "manual"
+            && request.providerId !== candidate.adapter.providerId
+        )
+    ) {
+        throw new AppError(
+            503,
+            "PROVIDER_UNAVAILABLE",
+            "No configured provider is available.",
+        );
+    }
+
+    return candidate;
+}
+
+async function recordUsageAndComplete(
+    input: {
+        readonly requestId: string;
+        readonly orgId: string;
+        readonly userId: string;
+        readonly providerId: "groq";
+        readonly model: string;
+        readonly reservation: ChatIdempotencyReservation;
+    },
+    usage: Readonly<TokenUsage> | undefined,
+    dependencies: ChatPipelineDependencies,
+): Promise<void> {
+    await dependencies.appendUsage({
+        requestId: input.requestId,
+        orgId: input.orgId,
+        userId: input.userId,
+        providerId: input.providerId,
+        model: input.model,
+        ...(usage === undefined ? {} : { usage }),
+    });
+
+    if (usage !== undefined) {
+        await dependencies.reconcileBudget(input.orgId);
+    }
+
+    await input.reservation.complete();
+}
+
+function normalizePreStreamError(error: unknown): AppError {
+    if (error instanceof AppError) {
+        return error;
+    }
+
+    return new AppError(
+        503,
+        "PROVIDER_UNAVAILABLE",
+        "No provider response was available.",
+    );
+}

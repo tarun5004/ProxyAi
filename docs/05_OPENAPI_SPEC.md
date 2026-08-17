@@ -1622,8 +1622,16 @@ Recommended MVP limits:
 |---|---|
 | Login | 10 attempts per IP per 15 minutes |
 | Refresh | 30 attempts per session per 15 minutes |
-| Chat | Plan-configured requests per minute per user |
+| Chat FREE | 10 per user and 60 per organisation per minute |
+| Chat PRO | 30 per user and 300 per organisation per minute |
+| Chat ENTERPRISE | 60 per user and 1200 per organisation per minute |
 | Audit export | 5 exports per admin per hour |
+
+Both the trusted-user and trusted-organisation chat counters are enforced.
+The active Organisation plan selects the pair. Redis keys contain only
+domain-separated HMAC digests of trusted identifiers; prompts and emails never
+enter rate-limit keys. The six `CHAT_RATE_LIMIT_*_RPM` environment values are
+required and have no hidden defaults. Custom enterprise overrides are deferred.
 
 Example response:
 

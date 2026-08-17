@@ -179,6 +179,12 @@ JWT_ACCESS_SECRET
 AUTH_RATE_LIMIT_SECRET
 ACCESS_TOKEN_TTL_MINUTES
 REFRESH_TOKEN_TTL_DAYS
+CHAT_RATE_LIMIT_FREE_USER_RPM
+CHAT_RATE_LIMIT_FREE_ORG_RPM
+CHAT_RATE_LIMIT_PRO_USER_RPM
+CHAT_RATE_LIMIT_PRO_ORG_RPM
+CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM
+CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM
 APP_ENCRYPTION_KEY
 GROQ_API_KEY
 GEMINI_API_KEY
@@ -203,6 +209,12 @@ const EnvSchema = z.object({
   AUTH_RATE_LIMIT_SECRET: base64UrlSecretSchema,
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30),
+  CHAT_RATE_LIMIT_FREE_USER_RPM: z.coerce.number().int().min(1),
+  CHAT_RATE_LIMIT_FREE_ORG_RPM: z.coerce.number().int().min(1),
+  CHAT_RATE_LIMIT_PRO_USER_RPM: z.coerce.number().int().min(1),
+  CHAT_RATE_LIMIT_PRO_ORG_RPM: z.coerce.number().int().min(1),
+  CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM: z.coerce.number().int().min(1),
+  CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM: z.coerce.number().int().min(1),
   APP_ENCRYPTION_KEY: z.string().min(32),
   FRONTEND_ORIGIN: z.string().url(),
 });
@@ -634,23 +646,21 @@ The exact prompt limit may be adjusted after provider testing. The server must a
 3. Validate conversation ownership
 4. Acquire idempotency key
 5. Run rate limit
-6. Detect and classify PII
-7. Calculate risk score
-8. Evaluate policy
-9. If BLOCK: write audit and blocked RequestLog, then return SSE error event
-10. Build masked or original provider prompt
-11. Check prompt cache when eligible
-12. If cache hit: stream cached result and publish completion job
-13. Classify intent
-14. Load budget and provider health
-15. Select eligible provider order
-16. Call primary through retry and circuit breaker
-17. Fall back before streaming if required
-18. Stream chunks to client
-19. Finalize usage and persistence
-20. Mark idempotency result completed
-21. Enqueue billing, analytics, anomaly, and audit jobs
-22. Close SSE connection
+6. Load authoritative persisted budget status
+7. Detect and classify PII
+8. Calculate risk score
+9. Evaluate policy
+10. If BLOCK: write safe policy event, complete idempotency, and return JSON `403 POLICY_BLOCKED` before SSE headers
+11. Build masked or original approved provider prompt
+12. Check prompt cache when Phase 6 adds eligible caching
+13. Load provider health and select the eligible provider order
+14. Call primary through retry and circuit breaker
+15. Fall back only before streaming if another approved adapter exists
+16. Stream chunks to client
+17. Persist known usage or an explicit unknown-usage accounting record
+18. Reconcile the billing rollup when usage is known
+19. Mark idempotency result completed
+20. Close SSE connection
 ```
 
 The sequence above is the mandatory order. Policy checks must never be moved after routing or provider selection.
@@ -1116,9 +1126,9 @@ throw new ProviderUnavailableError(...);
 
 Once the first token has been delivered, provider switching is not attempted. If the provider fails mid-stream:
 
-1. Send SSE event `provider_interrupted`.
-2. Persist request status as `interrupted`.
-3. Mark idempotency record failed and retryable.
+1. Send terminal SSE event `error` with code `STREAM_INTERRUPTED`.
+2. Persist an unknown-usage accounting record when final usage is unavailable.
+3. Mark the idempotency reservation completed so the same client request ID cannot create another paid call.
 4. Do not automatically splice a second provider response.
 5. Let the user retry with the same visible prompt and a new client request ID.
 
@@ -1136,11 +1146,11 @@ X-Accel-Buffering: no
 ### 25.2 Event types
 
 ```text
-event: ready
+event: request_started
+event: policy
+event: routing
+event: fallback
 event: token
-event: masked
-event: provider_fallback
-event: provider_interrupted
 event: done
 event: error
 ```
@@ -1160,10 +1170,9 @@ interface DoneEvent {
   requestId: string;
   provider: ProviderId | 'cache';
   model?: string;
-  usage: CompletionUsage;
-  estimatedCostUsd: number;
+  usage?: CompletionUsage;
   cacheHit: boolean;
-  fallbackUsed: boolean;
+  masked: boolean;
 }
 ```
 
@@ -1438,10 +1447,14 @@ Recommended MVP limits:
 |---|---|
 | Login | 10 attempts per IP and opaque account key per 15 minutes |
 | Refresh | 30 per session per 15 minutes |
-| Chat | Plan-based requests per minute per user |
+| Chat FREE | 10 per user and 60 per organisation per minute |
+| Chat PRO | 30 per user and 300 per organisation per minute |
+| Chat ENTERPRISE | 60 per user and 1200 per organisation per minute |
 | Admin export | 5 per admin per hour |
 
-The exact plan limits should come from configuration. Rate-limit errors return `429 RATE_LIMITED` with a safe retry-after value.
+Chat enforces both configured plan limits. The six required environment values
+have no hidden defaults. Enterprise custom overrides remain deferred.
+Rate-limit errors return `429 RATE_LIMITED` with a safe retry-after value.
 
 Login rate-limit keys must not contain raw IP, email, or organisation slug.
 Derive IP and account key components with HMAC-SHA-256 using the dedicated
