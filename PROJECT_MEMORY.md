@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 6 — Redis Cache and Idempotency
-- **Task:** P6-02 — Secure Prompt Cache Contract
-- **Status:** Contract resolved; prompt-cache implementation deferred pending Phase 9 prerequisites
+- **Task:** P6-03 — Completed Idempotency Tombstone and Request Fingerprint
+- **Status:** Completed; awaiting P6-04 scope approval
 
 ## Completed Tasks
 
@@ -60,6 +60,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Phase 5 — Chat, Conversations, and Streaming completed on 2026-08-18
 - P6-01 — Generalized tenant-scoped idempotency reservations completed on 2026-08-18
 - P6-02 — Secure prompt-cache contract resolved on 2026-08-19; implementation remains deferred
+- P6-03 — Completed idempotency tombstone and opaque request fingerprint protection completed on 2026-08-19
 
 ## Important Decisions
 
@@ -357,6 +358,18 @@ npm run dev
 
 ## Latest Task Record
 
+- **Task:** P6-03 — Completed Idempotency Tombstone and Request Fingerprint
+- **Status:** Completed
+- **Files changed:** Approved idempotency contract documents, `backend/src/shared/idempotency/idempotency.service.ts`, `backend/src/features/chat/chat.service.ts`, `backend/tests/idempotency.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Terminal state:** `COMPLETED` stores only status, server `requestId`, opaque `requestFingerprint`, and `completedAt`. It is a non-replayable tombstone; every completed duplicate returns safe `409 DUPLICATE_REQUEST`.
+- **Fingerprint:** A domain-separated HMAC of exact prompt bytes is combined with conversation ID, routing mode, provider selection or null, and a version marker, then HMACed again. Redis stores only the final 64-character opaque digest; prompt, PII, response, usage, status body, token, and secret values are absent.
+- **Mismatch behavior:** An existing `PROCESSING` or `COMPLETED` record with another fingerprint returns `409 DUPLICATE_REQUEST` without identifying which field changed. Matching `PROCESSING` remains `409 REQUEST_IN_PROGRESS`.
+- **Recovery limitation:** Safe pre-provider failures still release the matching reservation. If the process crashes after provider execution may have started, `PROCESSING` can expire after 300 seconds and permit a later retry; no unsafe automatic reconciliation was introduced.
+- **Deferred:** Response storage/replay, durable crash recovery, prompt cache, and Phase 9 encryption/reference storage remain out of P6-03.
+- **Tests and verification:** Four focused real-Redis idempotency tests passed, including concurrent single-winner behavior, opaque fingerprint mismatch rejection, tenant/user isolation, safe release, and fail-closed Redis failure. `npm run typecheck`, `npm run build`, and `git diff --check` passed.
+- **Commits:** `docs(idempotency): define completed request semantics`; `feat(idempotency): add request fingerprint protection`.
+- **Next:** Await exact P6-04 scope approval; do not start automatically.
+
 - **Task:** P6-02 — Secure Prompt Cache Contract
 - **Status:** Contract resolved; production implementation intentionally deferred
 - **Files changed:** `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -613,7 +626,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for approval before the Phase 6 closure review. Prompt-cache implementation must remain deferred until Phase 9 storage and accounting prerequisites are approved and available.
+- Wait for exact P6-04 scope approval. Do not implement response replay, prompt cache, or durable recovery automatically.
 
 ## Do Not Forget
 

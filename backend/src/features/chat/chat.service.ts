@@ -1,6 +1,7 @@
 import { env } from "../../config/env.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import {
+    createIdempotencyRequestFingerprint,
     idempotencyService,
     type IdempotencyReservation,
     type IdempotencyService,
@@ -130,6 +131,14 @@ export async function prepareChatStream(
         userId: input.auth.userId,
         clientRequestId: input.request.clientRequestId,
         requestId: input.requestId,
+        requestFingerprint: createIdempotencyRequestFingerprint({
+            conversationId: input.request.conversationId,
+            prompt: input.request.prompt,
+            routingMode: input.request.routingMode,
+            ...(input.request.providerId === undefined
+                ? {}
+                : { providerId: input.request.providerId }),
+        }),
     });
     let providerStarted = false;
     let reservationFinalized = false;

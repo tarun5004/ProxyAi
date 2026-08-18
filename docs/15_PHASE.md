@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 6 — Redis Cache and Idempotency
-Current Task: P6-02 — Secure Prompt Cache Contract
-Current Status: Contract resolved; prompt-cache implementation deferred pending Phase 9 prerequisites
-Current Blocker: Encrypted or access-checked safe-reference response storage and cache-hit accounting do not exist yet
-Last Completed Task: P6-02 — Secure Prompt Cache Contract
-Last Completed Commit: docs(cache): define secure prompt cache contract
+Current Task: P6-03 — Completed Idempotency Tombstone and Request Fingerprint
+Current Status: Completed; awaiting P6-04 scope approval
+Current Blocker: None for P6-03; response replay and durable crash recovery remain deferred to Phase 9
+Last Completed Task: P6-03 — Completed Idempotency Tombstone and Request Fingerprint
+Last Completed Commit: feat(idempotency): add request fingerprint protection
 ```
 
 ---
@@ -541,6 +541,11 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] Use validated 300-second processing and 3600-second completed TTLs.
 - [x] Fail closed with `IDEMPOTENCY_UNAVAILABLE` when Redis is unavailable.
 - [x] Test 10 duplicate concurrent requests create exactly one provider-call winner.
+- [x] P6-03 — Define `COMPLETED` as a non-replayable tombstone that always returns `409 DUPLICATE_REQUEST`.
+- [x] Store only an opaque request fingerprint derived from canonical request metadata and an HMAC of exact prompt bytes.
+- [x] Reject one client request ID reused with a different fingerprint without exposing changed fields.
+- [x] Document the 300-second crash-after-provider expiry limitation without unsafe automatic reconciliation.
+- [x] Keep response storage/replay deferred to Phase 9 safe encrypted/reference storage.
 
 ## Prompt Cache
 
@@ -877,7 +882,7 @@ Do not randomly change several files.
 | Phase 3 | Not Started | |
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
-| Phase 6 | In Progress | P6-01 complete; P6-02 contract resolved; prompt-cache implementation deferred pending Phase 9 storage/accounting prerequisites |
+| Phase 6 | In Progress | P6-01 and P6-03 idempotency complete; P6-02 cache contract resolved; cache/replay and durable crash recovery deferred pending Phase 9 prerequisites |
 | Phase 7 | Not Started | |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
@@ -890,16 +895,15 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## Phase 6 Closure Review
+## Await P6-04 Approval
 
 **Effort:** Small
 
 Do only this next:
 
-1. Confirm P6-01 implementation evidence remains accepted.
-2. Confirm P6-02 is contract-complete while prompt-cache implementation remains explicitly deferred.
-3. Do not implement cache code before Phase 9 provides encrypted or access-checked safe-reference storage and accounting prerequisites are resolved.
-4. Do not start another Phase 6 implementation task without approval.
+1. Keep P6-03 `COMPLETED` records as non-replayable tombstones.
+2. Do not implement response replay, prompt cache, or unsafe crash reconciliation before Phase 9 prerequisites exist.
+3. Do not start P6-04 until its exact scope is approved.
 
 ---
 

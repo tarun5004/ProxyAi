@@ -13,7 +13,10 @@ process.env.REDIS_URL ??= "redis://127.0.0.1:6379";
 
 const [
     { AppError },
-    { createIdempotencyService },
+    {
+        createIdempotencyRequestFingerprint,
+        createIdempotencyService,
+    },
     { connectRedis, disconnectRedis, redis },
 ] = await Promise.all([
     import("../dist/shared/errors/app-error.js"),
@@ -31,7 +34,14 @@ after(async () => {
 });
 
 test("ten concurrent reservations produce one winner with canonical state TTLs", async () => {
-    const scope = createScope();
+    const rawPromptSentinel = "SENTINEL_PROMPT_ada@example.com";
+    const fingerprintConversationId = randomUUID();
+    const scope = createScope({
+        requestFingerprint: createFingerprint(
+            rawPromptSentinel,
+            fingerprintConversationId,
+        ),
+    });
     const service = createIdempotencyService();
     let providerCalls = 0;
     const attempts = Array.from({ length: 10 }, async () => {
@@ -73,13 +83,31 @@ test("ten concurrent reservations produce one winner with canonical state TTLs",
         const processingTtl = await redis.ttl(key);
 
         assert.equal(processingRecord.status, "PROCESSING");
+        assert.equal(
+            processingRecord.requestFingerprint,
+            scope.requestFingerprint,
+        );
         assert.equal(processingTtl > 0 && processingTtl <= 300, true);
+        assert.equal(processingValue.includes(rawPromptSentinel), false);
         assert.equal(
             [scope.orgId, scope.userId, scope.clientRequestId].some(
                 (identifier) => key.includes(identifier)
                     || processingValue.includes(identifier),
             ),
             false,
+        );
+        await assert.rejects(
+            service.reserve({
+                ...scope,
+                requestFingerprint: createFingerprint(
+                    "Different request",
+                    fingerprintConversationId,
+                ),
+                requestId: randomUUID(),
+            }),
+            (error) => error instanceof AppError
+                && error.statusCode === 409
+                && error.code === "DUPLICATE_REQUEST",
         );
 
         await winners[0].reservation.markCompleted();
@@ -88,6 +116,15 @@ test("ten concurrent reservations produce one winner with canonical state TTLs",
         const completedTtl = await redis.ttl(key);
 
         assert.equal(completedRecord.status, "COMPLETED");
+        assert.deepEqual(
+            Object.keys(completedRecord).sort(),
+            [
+                "completedAt",
+                "requestFingerprint",
+                "requestId",
+                "status",
+            ],
+        );
         assert.equal(completedTtl > 300 && completedTtl <= 3_600, true);
         await assert.rejects(
             service.reserve({
@@ -172,8 +209,18 @@ function createScope(overrides = {}) {
         orgId: randomUUID(),
         userId: randomUUID(),
         clientRequestId: randomUUID(),
+        requestFingerprint: createFingerprint("Safe request"),
         ...overrides,
     };
+}
+
+function createFingerprint(prompt, conversationId = randomUUID()) {
+    return createIdempotencyRequestFingerprint({
+        conversationId,
+        prompt,
+        providerId: "groq",
+        routingMode: "manual",
+    });
 }
 
 function deriveExpectedKey(scope) {

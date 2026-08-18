@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { z } from "zod";
 
@@ -6,15 +6,18 @@ import { env } from "../../config/env.js";
 import { AppError } from "../errors/app-error.js";
 import { redis } from "../lib/redis.js";
 
+const requestFingerprintSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const idempotencyRecordSchema = z.discriminatedUnion("status", [
     z.object({
         status: z.literal("PROCESSING"),
         requestId: z.string().min(1),
+        requestFingerprint: requestFingerprintSchema,
         startedAt: z.string().datetime(),
     }).strict(),
     z.object({
         status: z.literal("COMPLETED"),
         requestId: z.string().min(1),
+        requestFingerprint: requestFingerprintSchema,
         completedAt: z.string().datetime(),
     }).strict(),
 ]);
@@ -79,7 +82,15 @@ export interface IdempotencyService {
         readonly userId: string;
         readonly clientRequestId: string;
         readonly requestId: string;
+        readonly requestFingerprint: string;
     }): Promise<IdempotencyReservation>;
+}
+
+export interface IdempotencyRequestFingerprintInput {
+    readonly conversationId: string;
+    readonly prompt: string;
+    readonly routingMode: "auto" | "manual";
+    readonly providerId?: string;
 }
 
 const redisIdempotencyStore: IdempotencyStore = {
@@ -101,9 +112,13 @@ export function createIdempotencyService(
     return {
         async reserve(input) {
             const key = deriveIdempotencyKey(input);
+            const requestFingerprint = requestFingerprintSchema.parse(
+                input.requestFingerprint,
+            );
             const processingRecord = serializeRecord({
                 status: "PROCESSING",
                 requestId: input.requestId,
+                requestFingerprint,
                 startedAt: new Date().toISOString(),
             });
             let result: unknown;
@@ -124,6 +139,19 @@ export function createIdempotencyService(
             if (result !== "RESERVED") {
                 const record = parseRecord(result);
 
+                if (
+                    !requestFingerprintsMatch(
+                        record.requestFingerprint,
+                        requestFingerprint,
+                    )
+                ) {
+                    throw new AppError(
+                        409,
+                        "DUPLICATE_REQUEST",
+                        "This client request ID is already associated with another request.",
+                    );
+                }
+
                 if (record.status === "PROCESSING") {
                     throw new AppError(
                         409,
@@ -139,23 +167,51 @@ export function createIdempotencyService(
                 );
             }
 
-            return createReservation(store, key, input.requestId);
+            return createReservation(
+                store,
+                key,
+                input.requestId,
+                requestFingerprint,
+            );
         },
     };
 }
 
 export const idempotencyService = createIdempotencyService();
 
+export function createIdempotencyRequestFingerprint(
+    input: IdempotencyRequestFingerprintInput,
+): string {
+    const promptFingerprint = createOpaqueHmac(
+        "chat:idempotency:prompt",
+        input.prompt,
+    );
+    const canonicalRequest = JSON.stringify([
+        "v1",
+        input.conversationId,
+        input.routingMode,
+        input.providerId ?? null,
+        promptFingerprint,
+    ]);
+
+    return createOpaqueHmac(
+        "chat:idempotency:request",
+        canonicalRequest,
+    );
+}
+
 function createReservation(
     store: IdempotencyStore,
     key: string,
     requestId: string,
+    requestFingerprint: string,
 ): IdempotencyReservation {
     return {
         async markCompleted() {
             const completedRecord = serializeRecord({
                 status: "COMPLETED",
                 requestId,
+                requestFingerprint,
                 completedAt: new Date().toISOString(),
             });
 
@@ -211,6 +267,21 @@ function deriveIdempotencyKey(input: {
         .digest("hex");
 
     return `chat:idempotency:${digest}`;
+}
+
+function createOpaqueHmac(domain: string, value: string): string {
+    return createHmac("sha256", keySecret)
+        .update(domain)
+        .update("\0")
+        .update(value, "utf8")
+        .digest("hex");
+}
+
+function requestFingerprintsMatch(left: string, right: string): boolean {
+    return timingSafeEqual(
+        Buffer.from(left, "hex"),
+        Buffer.from(right, "hex"),
+    );
 }
 
 function serializeRecord(record: IdempotencyRecord): string {
