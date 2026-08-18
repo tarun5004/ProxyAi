@@ -503,7 +503,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | T, D |
 | Risk | High |
 | Scenario | Reusing or guessing another user's client request ID returns or interferes with a request. |
-| Prevention | Key includes `orgId` and user identity where appropriate; validate UUID format; result reference is access-checked; short TTL. |
+| Prevention | Opaque HMAC key binds trusted `orgId`, `userId`, and client request ID. An opaque request fingerprint binds canonical non-sensitive request fields plus an HMAC of exact prompt bytes. Fingerprint mismatch and every completed duplicate return `409 DUPLICATE_REQUEST`; no response is replayed. |
 | Detection | Tests across users and organisations using identical IDs. |
 
 ### TM-016 — Duplicate BullMQ processing
@@ -974,12 +974,14 @@ Keys use namespaced prefixes and tenant scope:
 
 ```text
 cache:prompt:{opaqueHmac(canonicalCacheInput)}
-idempotency:{orgId}:{userId}:{clientRequestId}
+chat:idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
 rate:user:{orgId}:{userId}:{window}
 health:{providerId}
 ```
 
-The prompt-cache HMAC input binds trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and policy/config fingerprint. Do not normalize whitespace or casing without an approved contract. Never expose raw prompts, PII, masked prompts, email addresses, tokens, or secrets in key names or values.
+The prompt-cache HMAC input binds trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and policy/config fingerprint. The idempotency fingerprint stores only an opaque HMAC and never raw prompt content. Do not normalize whitespace or casing without an approved contract. Never expose raw prompts, PII, masked prompts, email addresses, tokens, or secrets in key names or values.
+
+`COMPLETED` idempotency records are non-replayable tombstones. A crash after provider execution may have started can leave `PROCESSING` until expiry and permit a later retry; automatic reconciliation is not approved, and durable recovery/replay remains deferred to Phase 9 safe storage.
 
 ### 19.2 Failure behaviour
 

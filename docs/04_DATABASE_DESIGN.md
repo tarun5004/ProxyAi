@@ -925,8 +925,8 @@ Rules:
 ### 24.2 Idempotency
 
 ```text
-Key: idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
-Value: JSON { status, requestId, startedAt? or completedAt? }
+Key: chat:idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
+Value: JSON { status, requestId, requestFingerprint, startedAt? or completedAt? }
 TTL: 300 seconds for PROCESSING; 3600 seconds for COMPLETED
 ```
 
@@ -934,8 +934,12 @@ Rules:
 
 - Create with `SET NX`.
 - `PROCESSING` prevents a second provider call.
-- `COMPLETED` returns `409 DUPLICATE_REQUEST` until safe replay is separately approved.
+- The opaque fingerprint binds canonical non-sensitive request fields plus a domain-separated HMAC of exact prompt bytes; raw prompt content is never stored.
+- A matching `PROCESSING` record returns `409 REQUEST_IN_PROGRESS`; any fingerprint mismatch returns `409 DUPLICATE_REQUEST`.
+- `COMPLETED` is a non-replayable tombstone and always returns `409 DUPLICATE_REQUEST`.
+- No response body, final API status/code, provider response, or provider usage is stored in the idempotency record. Replay remains deferred to Phase 9 safe encrypted/reference storage.
 - Failure before provider execution may release only the matching reservation; possible provider execution must not be blindly released.
+- A crash after provider execution may have started can leave `PROCESSING` until its 300-second expiry, after which retry may duplicate paid execution. No unsafe automatic reconciliation is approved for the MVP.
 - Redis outage fails closed for new billable chat requests in the MVP to avoid duplicate paid calls.
 
 ### 24.3 Provider health

@@ -843,18 +843,30 @@ Provider usage on a true cache hit is zero, and synthetic provider usage is forb
 ### 18.1 Key
 
 ```text
-idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
+chat:idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
 ```
 
 ### 18.2 State
 
 ```ts
 type IdempotencyRecord =
-  | { status: 'PROCESSING'; requestId: string; startedAt: string }
-  | { status: 'COMPLETED'; requestId: string; completedAt: string };
+  | {
+      status: 'PROCESSING';
+      requestId: string;
+      requestFingerprint: string;
+      startedAt: string;
+    }
+  | {
+      status: 'COMPLETED';
+      requestId: string;
+      requestFingerprint: string;
+      completedAt: string;
+    };
 ```
 
 TTL: `PROCESSING` is exactly 300 seconds and `COMPLETED` is exactly 3600 seconds. Both values are required validated environment variables with no hidden defaults.
+
+The opaque request fingerprint is an HMAC over canonical non-sensitive request fields and a domain-separated HMAC of the exact prompt bytes. For chat, the bound fields are conversation ID, routing mode, selected provider or null, and prompt HMAC. Do not trim, normalize, log, or store raw prompt content while deriving the fingerprint.
 
 ### 18.3 Acquisition
 
@@ -862,13 +874,16 @@ Use `SET key value NX EX IDEMPOTENCY_PROCESSING_TTL_SECONDS`.
 
 - New key: continue.
 - Existing `processing`: return `409 REQUEST_IN_PROGRESS` or attach to existing result when practical. MVP uses `409`.
-- Existing `COMPLETED`: return `409 DUPLICATE_REQUEST` until a separate safe replay contract is approved.
+- Any existing record with a different request fingerprint: return `409 DUPLICATE_REQUEST` without exposing which field changed.
+- Existing `COMPLETED`: always return `409 DUPLICATE_REQUEST`.
 - Failure before provider execution releases the matching `PROCESSING` reservation so a safe retry is possible.
 - Once provider execution may have started, do not release the reservation in a way that permits a duplicate paid call.
 
 When Redis is unavailable, the chat write fails closed with `503 IDEMPOTENCY_UNAVAILABLE` because duplicate paid provider calls are otherwise possible.
 
-The key and record contain no prompt, response, email, raw tenant/user identifiers, PII, provider secret, or token. Completed-response replay remains deferred.
+The key and record contain no prompt, response, email, raw tenant/user identifiers, PII, provider secret, token, final API status/code, or provider usage. `COMPLETED` is a non-replayable tombstone; response replay/storage remains deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
+
+If the process crashes after provider execution may have started, the `PROCESSING` tombstone can expire after 300 seconds and permit a later retry. The MVP does not perform unsafe automatic reconciliation. Full durable recovery and replay remain deferred.
 
 ## 19. Provider Adapter Design
 
@@ -1438,7 +1453,7 @@ When Redis is unavailable, routing falls back to static capabilities and local c
 | Purpose | Key | TTL | Failure mode |
 |---|---|---:|---|
 | Prompt cache | `cache:prompt:{opaqueHmac(canonicalCacheInput)}` | `PROMPT_CACHE_TTL_SECONDS=3600` when enabled | Fail open; implementation deferred pending Phase 9 storage |
-| Idempotency | `idempotency:{orgId}:{clientRequestId}` | 5–60 min | Fail closed for chat write |
+| Idempotency | `chat:idempotency:{opaqueHmac(orgId,userId,clientRequestId)}` | `PROCESSING=300s`; `COMPLETED=3600s` | Fail closed for chat write |
 | Provider health | `health:{providerId}` | 2 min refreshed | Use static/local state |
 | Rate limit | `rate:{orgId}:{userId}:{window}` | Window length | Fail closed on login; configurable on chat |
 | Queue data | BullMQ-managed keys | Queue-managed | Async features delayed |

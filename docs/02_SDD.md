@@ -642,7 +642,7 @@ cache:prompt:{opaqueHmac(canonicalCacheInput)}
 ### Idempotency
 
 ```text
-idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
+chat:idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
 ```
 
 States:
@@ -651,6 +651,12 @@ States:
 - `COMPLETED`
 
 `PROCESSING` TTL is 300 seconds. `COMPLETED` TTL is 3600 seconds. Redis/idempotency failures fail closed with `IDEMPOTENCY_UNAVAILABLE`. Safe completed-response replay remains deferred.
+
+Both states store only status, server `requestId`, the relevant timestamp, and an opaque request fingerprint. The fingerprint binds canonical non-sensitive request fields plus a domain-separated HMAC of the exact prompt bytes; raw prompt content is never stored. Reusing one client request ID with a different fingerprint returns `409 DUPLICATE_REQUEST`.
+
+`COMPLETED` is a non-replayable tombstone. It stores no HTTP response, provider response, token usage, or final API status/code, and every completed duplicate returns `409 DUPLICATE_REQUEST`. Response replay remains deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
+
+If a process dies after provider execution may have started, the `PROCESSING` record can expire after 300 seconds and permit a later retry. The MVP documents this limitation and does not invent unsafe automatic reconciliation; durable recovery/replay remains deferred.
 
 ### Provider health
 

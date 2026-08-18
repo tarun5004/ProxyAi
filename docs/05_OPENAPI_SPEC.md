@@ -324,7 +324,7 @@ The implementation should prefer a small consistent set. `400` may be used inste
 | `BUDGET_EXCEEDED` | 402 | Monthly token budget has been exhausted |
 | `NOT_FOUND` | 404 | Tenant-scoped resource not found |
 | `REQUEST_IN_PROGRESS` | 409 | Same client request is already processing |
-| `DUPLICATE_REQUEST` | 409 | Duplicate request cannot be safely replayed |
+| `DUPLICATE_REQUEST` | 409 | Completed duplicate or client request ID reused with a different request fingerprint |
 | `PROMPT_TOO_LARGE` | 413 | Prompt or estimated provider context is too large |
 | `RATE_LIMITED` | 429 | Rate limit exceeded |
 | `PROVIDER_UNAVAILABLE` | 503 | No eligible provider completed the request |
@@ -974,9 +974,13 @@ Provider usage on a true cache hit is zero and must never be synthesized. The cu
 ## 16.6 Idempotency behavior
 
 - The key is derived from the authenticated tenant plus `clientRequestId`.
-- A duplicate in-progress request returns `409 REQUEST_IN_PROGRESS` before stream commitment.
-- A recently completed request may replay a stored safe result when available, or return `409 DUPLICATE_REQUEST` if safe replay is not supported.
+- The stored opaque fingerprint binds canonical non-sensitive request fields plus an HMAC of exact prompt bytes; no raw prompt is stored.
+- A matching duplicate in-progress request returns `409 REQUEST_IN_PROGRESS` before stream commitment.
+- Reusing the same client request ID with a different fingerprint returns `409 DUPLICATE_REQUEST` without identifying the changed field.
+- `COMPLETED` is a non-replayable tombstone; every completed duplicate returns `409 DUPLICATE_REQUEST`.
+- P6 stores no response body, provider response, final API status/code, or provider usage for replay. Replay remains deferred until Phase 9 safe encrypted/reference storage exists.
 - The MVP must not trigger a second billable provider call for the same accepted `clientRequestId`.
+- A process crash after provider execution may have started can outlive the 300-second `PROCESSING` TTL and permit a later retry. No automatic reconciliation is promised by this endpoint.
 
 ## 16.7 Client disconnect
 
