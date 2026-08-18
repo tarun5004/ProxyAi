@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 6 — Redis Cache and Idempotency
-- **Task:** P6-03 — Completed Idempotency Tombstone and Request Fingerprint
-- **Status:** Completed; awaiting P6-04 scope approval
+- **Task:** P6-04 — Idempotency Failure/Recovery Hardening
+- **Status:** Completed; awaiting P6-05 scope approval
 
 ## Completed Tasks
 
@@ -61,6 +61,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P6-01 — Generalized tenant-scoped idempotency reservations completed on 2026-08-18
 - P6-02 — Secure prompt-cache contract resolved on 2026-08-19; implementation remains deferred
 - P6-03 — Completed idempotency tombstone and opaque request fingerprint protection completed on 2026-08-19
+- P6-04 — Idempotency failure/recovery hardening completed on 2026-08-19
 
 ## Important Decisions
 
@@ -358,6 +359,17 @@ npm run dev
 
 ## Latest Task Record
 
+- **Task:** P6-04 — Idempotency Failure/Recovery Hardening
+- **Status:** Completed
+- **Files changed:** `backend/src/shared/idempotency/idempotency.service.ts`, `backend/src/features/chat/chat.service.ts`, `backend/tests/idempotency.test.mjs`, `backend/tests/chat.stream.test.mjs`, `docs/03_TDD.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Lifecycle guard:** Reservations now mark the provider-execution boundary before the first provider iterator attempt. `releaseBeforeExecution` returns fail-closed `503 IDEMPOTENCY_UNAVAILABLE` after that marker and cannot delete the Redis coordination record accidentally.
+- **Post-provider failure:** Usage persistence and reconciliation remain authoritative, but their failure now still triggers a `finally` attempt to write the matching `COMPLETED` tombstone. Operational/accounting errors continue to propagate safely.
+- **Expiry recovery:** An expired pre-provider `PROCESSING` key can be atomically reserved again with the same trusted scope and fingerprint. Completed tombstones remain non-replayable, fingerprint mismatch remains `409`, and Redis failure remains `503` with no local fallback.
+- **Known limitation:** A process crash after provider execution may have started can still outlive the 300-second `PROCESSING` TTL and permit a later retry. No durable provider reconciliation, response replay, prompt cache, TTL change, or Phase 9 storage was added.
+- **Tests and verification:** Four focused idempotency tests and four existing chat regression tests passed (8/8). Typecheck, build, diff check, and sensitive key/log scans passed.
+- **Commit:** `feat(idempotency): harden failure recovery semantics`.
+- **Next:** Await exact P6-05 scope approval; do not start automatically.
+
 - **Task:** P6-03 — Completed Idempotency Tombstone and Request Fingerprint
 - **Status:** Completed
 - **Files changed:** Approved idempotency contract documents, `backend/src/shared/idempotency/idempotency.service.ts`, `backend/src/features/chat/chat.service.ts`, `backend/tests/idempotency.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -626,7 +638,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for exact P6-04 scope approval. Do not implement response replay, prompt cache, or durable recovery automatically.
+- Wait for exact P6-05 scope approval. Do not implement response replay, prompt cache, or durable crash recovery automatically.
 
 ## Do Not Forget
 

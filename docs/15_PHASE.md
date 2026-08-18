@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 6 — Redis Cache and Idempotency
-Current Task: P6-03 — Completed Idempotency Tombstone and Request Fingerprint
-Current Status: Completed; awaiting P6-04 scope approval
-Current Blocker: None for P6-03; response replay and durable crash recovery remain deferred to Phase 9
-Last Completed Task: P6-03 — Completed Idempotency Tombstone and Request Fingerprint
-Last Completed Commit: feat(idempotency): add request fingerprint protection
+Current Task: P6-04 — Idempotency Failure/Recovery Hardening
+Current Status: Completed; awaiting P6-05 scope approval
+Current Blocker: None for P6-04; durable post-crash reconciliation remains deferred to Phase 9
+Last Completed Task: P6-04 — Idempotency Failure/Recovery Hardening
+Last Completed Commit: feat(idempotency): harden failure recovery semantics
 ```
 
 ---
@@ -546,6 +546,11 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] Reject one client request ID reused with a different fingerprint without exposing changed fields.
 - [x] Document the 300-second crash-after-provider expiry limitation without unsafe automatic reconciliation.
 - [x] Keep response storage/replay deferred to Phase 9 safe encrypted/reference storage.
+- [x] P6-04 — Harden processing expiry, Redis failure, and provider-boundary recovery semantics.
+- [x] Reject `releaseBeforeExecution` after the provider-execution marker instead of deleting coordination state.
+- [x] Attempt `COMPLETED` tombstone finalization even when post-provider usage accounting or reconciliation fails.
+- [x] Keep Redis/idempotency fail closed without an in-memory fallback.
+- [x] Verify expired pre-provider state can be safely reserved again while preserving tenant/fingerprint isolation.
 
 ## Prompt Cache
 
@@ -882,7 +887,7 @@ Do not randomly change several files.
 | Phase 3 | Not Started | |
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
-| Phase 6 | In Progress | P6-01 and P6-03 idempotency complete; P6-02 cache contract resolved; cache/replay and durable crash recovery deferred pending Phase 9 prerequisites |
+| Phase 6 | In Progress | P6-01/P6-03/P6-04 idempotency complete; P6-02 cache contract resolved; cache/replay and durable crash recovery deferred pending Phase 9 prerequisites |
 | Phase 7 | Not Started | |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
@@ -895,15 +900,16 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## Await P6-04 Approval
+## Await P6-05 Approval
 
 **Effort:** Small
 
 Do only this next:
 
-1. Keep P6-03 `COMPLETED` records as non-replayable tombstones.
-2. Do not implement response replay, prompt cache, or unsafe crash reconciliation before Phase 9 prerequisites exist.
-3. Do not start P6-04 until its exact scope is approved.
+1. Keep completed tombstones non-replayable and Redis/idempotency fail closed.
+2. Preserve the documented post-provider crash/expiry limitation without unsafe reconciliation.
+3. Do not implement response replay or prompt cache before Phase 9 prerequisites exist.
+4. Do not start P6-05 until its exact scope is approved.
 
 ---
 

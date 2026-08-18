@@ -881,9 +881,15 @@ Use `SET key value NX EX IDEMPOTENCY_PROCESSING_TTL_SECONDS`.
 
 When Redis is unavailable, the chat write fails closed with `503 IDEMPOTENCY_UNAVAILABLE` because duplicate paid provider calls are otherwise possible.
 
+The reservation handle must mark the provider-execution boundary immediately before the first provider iterator/network attempt. After that marker, `releaseBeforeExecution` must fail closed with `IDEMPOTENCY_UNAVAILABLE` instead of deleting the Redis record. There is no in-memory or local fail-open fallback when Redis restarts or becomes unavailable.
+
+If accounting or budget reconciliation fails after provider execution may have started, the request path must still attempt to convert the matching `PROCESSING` record to the `COMPLETED` tombstone in a `finally` boundary. The operational error still propagates safely; tombstone failure also remains fail closed.
+
 The key and record contain no prompt, response, email, raw tenant/user identifiers, PII, provider secret, token, final API status/code, or provider usage. `COMPLETED` is a non-replayable tombstone; response replay/storage remains deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
 
 If the process crashes after provider execution may have started, the `PROCESSING` tombstone can expire after 300 seconds and permit a later retry. The MVP does not perform unsafe automatic reconciliation. Full durable recovery and replay remain deferred.
+
+An expired or missing `PROCESSING` key is atomically reservable again. That retry is known-safe only when provider execution had not started; after a crash, the caller receives no claim that the previous provider attempt did or did not execute.
 
 ## 19. Provider Adapter Design
 

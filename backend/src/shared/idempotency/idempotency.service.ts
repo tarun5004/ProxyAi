@@ -72,6 +72,7 @@ export interface IdempotencyStore {
 }
 
 export interface IdempotencyReservation {
+    markProviderExecutionStarted(): void;
     markCompleted(): Promise<void>;
     releaseBeforeExecution(): Promise<void>;
 }
@@ -206,7 +207,12 @@ function createReservation(
     requestId: string,
     requestFingerprint: string,
 ): IdempotencyReservation {
+    let providerExecutionStarted = false;
+
     return {
+        markProviderExecutionStarted() {
+            providerExecutionStarted = true;
+        },
         async markCompleted() {
             const completedRecord = serializeRecord({
                 status: "COMPLETED",
@@ -234,6 +240,10 @@ function createReservation(
             }
         },
         async releaseBeforeExecution() {
+            if (providerExecutionStarted) {
+                throw idempotencyUnavailable();
+            }
+
             try {
                 const result = await store.evaluate(
                     RELEASE_SCRIPT,

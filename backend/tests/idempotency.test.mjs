@@ -167,22 +167,41 @@ test("same client request ID remains isolated by trusted organisation and user",
     }
 });
 
-test("release before provider execution permits a safe retry", async () => {
+test("expired pre-provider processing permits retry but started execution cannot release", async () => {
     const scope = createScope();
     const service = createIdempotencyService();
     const first = await service.reserve({
         ...scope,
         requestId: randomUUID(),
     });
+    const key = deriveExpectedKey(scope);
 
-    await first.releaseBeforeExecution();
+    await redis.expire(key, 0);
+    assert.equal(await redis.get(key), null);
 
     const retry = await service.reserve({
         ...scope,
         requestId: randomUUID(),
     });
 
-    await retry.releaseBeforeExecution();
+    retry.markProviderExecutionStarted();
+    await assert.rejects(
+        retry.releaseBeforeExecution(),
+        (error) => error instanceof AppError
+            && error.statusCode === 503
+            && error.code === "IDEMPOTENCY_UNAVAILABLE",
+    );
+    await retry.markCompleted();
+    await assert.rejects(
+        service.reserve({
+            ...scope,
+            requestId: randomUUID(),
+        }),
+        (error) => error instanceof AppError
+            && error.statusCode === 409
+            && error.code === "DUPLICATE_REQUEST",
+    );
+    await redis.del(key);
 });
 
 test("Redis failure returns canonical fail-closed error", async () => {

@@ -42,6 +42,7 @@ function createRuntime({
     policy = { maskThreshold: 20, blockThreshold: 60 },
     budgetError,
     ownershipError,
+    usageError,
 } = {}) {
     const order = [];
     const providerRequests = [];
@@ -92,6 +93,9 @@ function createRuntime({
             order.push("idempotency");
 
             return {
+                markProviderExecutionStarted() {
+                    reservationEvents.push("provider-started");
+                },
                 async markCompleted() {
                     reservationEvents.push("completed");
                 },
@@ -141,6 +145,10 @@ function createRuntime({
         candidates: [{ adapter, model: "test-model" }],
         streamProvider: streamWithOrderedFallback,
         async appendUsage(input) {
+            if (usageError) {
+                throw usageError;
+            }
+
             usageRecords.push(input);
             return input;
         },
@@ -295,9 +303,13 @@ test("ALLOW streams output and records known provider usage", async () => {
         totalTokens: 20,
     });
     assert.equal(runtime.order.includes("reconcile-budget"), true);
+    assert.deepEqual(
+        runtime.reservationEvents,
+        ["provider-started", "completed"],
+    );
 });
 
-test("foreign ownership and unavailable accounting stop before provider", async () => {
+test("pre-provider failures release safely and post-provider accounting failure completes", async () => {
     const foreignRuntime = createRuntime({
         ownershipError: new AppError(
             404,
@@ -330,6 +342,24 @@ test("foreign ownership and unavailable accounting stop before provider", async 
         "budget",
     ]);
     assert.deepEqual(budgetRuntime.reservationEvents, ["released"]);
+
+    const usageRuntime = createRuntime({
+        usageError: new AppError(
+            503,
+            "BUDGET_ACCOUNTING_UNAVAILABLE",
+            "Token usage could not be recorded.",
+        ),
+    });
+    const usageResponse = await postChat(usageRuntime, "Safe prompt");
+    const usageStream = await usageResponse.text();
+
+    assert.equal(usageResponse.status, 200);
+    assert.equal(usageRuntime.providerCalls, 1);
+    assert.match(usageStream, /event: error/);
+    assert.deepEqual(
+        usageRuntime.reservationEvents,
+        ["provider-started", "completed"],
+    );
 });
 
 function availableBudget() {

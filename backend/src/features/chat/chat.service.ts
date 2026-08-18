@@ -212,6 +212,7 @@ export async function prepareChatStream(
         );
         const iterator = providerStream[Symbol.asyncIterator]();
 
+        reservation.markProviderExecutionStarted();
         providerStarted = true;
         const firstResult = await iterator.next();
 
@@ -334,20 +335,22 @@ async function recordUsageAndComplete(
     usage: Readonly<TokenUsage> | undefined,
     dependencies: ChatPipelineDependencies,
 ): Promise<void> {
-    await dependencies.appendUsage({
-        requestId: input.requestId,
-        orgId: input.orgId,
-        userId: input.userId,
-        providerId: input.providerId,
-        model: input.model,
-        ...(usage === undefined ? {} : { usage }),
-    });
+    try {
+        await dependencies.appendUsage({
+            requestId: input.requestId,
+            orgId: input.orgId,
+            userId: input.userId,
+            providerId: input.providerId,
+            model: input.model,
+            ...(usage === undefined ? {} : { usage }),
+        });
 
-    if (usage !== undefined) {
-        await dependencies.reconcileBudget(input.orgId);
+        if (usage !== undefined) {
+            await dependencies.reconcileBudget(input.orgId);
+        }
+    } finally {
+        await input.reservation.markCompleted();
     }
-
-    await input.reservation.markCompleted();
 }
 
 function normalizePreStreamError(error: unknown): AppError {
