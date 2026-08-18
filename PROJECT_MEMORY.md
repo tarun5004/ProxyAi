@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** P5-07 addendum — Local Development Admin Provisioning
+- **Task:** P5-07 addendum — Landing Page Visual and Regression QA
 - **Status:** Completed; awaiting approval before Phase 6
 
 ## Completed Tasks
@@ -347,12 +347,23 @@ npm run dev
 - The public `/` route is a statically rendered marketing page composed from `features/marketing`; `/login` and `/chat` remain the unchanged authenticated product entry points.
 - The landing page uses the supplied 2026-08-18 visual reference as its primary design specification: true white surfaces, dark typography, restrained ProxiAI green, thin borders, soft shadows, product-flow visuals, and responsive mobile composition.
 - Marketing claims remain limited to capabilities already implemented or explicitly architectural; no fake customer logos, compliance certifications, provider pricing, or future-product promises are presented.
+- The landing hero uses `Secure. Governed. Observable.` instead of an unsupported direct compliance claim; reference certification badges remain replaced by implementation-backed trust markers.
 - `npm run dev:seed-admin` is a development-only local bootstrap for the fixed `proxiai-demo` organisation and `admin@proxiai.local` organisation administrator; it refuses every non-development environment.
 - The dev administrator password comes only from validated `DEV_ADMIN_PASSWORD`, is hashed through the approved Argon2id helper, and is printed only to the invoking development terminal as explicitly required. Password hashes, tokens, database credentials, and provider keys are never printed.
 - Re-running local admin provisioning uses scoped `{ orgId, emailNormalized }` lookup, preserves one organisation and one user, and reconciles active state, `ORG_ADMIN`, and the canonical permission allowlist without bypassing Mongoose validation.
 - Local admin provisioning does not add registration routes, registration UI, authentication changes, or production bootstrap behavior.
 
 ## Latest Task Record
+
+- **Task:** P5-07 addendum — Landing Page Visual and Regression QA
+- **Status:** Completed
+- **Files changed:** `frontend/src/features/marketing/components/hero-section.tsx`, `design-qa.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Visual verification:** Production desktop `1536x1024` and mobile `390x844` captures were compared with the supplied reference; no P0, P1, or P2 visual issues remain. Mobile navigation and every workspace CTA target `/login`.
+- **Authenticated regression:** The provisioned development admin authenticated, created an owned Conversation, received one real Groq SSE response, and displayed ALLOW policy, provider, model, latency, and known token metadata. Exactly one chat-stream request was observed.
+- **Claims:** Replaced the unsupported direct `Compliant` tagline with `Governed`; no registration route, fake certification badge, auth architecture change, backend behavior change, or Phase 6 scope was added.
+- **Verification:** Frontend tests passed 7/7 in a deterministic single-worker run; typecheck, lint, production build, mobile navigation, diff check, and source/security scans passed. The first default parallel Vitest run hung without an assertion failure and was replaced by the passing single-worker verification.
+- **Known observation:** Anonymous landing bootstrap still produces the pre-existing `/api/v1/auth/refresh` 401 in browser DevTools; preserving auth behavior was required, and the landing experience remains functional.
+- **Next task:** Await explicit approval before Phase 6 — Redis Cache and Idempotency. Do not start P5-08 or Phase 6 automatically.
 
 - **Task:** P5-07 addendum — Local Development Admin Provisioning
 - **Status:** Completed

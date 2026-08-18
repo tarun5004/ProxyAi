@@ -26,7 +26,7 @@ export function HeroSection() {
                     </Link>
                     <span className="inline-flex items-center gap-2.5 text-sm text-text-soft">
                         <ShieldCheck size={21} className="text-brand" aria-hidden="true" />
-                        Secure. Compliant. Observable.
+                        Secure. Governed. Observable.
                     </span>
                 </div>
             </div>

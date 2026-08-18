@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: P5-07 addendum — Local Development Admin Provisioning
+Current Task: P5-07 addendum — Landing Page Visual and Regression QA
 Current Status: Phase 5 Completed; awaiting approval before Phase 6
 Current Blocker: None
-Last Completed Task: P5-07 addendum — Local Development Admin Provisioning
-Last Completed Commit: chore(dev): add local admin provisioning
+Last Completed Task: P5-07 addendum — Landing Page Visual and Regression QA
+Last Completed Commit: fix(marketing): remove unverified compliance claim
 ```
 
 ---
@@ -510,6 +510,7 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 - [x] Show mask, block, fallback, and interruption messages.
 - [x] P5-07 addendum — Add a public ProxiAI landing page while preserving `/login` and `/chat`.
 - [x] P5-07 addendum — Add development-only idempotent organisation-admin provisioning for fresh local databases.
+- [x] P5-07 addendum — Re-verify landing reference fidelity and the existing login, Conversation, chat-stream, and policy-panel flow.
 
 ## Exit Criteria
 
