@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 6 — Redis Cache and Idempotency
-Current Task: P6-04 — Idempotency Failure/Recovery Hardening
-Current Status: Completed; awaiting P6-05 scope approval
-Current Blocker: None for P6-04; durable post-crash reconciliation remains deferred to Phase 9
-Last Completed Task: P6-04 — Idempotency Failure/Recovery Hardening
-Last Completed Commit: feat(idempotency): harden failure recovery semantics
+Current Task: P6-05 — Phase 6 Closure and Deferred Gates
+Current Status: Phase 6 Completed; prompt cache, response replay, and durable post-crash recovery deferred to Phase 9 prerequisites
+Current Blocker: None; accepted post-provider crash/expiry duplicate risk remains documented
+Last Completed Task: P6-05 — Phase 6 Closure and Deferred Gates
+Last Completed Commit: docs(progress): close Phase 6 with deferred cache and recovery gates
 ```
 
 ---
@@ -154,7 +154,7 @@ Last Completed Commit: feat(idempotency): harden failure recovery semantics
 | Phase 3 | Provider abstraction and resilience | ⭐ Ultra | Reliable provider calls |
 | Phase 4 | PII and policy enforcement | ⭐ Ultra | Safe outbound prompts |
 | Phase 5 | Chat, conversations, and streaming | High | Main employee workflow |
-| Phase 6 | Redis cache and idempotency | ⭐ Ultra | No duplicate paid calls |
+| Phase 6 | Redis cache and idempotency | ⭐ Ultra | Bounded tenant-scoped duplicate coordination; cache/replay deferred |
 | Phase 7 | Background jobs, billing, and alerts | High | Durable async processing |
 | Phase 8 | Admin dashboard and RBAC | High | Organisation management |
 | Phase 9 | Retention, encryption, and audit | ⭐ Ultra | Safe storage and audit trail |
@@ -563,10 +563,12 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 
 ## Exit Criteria
 
-- [ ] Duplicate paid calls are prevented.
-- [ ] Cache and idempotency are tenant-scoped.
-- [ ] PII prompts are not cached.
-- [ ] Cache failure does not bypass policy.
+- **PASSED —** Atomic tenant/user-scoped reservation admits one concurrent winner while Redis state exists.
+- **PASSED —** Opaque keys, request fingerprints, fail-closed Redis behavior, `PROCESSING=300s`, and `COMPLETED=3600s` are verified.
+- **PASSED —** Completed requests remain non-replayable tombstones and return `409 DUPLICATE_REQUEST`.
+- **DEFERRED —** Prompt-cache storage, lookup/write, cache-hit delivery, and cache accounting require Phase 9 safe-storage prerequisites.
+- **DEFERRED —** Safe response replay and durable post-provider crash reconciliation require Phase 9.
+- **ACCEPTED LIMITATION —** A process crash after provider execution may have started can be followed by `PROCESSING` expiry and a later duplicate paid call; zero duplicate paid calls is not claimed as fully proven.
 
 ---
 
@@ -887,7 +889,7 @@ Do not randomly change several files.
 | Phase 3 | Not Started | |
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
-| Phase 6 | In Progress | P6-01/P6-03/P6-04 idempotency complete; P6-02 cache contract resolved; cache/replay and durable crash recovery deferred pending Phase 9 prerequisites |
+| Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
 | Phase 7 | Not Started | |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
@@ -900,16 +902,16 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## Await P6-05 Approval
+## P7-01 — BullMQ Connection and Typed Payloads
 
 **Effort:** Small
 
 Do only this next:
 
-1. Keep completed tombstones non-replayable and Redis/idempotency fail closed.
-2. Preserve the documented post-provider crash/expiry limitation without unsafe reconciliation.
-3. Do not implement response replay or prompt cache before Phase 9 prerequisites exist.
-4. Do not start P6-05 until its exact scope is approved.
+1. Read Phase 7 queue, billing, security, and worker contracts.
+2. Design only the shared BullMQ connection and typed safe payload boundary.
+3. Keep raw prompts, responses, PII values, credentials, and secrets out of jobs.
+4. Do not start P7-01 without approval.
 
 ---
 

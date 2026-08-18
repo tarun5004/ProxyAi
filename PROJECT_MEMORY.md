@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 6 — Redis Cache and Idempotency
-- **Task:** P6-04 — Idempotency Failure/Recovery Hardening
-- **Status:** Completed; awaiting P6-05 scope approval
+- **Task:** P6-05 — Phase 6 Closure and Deferred Gates
+- **Status:** Phase 6 completed; awaiting approval before P7-01
 
 ## Completed Tasks
 
@@ -62,6 +62,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P6-02 — Secure prompt-cache contract resolved on 2026-08-19; implementation remains deferred
 - P6-03 — Completed idempotency tombstone and opaque request fingerprint protection completed on 2026-08-19
 - P6-04 — Idempotency failure/recovery hardening completed on 2026-08-19
+- P6-05 — Phase 6 closure and deferred cache/recovery gates recorded on 2026-08-19
+- Phase 6 — Redis idempotency implementation and secure cache contract completed on 2026-08-19; cache/replay/recovery implementation remains deferred
 
 ## Important Decisions
 
@@ -334,7 +336,7 @@ npm run dev
 - P5-06 processing order is ownership, minimal tenant/user idempotency, both plan-selected Redis rate limits, authoritative persisted budget status, PII/classification/risk, policy, then provider routing and streaming.
 - Chat idempotency and rate-limit Redis keys use domain-separated HMAC-SHA-256 digests of trusted identifiers. No prompt, email, raw identifier, token, or secret enters a key or log.
 - Canonical per-minute limits are FREE `10/60`, PRO `30/300`, and ENTERPRISE `60/1200` for user/organisation respectively. All six values are required validated environment settings with no hidden defaults.
-- P5-06 idempotency is a five-minute fail-closed processing/completed reservation only. Generalized replay, completed-response storage, and concurrent duplicate proofs remain Phase 6.
+- P5-06 idempotency was generalized and concurrency-proven in Phase 6. Completed-response replay, response storage, and durable post-provider crash recovery are deferred to Phase 9 prerequisites.
 - `BLOCK` completes before SSE headers with JSON `403 POLICY_BLOCKED` and zero provider calls. `ALLOW_WITH_MASK` constructs the provider request only from `decision.providerPrompt`; the original sensitive prompt is absent from provider, policy-event, and SSE metadata paths.
 - OpenAPI event names are canonical: `request_started`, `policy`, `routing`, `fallback`, `token`, `done`, and `error`. The initial production candidate chain contains only configured Groq while retaining retry/circuit/fallback abstractions.
 - Provider streaming starts before SSE commitment so pre-token provider exhaustion can still return a safe JSON error. After the first token, failures emit terminal `error` and never splice another provider response.
@@ -358,6 +360,17 @@ npm run dev
 - Local admin provisioning does not add registration routes, registration UI, authentication changes, or production bootstrap behavior.
 
 ## Latest Task Record
+
+- **Task:** P6-05 — Phase 6 Closure and Deferred Gates
+- **Status:** Completed; documentation only
+- **Files changed:** `docs/01_PRD.md`, `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Proven idempotency gates:** Trusted tenant/user isolation, atomic `SET NX` reservation, opaque request fingerprint protection, fail-closed Redis behavior, `PROCESSING=300s`, and `COMPLETED=3600s`.
+- **Terminal behavior:** Completed requests remain non-replayable tombstones. Matching completed requests and fingerprint mismatches return safe `409 DUPLICATE_REQUEST`; no response body is stored or replayed in Phase 6.
+- **Deferred gates:** Prompt-cache implementation, safe response replay, cache-hit accounting/storage, and durable post-provider crash recovery require Phase 9 encrypted payload or access-checked safe-reference prerequisites.
+- **Accepted limitation:** A process crash after provider execution may have started can be followed by `PROCESSING` expiry and a later duplicate paid call. Phase 6 does not claim zero duplicate paid calls as fully proven and adds no unsafe automatic reconciliation.
+- **Verification:** Documentation consistency scans and `git diff --check` passed; no production code changed.
+- **Commit:** `docs(progress): close Phase 6 with deferred cache and recovery gates`.
+- **Next:** P7-01 — BullMQ Connection and Typed Payloads. Do not start without approval.
 
 - **Task:** P6-04 — Idempotency Failure/Recovery Hardening
 - **Status:** Completed
@@ -638,7 +651,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for exact P6-05 scope approval. Do not implement response replay, prompt cache, or durable crash recovery automatically.
+- Wait for approval before P7-01 — BullMQ Connection and Typed Payloads. Keep prompt cache, response replay, and durable crash recovery deferred to Phase 9 prerequisites.
 
 ## Do Not Forget
 

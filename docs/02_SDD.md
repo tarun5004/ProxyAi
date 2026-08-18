@@ -37,7 +37,7 @@ The system design is intentionally limited to the already approved MVP.
 - Manual and basic automatic routing
 - Retry, exponential backoff, jitter, circuit breaker, and fallback
 - SSE response streaming
-- Redis prompt cache, idempotency, provider health, and BullMQ support
+- Redis idempotency, provider health, and BullMQ support; prompt-cache implementation deferred to Phase 9 prerequisites
 - MongoDB persistence
 - Metadata-only and encrypted-storage retention modes
 - Basic billing, analytics, anomaly, email, and health-check workers
@@ -59,6 +59,8 @@ The system design is intentionally limited to the already approved MVP.
 - Full compliance certification
 - Full BYOK implementation
 - Advanced payment automation
+- Prompt-cache response storage and delivery until Phase 9 provides encrypted payload or access-checked safe-reference storage
+- Safe completed-response replay and durable post-provider crash reconciliation
 
 ## 4. System Context
 
@@ -806,7 +808,7 @@ orgId + period + optional userId
 
 ### Rules
 
-- Cache hits do not create a provider cost.
+- Future cache hits do not create a provider cost; cache delivery is not implemented before Phase 9 prerequisites.
 - Failed attempts may be recorded for operations, but billed cost is added only when provider usage is reported or reliably estimated.
 - Budget checks read current monthly rollup plus any accepted in-flight reservation approach implemented later. For the beginner MVP, small race conditions under high concurrency are acknowledged.
 
@@ -883,7 +885,7 @@ Minimum Prometheus metrics:
 - Provider latency histogram
 - Provider errors
 - Circuit state
-- Cache hits and misses
+- Future cache hits and misses after safe cache enablement
 - Queue depth
 - Queue failures
 - Policy decisions
@@ -1259,7 +1261,7 @@ The process must fail startup when a required production configuration is missin
 - Risk scoring
 - Policy engine
 - Redis idempotency
-- Prompt cache
+- Secure prompt-cache contract only; implementation deferred to Phase 9 prerequisites
 - Retention writer
 - BullMQ queues and workers
 - Audit log
@@ -1347,7 +1349,7 @@ The full testing strategy will be a separate document. Minimum system-design cov
 4. Intent classification is heuristic.
 5. Cost calculations are estimated from configured provider prices.
 6. Mid-stream provider fallback is visible to the user.
-7. Prompt cache is intentionally disabled whenever PII is detected.
+7. Prompt-cache implementation is deferred to Phase 9 prerequisites; its approved future contract prohibits caching any detected or masked sensitive content.
 8. Full-text search over encrypted content is unsupported.
 9. The MVP is not a compliance certification.
 10. BYOK and advanced enterprise functions remain deferred.

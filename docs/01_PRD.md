@@ -17,7 +17,7 @@
 
 ProxiAI is a multi-tenant AI gateway that sits between employees and external Large Language Model providers. Instead of employees directly sending prompts to different AI vendors, ProxiAI receives the prompt, checks it for sensitive information, applies organisation policy, selects an eligible provider, streams the response, and records usage and audit information.
 
-The MVP is intentionally limited for a beginner solo developer. It focuses on a working end-to-end flow rather than full enterprise scale. The first version will include authentication, organisation isolation, chat, three provider adapters, basic PII detection, policy decisions, simple intelligent routing, circuit breaker and fallback, Server-Sent Events streaming, Redis-based idempotency and caching, MongoDB persistence, basic audit logs, background jobs, a small admin dashboard, Docker-based local setup, and a simple Cloud Run deployment path.
+The MVP is intentionally limited for a beginner solo developer. It focuses on a working end-to-end flow rather than full enterprise scale. The first version will include authentication, organisation isolation, chat, three provider adapters, basic PII detection, policy decisions, simple intelligent routing, circuit breaker and fallback, Server-Sent Events streaming, Redis-based idempotency, MongoDB persistence, basic audit logs, background jobs, a small admin dashboard, Docker-based local setup, and a simple Cloud Run deployment path. Secure prompt-cache and response-replay contracts are documented, but their implementation is deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
 
 The MVP will not include advanced machine-learning classification, Kafka, SAML/SSO, multi-region deployment, sophisticated approval workflows, distributed circuit-breaker state, or seamless mid-stream provider splicing.
 
@@ -83,7 +83,7 @@ ProxiAI will provide one controlled and observable entry point for organisation 
 - Use a feature-based TypeScript project structure.
 - Support three provider adapters through one shared interface.
 - Use MongoDB for persistent data.
-- Use Redis for caching, idempotency, queue processing, and health state.
+- Use Redis for idempotency, queue processing, and health state. Enable response-content caching only after the Phase 9 safe-storage prerequisites exist.
 - Use BullMQ for asynchronous work.
 - Run locally using Docker Compose.
 
@@ -95,7 +95,7 @@ ProxiAI will provide one controlled and observable entry point for organisation 
 | Policy ordering | PII and policy checks complete before provider selection |
 | Block enforcement | 100% of blocked test prompts prevented from reaching providers |
 | Fallback | Requests move to the next healthy provider when the selected provider fails |
-| Duplicate prevention | Same idempotency key does not create a second provider call |
+| Duplicate coordination | Atomic tenant/user-scoped reservations prevent concurrent duplicates while Redis state exists; post-provider crash/expiry risk is an accepted MVP limitation |
 | Streaming | User sees response chunks before the complete response finishes |
 | Audit coverage | All listed MVP audit actions create an audit record |
 | Local setup | Backend, frontend, MongoDB, and Redis start through Docker Compose |
@@ -215,7 +215,7 @@ The MVP should keep this role minimal and should not create a full platform-mana
 | Policy | Allow, mask, block |
 | Routing | Manual selection and simple intent/budget/latency/health score |
 | Resilience | Retry, backoff, jitter, circuit breaker, fallback chain |
-| Redis | Prompt cache, idempotency, provider health state |
+| Redis | Idempotency and provider health state; prompt-cache implementation deferred to Phase 9 prerequisites |
 | Retention | Metadata Only and Encrypted Storage; custom TTL support if practical |
 | Background jobs | Billing, analytics, anomaly, email, and health checks |
 | Audit | Append-only audit records for important actions |
@@ -482,28 +482,32 @@ After retries are exhausted or a circuit is open, the routing engine shall try t
 
 If a provider fails after streaming starts, the stream shall emit a clear error or retry event and then end. Automatic seamless splicing is outside MVP scope.
 
-## 9.10 Cache and idempotency
+## 9.10 Deferred cache and implemented idempotency
 
-### FR-CACHE-001 — Prompt cache
+### FR-CACHE-001 — Prompt cache contract (implementation deferred)
 
-Eligible prompts may be cached using an organisation-scoped hash.
+Eligible prompts may be cached only after Phase 9 provides approved encrypted payload or access-checked safe-reference storage, policy/config fingerprinting, and cache-hit accounting semantics. P6 defines the contract but does not implement cache reads, writes, or response storage.
 
 A prompt shall not be cached when:
 
 - PII risk score is greater than zero.
 - Retention mode does not permit content storage.
 
-### FR-CACHE-002 — Cache hit
+### FR-CACHE-002 — Future cache hit
 
-A valid cache hit shall skip provider routing and provider execution.
+When the deferred cache is safely implemented, a valid cache hit shall skip provider-adapter execution and use the approved existing SSE event catalog.
 
 ### FR-IDEMP-001 — Idempotency key
 
-The API shall use a client-generated request ID scoped by organisation.
+The API shall use a client-generated request ID scoped by trusted organisation and user identity through an opaque HMAC Redis key.
 
 ### FR-IDEMP-002 — Duplicate request
 
-A duplicate idempotency key shall return the existing processing or completed result rather than creating another provider request.
+A matching in-progress duplicate returns `409 REQUEST_IN_PROGRESS`. A completed duplicate or fingerprint mismatch returns `409 DUPLICATE_REQUEST`; completed requests are non-replayable tombstones and no response body is stored in P6.
+
+### FR-IDEMP-003 — Accepted crash limitation
+
+Atomic reservation, tenant isolation, fingerprint protection, fail-closed Redis behavior, and the 300/3600-second TTL contract are proven. If a process crashes after provider execution may have started, the `PROCESSING` record can expire and permit a later retry. The MVP accepts this limitation and does not claim zero duplicate paid calls under that failure mode.
 
 ## 9.11 Retention
 
@@ -664,9 +668,9 @@ A protected detailed endpoint may show dependency-level state for administrators
 | BR-005 | Raw credentials and sensitive values are never written to normal logs or audit metadata. |
 | BR-006 | Manual provider choice cannot bypass policy, plan, capability, or health checks. |
 | BR-007 | An exhausted budget prevents new billable provider calls. |
-| BR-008 | A repeated idempotency key must not produce a second provider call. |
-| BR-009 | Prompt-cache keys are organisation-scoped. |
-| BR-010 | Prompts with detected PII are not cached. |
+| BR-008 | While a valid `PROCESSING` or `COMPLETED` record exists, a repeated matching idempotency key must not produce another provider call; post-provider crash/expiry risk is explicitly accepted. |
+| BR-009 | Future prompt-cache keys must be opaque and trusted-organisation scoped; cache implementation is deferred to Phase 9 prerequisites. |
+| BR-010 | Future prompt caching is restricted to `ALLOW`, risk score `0`, and zero detected spans; masked and metadata-only content caching are prohibited. |
 | BR-011 | Refresh tokens are one-time use. |
 | BR-012 | Refresh-token reuse revokes the token family. |
 | BR-013 | Audit records are append-only at application level. |
@@ -1005,9 +1009,11 @@ Exit criteria:
 
 ### Redis
 
-- [ ] Duplicate request ID does not create a second provider request.
-- [ ] Eligible prompt cache hit skips provider execution.
-- [ ] Prompt with PII is not cached.
+- [x] Atomic tenant/user-scoped reservation admits one concurrent winner while Redis state exists.
+- [x] Fingerprint mismatch, Redis failure, TTLs, and non-replayable completed tombstones follow the approved contract.
+- [ ] **DEFERRED —** Eligible prompt-cache hit skips provider execution after Phase 9 safe-storage/accounting prerequisites exist.
+- [ ] **DEFERRED —** Prompt-cache implementation proves no sensitive or masked content is cached.
+- **Accepted limitation:** a post-provider process crash followed by `PROCESSING` expiry may permit a later duplicate paid call.
 
 ### Chat
 

@@ -26,7 +26,7 @@ The goal is to let one developer implement the MVP without repeatedly redesignin
 - Node.js, Express, and TypeScript backend
 - React and TypeScript frontend boundaries
 - MongoDB persistence through Mongoose
-- Redis for idempotency, prompt cache, provider health, rate limiting, and BullMQ
+- Redis for idempotency, provider health, rate limiting, and BullMQ; prompt-cache implementation deferred to Phase 9 prerequisites
 - JWT access tokens and rotating refresh tokens
 - Organisation-scoped RBAC
 - Conversations and messages
@@ -1774,7 +1774,7 @@ Required flows:
 - Blocked prompt never calls provider mock
 - Masked prompt sends only masked text to provider mock
 - Idempotency prevents duplicate provider invocation
-- Cache hit avoids provider invocation
+- **DEFERRED —** Cache-hit provider bypass after Phase 9 safe-storage and accounting prerequisites exist
 - Provider fallback selects second provider
 - Mid-stream failure returns interruption event
 - Metadata-only mode stores no message content
@@ -1903,12 +1903,12 @@ Exit gate: primary provider failure reliably selects the next eligible provider.
 3. Masking
 4. Policy engine
 5. Idempotency
-6. Prompt cache
+6. Secure prompt-cache contract; implementation deferred to Phase 9 prerequisites
 7. BullMQ setup
 8. Billing and analytics workers
 9. Audit log
 
-Exit gate: normal, masked, blocked, cached, and duplicate prompt flows pass integration tests.
+Exit gate: normal, masked, blocked, duplicate, fingerprint-mismatch, expiry, and Redis fail-closed flows pass integration tests. Cache-hit and response-replay gates remain deferred to Phase 9 prerequisites.
 
 ## Week 4 — Streaming and Admin
 
@@ -1980,7 +1980,7 @@ The TDD implementation is complete when:
 3. Regex PII detection can produce false positives and false negatives.
 4. No automatic provider switch after partial response streaming.
 5. One environment master key protects encrypted content.
-6. Prompt cache is intentionally restricted to low-risk simple requests.
+6. Prompt-cache implementation and response replay remain deferred to Phase 9 safe-storage/accounting prerequisites; the approved future contract is restricted to low-risk requests with zero detected spans.
 7. No full-text search over encrypted prompt content.
 8. Worker hosting on Cloud Run requires careful minimum-instance configuration.
 9. Provider cost tables may need manual updates.
