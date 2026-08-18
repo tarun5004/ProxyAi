@@ -905,18 +905,22 @@ Redis stores temporary or operational state, not authoritative long-term busines
 ### 24.1 Prompt cache
 
 ```text
-Key: cache:prompt:{orgId}:{sha256(normalizedMaskedPrompt)}
-Value: JSON { provider, model, responseEncOrSafeReference, inputTokens, outputTokens, createdAt }
-TTL: 3600 seconds
+Key: cache:prompt:{opaqueHmac(canonicalCacheInput)}
+Value: encrypted response payload OR access-checked safe reference with minimum safe metadata
+TTL: PROMPT_CACHE_TTL_SECONDS=3600 when enabled
 ```
 
 Rules:
 
-- Cache only when no PII was detected.
-- Cache only when retention mode permits storing response content.
-- Include `orgId` in the key.
-- Prefer storing encrypted response content or a safe reference, not plaintext.
-- Redis outage fails open for cache: call the provider normally.
+- Cache only `ALLOW` decisions with risk score `0` and zero detected sensitive spans.
+- Never cache `ALLOW_WITH_MASK`, `BLOCK`, masked prompts, or response content under `METADATA_ONLY` retention.
+- Scope reuse to trusted `orgId`; organisation-wide reuse is allowed only without user-specific context.
+- Bind trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and policy/config fingerprint inside the opaque HMAC input.
+- Do not normalize prompt whitespace or casing unless a future approved contract defines it.
+- Never place raw prompts, PII, email addresses, or secrets in Redis keys or values.
+- Plaintext assistant responses are prohibited. Cache implementation remains deferred until Phase 9 supplies encrypted payload storage or an access-checked safe-reference capability.
+- Redis cache reads and writes fail open; provider execution continues. Idempotency remains fail closed.
+- True cache hits have zero provider usage. Synthetic usage is prohibited, and the current `RequestLog` cannot represent non-billable cache delivery safely; accounting semantics must be resolved before implementation.
 
 ### 24.2 Idempotency
 

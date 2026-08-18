@@ -656,7 +656,7 @@ The exact prompt limit may be adjusted after provider testing. The server must a
 9. Evaluate policy
 10. If BLOCK: write safe policy event, complete idempotency, and return JSON `403 POLICY_BLOCKED` before SSE headers
 11. Build masked or original approved provider prompt
-12. Check prompt cache when Phase 6 adds eligible caching
+12. Check prompt cache only after Phase 9 provides the approved encrypted or safe-reference storage prerequisite
 13. Load provider health and select the eligible provider order
 14. Call primary through retry and circuit breaker
 15. Fall back only before streaming if another approved adapter exists
@@ -807,36 +807,36 @@ A request may be cached only when all conditions are true:
 
 - Policy action is `ALLOW`.
 - PII risk score is `0`.
-- Retention mode is not a no-storage mode. The approved MVP currently uses metadata-only or encrypted storage.
+- No sensitive span was detected.
+- Retention mode permits response-content storage; `METADATA_ONLY` does not.
 - The request does not contain user-specific dynamic context that would make reuse unsafe.
-- The selected route supports deterministic cache reuse for the prompt and model settings.
+- The selected provider, model, deterministic settings, and policy/config fingerprint support deterministic reuse.
 
-For the first MVP, caching may be restricted to simple text prompts without conversation history.
+`ALLOW_WITH_MASK` and `BLOCK` requests are never cacheable. Masked prompts must not be cached. Organisation-wide reuse is permitted only when the request has no user-specific context, and cache entries are never shared across organisations.
 
 ### 17.2 Key
 
 ```text
-cache:prompt:{orgId}:{sha256(normalizedPromptAndSettings)}
+cache:prompt:{opaqueHmac(canonicalCacheInput)}
 ```
+
+`canonicalCacheInput` binds the trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and deterministic policy/config fingerprint. The Redis key exposes none of those values. Do not normalize whitespace or casing unless a future approved contract explicitly defines the transformation. Raw prompts, PII, email addresses, and secrets must never appear in a cache key.
 
 ### 17.3 Value
 
-```ts
-interface PromptCacheValue {
-  responseText: string;
-  providerId: ProviderId;
-  model: string;
-  tokensIn: number;
-  tokensOut: number;
-  createdAt: string;
-}
-```
+Plaintext assistant responses in Redis are not approved. A future cache value may contain either an encrypted response payload or an access-checked safe reference plus the minimum safe coordination metadata. Neither storage capability exists yet, so prompt-cache implementation is deferred until Phase 9 provides one of them.
 
-TTL: 1 hour.
+`PROMPT_CACHE_TTL_SECONDS=3600` becomes a required validated environment variable with no hidden default when cache implementation is enabled. It must not be added as a current startup requirement before the cache feature exists.
 
 ### 17.4 Failure behaviour
 
-Cache reads fail open. When Redis is unavailable, log a warning and call the provider normally. Do not fail the chat request only because cache lookup failed.
+Cache reads and writes fail open. A lookup failure continues to provider execution, and a write failure must not fail an otherwise successful provider response. Cache failures must not bypass policy. Idempotency is separate and remains fail closed.
+
+### 17.5 Future cache-hit stream and accounting
+
+A valid future hit emits `request_started`, `policy`, `routing` with `routingReason=cache`, zero or more `token` events, then `done` with `cacheHit=true`. No new `cache_hit` event is introduced, and the provider adapter is not called. Exact provider/model metadata semantics remain deferred until implementation.
+
+Provider usage on a true cache hit is zero, and synthetic provider usage is forbidden. The current `RequestLog` contract cannot safely distinguish non-billable cache delivery, so cache-hit accounting must be resolved before implementation.
 
 ## 18. Idempotency
 
@@ -1437,7 +1437,7 @@ When Redis is unavailable, routing falls back to static capabilities and local c
 
 | Purpose | Key | TTL | Failure mode |
 |---|---|---:|---|
-| Prompt cache | `cache:prompt:{orgId}:{hash}` | 1 hour | Fail open |
+| Prompt cache | `cache:prompt:{opaqueHmac(canonicalCacheInput)}` | `PROMPT_CACHE_TTL_SECONDS=3600` when enabled | Fail open; implementation deferred pending Phase 9 storage |
 | Idempotency | `idempotency:{orgId}:{clientRequestId}` | 5–60 min | Fail closed for chat write |
 | Provider health | `health:{providerId}` | 2 min refreshed | Use static/local state |
 | Rate limit | `rate:{orgId}:{userId}:{window}` | Window length | Fail closed on login; configurable on chat |

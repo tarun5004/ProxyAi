@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 6 — Redis Cache and Idempotency
-- **Task:** P6-01 — Generalize Tenant-Scoped Idempotency Reservations
-- **Status:** Completed; awaiting approval before P6-02
+- **Task:** P6-02 — Secure Prompt Cache Contract
+- **Status:** Contract resolved; prompt-cache implementation deferred pending Phase 9 prerequisites
 
 ## Completed Tasks
 
@@ -59,6 +59,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-07 addendum — Local Development Admin Provisioning completed on 2026-08-18
 - Phase 5 — Chat, Conversations, and Streaming completed on 2026-08-18
 - P6-01 — Generalized tenant-scoped idempotency reservations completed on 2026-08-18
+- P6-02 — Secure prompt-cache contract resolved on 2026-08-19; implementation remains deferred
 
 ## Important Decisions
 
@@ -356,6 +357,20 @@ npm run dev
 
 ## Latest Task Record
 
+- **Task:** P6-02 — Secure Prompt Cache Contract
+- **Status:** Contract resolved; production implementation intentionally deferred
+- **Files changed:** `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Eligibility:** Only `ALLOW` with risk score `0`, zero detected sensitive spans, and response-content-compatible retention may be cached. `ALLOW_WITH_MASK`, `BLOCK`, masked prompts, and `METADATA_ONLY` response-content caching are prohibited.
+- **Scope and key:** Cache reuse is trusted-`orgId` scoped and organisation-wide only without user-specific context. The opaque HMAC input binds trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and policy/config fingerprint. Whitespace and casing are not normalized without a future approved contract.
+- **Storage:** Plaintext assistant responses in Redis are prohibited. Future values require an encrypted payload or access-checked safe reference; neither exists, so implementation remains deferred until Phase 9 provides the capability.
+- **TTL and failure:** `PROMPT_CACHE_TTL_SECONDS=3600` becomes required with no hidden default when cache implementation is enabled. Cache reads/writes fail open; idempotency remains separate and fail closed.
+- **Future SSE behavior:** A hit uses `request_started` → `policy` → `routing` with `routingReason=cache` → `token*` → `done` with `cacheHit=true`; no new `cache_hit` event exists and provider execution is skipped.
+- **Accounting:** True hits have zero provider usage and synthetic usage is forbidden. Current `RequestLog` semantics cannot safely represent non-billable cache delivery, so accounting must be resolved before implementation.
+- **Deferred prerequisites:** Encrypted/safe-reference response storage, deterministic policy/config fingerprinting, cache-hit accounting representation, and final provider/model metadata semantics.
+- **Verification:** Stale-contract and canonical-contract scans passed across `docs/` and `PROJECT_MEMORY.md`; `git diff --check` passed with documentation-only changes.
+- **Scope:** Documentation only; no production, Redis, auth, chat, provider, or environment behavior changed.
+- **Next:** Run a Phase 6 closure review; do not implement prompt caching or start another Phase 6 implementation task without approval.
+
 - **Task:** P6-01 — Generalize Tenant-Scoped Idempotency Reservations
 - **Status:** Completed
 - **Files changed:** `backend/src/shared/idempotency/idempotency.service.ts`, chat idempotency wiring, environment configuration/example, four focused tests, and the approved Redis/API/progress documents.
@@ -598,7 +613,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for approval before P6-02 — Prompt Cache Contract Resolution; do not start cache implementation automatically.
+- Wait for approval before the Phase 6 closure review. Prompt-cache implementation must remain deferred until Phase 9 storage and accounting prerequisites are approved and available.
 
 ## Do Not Forget
 

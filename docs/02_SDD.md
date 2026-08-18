@@ -577,7 +577,7 @@ The chat orchestration service coordinates the synchronous request path.
 4. Evaluate policy.
 5. Return block response without routing when blocked.
 6. Determine effective prompt.
-7. Check eligible prompt cache.
+7. Check eligible prompt cache when the approved secure-storage and accounting prerequisites exist.
 8. Build routing decision.
 9. Call providers in fallback order.
 10. Stream chunks to the client.
@@ -626,13 +626,18 @@ Redis is used for four clearly separated purposes.
 ### Prompt cache
 
 ```text
-cache:prompt:{orgId}:{promptHash}
+cache:prompt:{opaqueHmac(canonicalCacheInput)}
 ```
 
-- Recommended TTL: one hour
-- Only when retention mode allows it
-- Never when PII risk score is greater than zero
-- Never shared across organisations
+- Eligibility requires `ALLOW`, risk score `0`, and zero detected sensitive spans.
+- `ALLOW_WITH_MASK`, `BLOCK`, and `METADATA_ONLY` requests are not cacheable.
+- Scope is the trusted organisation. Organisation-wide reuse is allowed only when the request has no user-specific context.
+- The HMAC input binds trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and a deterministic policy/config fingerprint.
+- Prompt whitespace or casing is not normalized unless a later approved contract defines that transformation.
+- Plaintext assistant responses are not approved for Redis. A future value must use an encrypted payload or an access-checked safe reference.
+- `PROMPT_CACHE_TTL_SECONDS=3600` is required with no hidden default when cache implementation is enabled.
+- Cache reads and writes fail open; idempotency remains a separate fail-closed control.
+- Cache implementation is deferred until Phase 9 provides approved encrypted or safe-reference response storage and accounting can represent non-billable cache delivery.
 
 ### Idempotency
 

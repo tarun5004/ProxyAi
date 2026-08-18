@@ -416,7 +416,7 @@ Redis has distinct responsibilities and key namespaces.
 
 | Responsibility | Example key | Default behavior if Redis fails |
 |---|---|---|
-| Prompt cache | `cache:prompt:{orgId}:{hash}` | Fail open and call provider |
+| Prompt cache | `cache:prompt:{opaqueHmac(canonicalCacheInput)}` | Fail open and call provider; implementation deferred pending Phase 9 prerequisites |
 | Idempotency | `idempotency:{orgId}:{clientRequestId}` | Fail closed for paid request safety |
 | Provider health | `health:{providerId}` | Use static capability defaults |
 | Rate limit | `rate:{orgId}:{userId}:{window}` | Follow documented environment policy |

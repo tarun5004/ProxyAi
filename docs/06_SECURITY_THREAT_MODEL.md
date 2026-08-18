@@ -483,7 +483,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | I |
 | Risk | Critical |
 | Scenario | Two organisations generate the same prompt hash and receive another tenant's cached response. |
-| Prevention | Key includes `orgId`; response value contains org binding; validate binding on read; hash normalised approved prompt, not raw blocked text. |
+| Prevention | Derive an opaque HMAC key that binds trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and policy/config fingerprint; validate tenant binding on read; never share entries across organisations. |
 | Detection | Multi-tenant cache integration tests. |
 
 ### TM-014 — Sensitive prompt cached despite policy
@@ -493,7 +493,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | I |
 | Risk | High |
 | Scenario | A PII-containing or masked request is cached and retained in Redis. |
-| Prevention | Cache only when risk score is zero and retention mode permits caching; store encrypted or non-sensitive approved content only as defined by TDD; short TTL. |
+| Prevention | Cache only `ALLOW` with risk score zero and zero detected spans; reject `ALLOW_WITH_MASK`, `BLOCK`, masked prompts, and `METADATA_ONLY`; prohibit plaintext Redis responses; defer implementation until encrypted or access-checked safe-reference storage exists. |
 | Detection | Tests asserting no Redis key is created for any detected span. |
 
 ### TM-015 — Idempotency bypass or collision
@@ -973,13 +973,13 @@ They must not contain:
 Keys use namespaced prefixes and tenant scope:
 
 ```text
-cache:prompt:{orgId}:{hash}
+cache:prompt:{opaqueHmac(canonicalCacheInput)}
 idempotency:{orgId}:{userId}:{clientRequestId}
 rate:user:{orgId}:{userId}:{window}
 health:{providerId}
 ```
 
-Do not use email addresses, prompt text, tokens, or secrets in key names.
+The prompt-cache HMAC input binds trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and policy/config fingerprint. Do not normalize whitespace or casing without an approved contract. Never expose raw prompts, PII, masked prompts, email addresses, tokens, or secrets in key names or values.
 
 ### 19.2 Failure behaviour
 

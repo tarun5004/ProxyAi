@@ -957,7 +957,19 @@ The details contain categories only, never detected values.
 
 ## 16.5 Cache-hit behavior
 
-A valid cache hit uses the same stream event sequence. `routing.routingReason` is `cache`, token events replay the cached text, and `done.cacheHit` is `true`. The response must still be tenant-scoped and retention-eligible.
+A valid future cache hit uses this existing event sequence:
+
+```text
+request_started
+policy
+routing (routingReason=cache)
+token*
+done (cacheHit=true)
+```
+
+No `cache_hit` event is added. The provider adapter call is skipped entirely. The response remains tenant-scoped, policy-eligible, and backed by approved encrypted storage or an access-checked safe reference. Exact provider/model metadata semantics remain deferred until the implementation contract is finalized.
+
+Provider usage on a true cache hit is zero and must never be synthesized. The current request-accounting schema does not safely represent non-billable cache delivery, so cache-hit accounting must be resolved before cache implementation. Prompt caching remains deferred until Phase 9 provides the approved response-storage prerequisite.
 
 ## 16.6 Idempotency behavior
 

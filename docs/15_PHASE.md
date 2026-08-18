@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 6 — Redis Cache and Idempotency
-Current Task: P6-01 — Generalize Tenant-Scoped Idempotency Reservations
-Current Status: P6-01 Completed; awaiting approval before P6-02
-Current Blocker: None
-Last Completed Task: P6-01 — Generalize Tenant-Scoped Idempotency Reservations
-Last Completed Commit: feat(idempotency): generalize tenant-scoped request reservations
+Current Task: P6-02 — Secure Prompt Cache Contract
+Current Status: Contract resolved; prompt-cache implementation deferred pending Phase 9 prerequisites
+Current Blocker: Encrypted or access-checked safe-reference response storage and cache-hit accounting do not exist yet
+Last Completed Task: P6-02 — Secure Prompt Cache Contract
+Last Completed Commit: docs(cache): define secure prompt cache contract
 ```
 
 ---
@@ -544,13 +544,12 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 
 ## Prompt Cache
 
-- [ ] Normalize and hash prompt.
-- [ ] Include `orgId` in key.
-- [ ] Check retention eligibility.
-- [ ] Never cache PII prompts.
-- [ ] Add TTL.
-- [ ] Mark cache hits.
-- [ ] Fail open when cache is unavailable.
+- [x] P6-02 — Resolve the secure prompt-cache contract.
+- [x] Restrict eligibility to `ALLOW`, risk score `0`, zero detected spans, and response-content-compatible retention.
+- [x] Define trusted organisation scope and opaque HMAC key inputs without prompt normalization.
+- [x] Define `PROMPT_CACHE_TTL_SECONDS=3600`, fail-open cache behavior, SSE sequence, and zero synthetic provider usage.
+- [ ] **DEFERRED —** Implement encrypted payload or access-checked safe-reference response storage after the Phase 9 prerequisite exists.
+- [ ] **DEFERRED —** Implement cache lookup/write, hit delivery, and accounting after policy/config fingerprint and non-billable cache accounting semantics are approved.
 
 ## Exit Criteria
 
@@ -878,7 +877,7 @@ Do not randomly change several files.
 | Phase 3 | Not Started | |
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
-| Phase 6 | In Progress | P6-01 tenant-scoped idempotency completed; prompt cache pending |
+| Phase 6 | In Progress | P6-01 complete; P6-02 contract resolved; prompt-cache implementation deferred pending Phase 9 storage/accounting prerequisites |
 | Phase 7 | Not Started | |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
@@ -891,19 +890,16 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P6-02 — Prompt Cache Contract Resolution
+## Phase 6 Closure Review
 
-**Effort:** Medium
+**Effort:** Small
 
 Do only this next:
 
-1. Resolve encrypted-or-safe-reference cache storage before implementation.
-2. Resolve metadata-only retention eligibility.
-3. Define canonical prompt/settings normalization.
-4. Preserve fail-open cache behavior without bypassing policy.
-5. Do not implement plaintext response caching.
-
-Do not begin API foundation work until P1-06 is complete.
+1. Confirm P6-01 implementation evidence remains accepted.
+2. Confirm P6-02 is contract-complete while prompt-cache implementation remains explicitly deferred.
+3. Do not implement cache code before Phase 9 provides encrypted or access-checked safe-reference storage and accounting prerequisites are resolved.
+4. Do not start another Phase 6 implementation task without approval.
 
 ---
 
