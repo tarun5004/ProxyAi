@@ -185,6 +185,8 @@ CHAT_RATE_LIMIT_PRO_USER_RPM
 CHAT_RATE_LIMIT_PRO_ORG_RPM
 CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM
 CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM
+IDEMPOTENCY_PROCESSING_TTL_SECONDS
+IDEMPOTENCY_COMPLETED_TTL_SECONDS
 APP_ENCRYPTION_KEY
 GROQ_API_KEY
 GEMINI_API_KEY
@@ -215,6 +217,8 @@ const EnvSchema = z.object({
   CHAT_RATE_LIMIT_PRO_ORG_RPM: z.coerce.number().int().min(1),
   CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM: z.coerce.number().int().min(1),
   CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM: z.coerce.number().int().min(1),
+  IDEMPOTENCY_PROCESSING_TTL_SECONDS: z.coerce.number().pipe(z.literal(300)),
+  IDEMPOTENCY_COMPLETED_TTL_SECONDS: z.coerce.number().pipe(z.literal(3600)),
   APP_ENCRYPTION_KEY: z.string().min(32),
   FRONTEND_ORIGIN: z.string().url(),
 });
@@ -839,30 +843,32 @@ Cache reads fail open. When Redis is unavailable, log a warning and call the pro
 ### 18.1 Key
 
 ```text
-idempotency:{orgId}:{clientRequestId}
+idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
 ```
 
 ### 18.2 State
 
 ```ts
 type IdempotencyRecord =
-  | { status: 'processing'; requestId: string; startedAt: string }
-  | { status: 'completed'; requestId: string; resultRef: string; completedAt: string }
-  | { status: 'failed'; requestId: string; retryable: boolean; failedAt: string };
+  | { status: 'PROCESSING'; requestId: string; startedAt: string }
+  | { status: 'COMPLETED'; requestId: string; completedAt: string };
 ```
 
-TTL: 5 minutes for processing/failed and up to 1 hour for completed.
+TTL: `PROCESSING` is exactly 300 seconds and `COMPLETED` is exactly 3600 seconds. Both values are required validated environment variables with no hidden defaults.
 
 ### 18.3 Acquisition
 
-Use `SET key value NX EX 300`.
+Use `SET key value NX EX IDEMPOTENCY_PROCESSING_TTL_SECONDS`.
 
 - New key: continue.
 - Existing `processing`: return `409 REQUEST_IN_PROGRESS` or attach to existing result when practical. MVP uses `409`.
-- Existing `completed`: return the saved result reference or replay the stored result.
-- Existing non-retryable failure: return same safe error.
+- Existing `COMPLETED`: return `409 DUPLICATE_REQUEST` until a separate safe replay contract is approved.
+- Failure before provider execution releases the matching `PROCESSING` reservation so a safe retry is possible.
+- Once provider execution may have started, do not release the reservation in a way that permits a duplicate paid call.
 
-When Redis is unavailable, the chat write should fail closed with `503 IDEMPOTENCY_UNAVAILABLE` because duplicate paid provider calls are otherwise possible.
+When Redis is unavailable, the chat write fails closed with `503 IDEMPOTENCY_UNAVAILABLE` because duplicate paid provider calls are otherwise possible.
+
+The key and record contain no prompt, response, email, raw tenant/user identifiers, PII, provider secret, or token. Completed-response replay remains deferred.
 
 ## 19. Provider Adapter Design
 

@@ -7,7 +7,6 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { redis } from "../../shared/lib/redis.js";
 import type { OrganisationPlan } from "../organisations/organisation.types.js";
 
-export const CHAT_IDEMPOTENCY_TTL_MS = 5 * 60 * 1_000;
 export const CHAT_RATE_LIMIT_WINDOW_MS = 60 * 1_000;
 
 export const CHAT_RATE_LIMITS = Object.freeze({
@@ -34,44 +33,12 @@ const controlSecret = Buffer.from(
     env.AUTH_RATE_LIMIT_SECRET,
     "base64url",
 );
-const reservationResultSchema = z.enum([
-    "reserved",
-    "processing",
-    "completed",
-]);
 const rateResultSchema = z.tuple([
     z.coerce.number().int().min(1),
     z.coerce.number().int(),
     z.coerce.number().int().min(1),
     z.coerce.number().int(),
 ]);
-
-const RESERVE_SCRIPT = `
-local inserted = redis.call("SET", KEYS[1], ARGV[1], "NX", "PX", ARGV[2])
-if inserted then
-    return "reserved"
-end
-local current = redis.call("GET", KEYS[1])
-if current == "completed" then
-    return "completed"
-end
-return "processing"
-`;
-
-const COMPLETE_SCRIPT = `
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-    redis.call("SET", KEYS[1], "completed", "XX", "PX", ARGV[2])
-    return 1
-end
-return 0
-`;
-
-const RELEASE_SCRIPT = `
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-    return redis.call("DEL", KEYS[1])
-end
-return 0
-`;
 
 const RATE_SCRIPT = `
 local userCount = redis.call("INCR", KEYS[1])
@@ -98,18 +65,7 @@ export interface ChatControlStore {
     ): Promise<unknown>;
 }
 
-export interface ChatIdempotencyReservation {
-    complete(): Promise<void>;
-    release(): Promise<void>;
-}
-
 export interface ChatControlService {
-    reserveIdempotency(input: {
-        orgId: string;
-        userId: string;
-        clientRequestId: string;
-        reservationToken: string;
-    }): Promise<ChatIdempotencyReservation>;
     consumeRateLimit(input: {
         orgId: string;
         userId: string;
@@ -132,49 +88,6 @@ export function createChatControlService(
     store: ChatControlStore = redisChatControlStore,
 ): ChatControlService {
     return {
-        async reserveIdempotency(input) {
-            const key = deriveControlKey(
-                "idempotency",
-                input.orgId,
-                input.userId,
-                input.clientRequestId,
-            );
-            let result: "reserved" | "processing" | "completed";
-
-            try {
-                result = reservationResultSchema.parse(
-                    await store.evaluate(
-                        RESERVE_SCRIPT,
-                        [key],
-                        [input.reservationToken, CHAT_IDEMPOTENCY_TTL_MS],
-                    ),
-                );
-            } catch {
-                throw dependencyUnavailable();
-            }
-
-            if (result === "processing") {
-                throw new AppError(
-                    409,
-                    "REQUEST_IN_PROGRESS",
-                    "This request is already processing.",
-                );
-            }
-
-            if (result === "completed") {
-                throw new AppError(
-                    409,
-                    "DUPLICATE_REQUEST",
-                    "This request has already completed.",
-                );
-            }
-
-            return createReservation(
-                store,
-                key,
-                input.reservationToken,
-            );
-        },
         async consumeRateLimit(input) {
             const limits = CHAT_RATE_LIMITS[input.plan];
             const userKey = deriveControlKey(
@@ -228,43 +141,8 @@ export function createChatControlService(
 
 export const chatControlService = createChatControlService();
 
-function createReservation(
-    store: ChatControlStore,
-    key: string,
-    reservationToken: string,
-): ChatIdempotencyReservation {
-    return {
-        async complete() {
-            try {
-                const result = await store.evaluate(
-                    COMPLETE_SCRIPT,
-                    [key],
-                    [reservationToken, CHAT_IDEMPOTENCY_TTL_MS],
-                );
-
-                if (Number(result) !== 1) {
-                    throw dependencyUnavailable();
-                }
-            } catch {
-                throw dependencyUnavailable();
-            }
-        },
-        async release() {
-            try {
-                await store.evaluate(
-                    RELEASE_SCRIPT,
-                    [key],
-                    [reservationToken],
-                );
-            } catch {
-                throw dependencyUnavailable();
-            }
-        },
-    };
-}
-
 function deriveControlKey(
-    purpose: "idempotency" | "rate-user" | "rate-organisation",
+    purpose: "rate-user" | "rate-organisation",
     ...trustedIdentifiers: readonly string[]
 ): string {
     const digest = createHmac("sha256", controlSecret)

@@ -35,6 +35,12 @@ const envSchema = z.object({
     CHAT_RATE_LIMIT_PRO_ORG_RPM: z.coerce.number().int().min(1),
     CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM: z.coerce.number().int().min(1),
     CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM: z.coerce.number().int().min(1),
+    IDEMPOTENCY_PROCESSING_TTL_SECONDS: z.coerce
+        .number()
+        .pipe(z.literal(300)),
+    IDEMPOTENCY_COMPLETED_TTL_SECONDS: z.coerce
+        .number()
+        .pipe(z.literal(3_600)),
     GROQ_API_KEY: z.string().trim().min(1),
     GROQ_MODEL: z.string().trim().min(1),
     PROVIDER_REQUEST_TIMEOUT_MS: z.coerce

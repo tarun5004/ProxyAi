@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** P5-07 addendum — Landing Page Visual and Regression QA
-- **Status:** Completed; awaiting approval before Phase 6
+- **Phase:** Phase 6 — Redis Cache and Idempotency
+- **Task:** P6-01 — Generalize Tenant-Scoped Idempotency Reservations
+- **Status:** Completed; awaiting approval before P6-02
 
 ## Completed Tasks
 
@@ -58,6 +58,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-07 addendum — Public Landing Page completed on 2026-08-18
 - P5-07 addendum — Local Development Admin Provisioning completed on 2026-08-18
 - Phase 5 — Chat, Conversations, and Streaming completed on 2026-08-18
+- P6-01 — Generalized tenant-scoped idempotency reservations completed on 2026-08-18
 
 ## Important Decisions
 
@@ -355,6 +356,18 @@ npm run dev
 
 ## Latest Task Record
 
+- **Task:** P6-01 — Generalize Tenant-Scoped Idempotency Reservations
+- **Status:** Completed
+- **Files changed:** `backend/src/shared/idempotency/idempotency.service.ts`, chat idempotency wiring, environment configuration/example, four focused tests, and the approved Redis/API/progress documents.
+- **Key contract:** Redis keys preserve the P5-06-compatible `chat:idempotency:` namespace and contain only an HMAC-SHA-256 digest over trusted `orgId`, `userId`, and `clientRequestId`. Raw identifiers, prompts, responses, PII, email, and secrets are absent from keys, values, and logs.
+- **State contract:** Safe JSON records contain only `PROCESSING` or `COMPLETED`, server `requestId`, and the relevant timestamp. Completed-response replay is not implemented.
+- **TTL contract:** Required validated `IDEMPOTENCY_PROCESSING_TTL_SECONDS=300` and `IDEMPOTENCY_COMPLETED_TTL_SECONDS=3600` have no defaults and reject drift from the approved values.
+- **Failure contract:** Redis coordination failures return safe `503 IDEMPOTENCY_UNAVAILABLE`. Pre-provider failures release only the matching processing reservation; once provider execution may have started, chat finalization marks the reservation completed instead of enabling a blind retry.
+- **Concurrency and isolation:** A real Redis test launched ten concurrent reservations for one trusted scope; exactly one reservation/provider-call winner succeeded and nine returned `REQUEST_IN_PROGRESS`. The same client request ID under another trusted user or organisation did not collide.
+- **Verification:** Four focused idempotency tests and four existing chat-stream tests passed. The complete backend suite passed 164/164; typecheck, build, diff check, obsolete-code scan, and sensitive Redis/log key scans passed.
+- **Deferred:** Prompt cache, plaintext/encrypted response storage, metadata-only cache eligibility, completed-response replay, and anonymous landing refresh behavior remain outside P6-01.
+- **Next task:** P6-02 — Prompt Cache Contract Resolution. Do not start without approval.
+
 - **Task:** P5-07 addendum — Landing Page Visual and Regression QA
 - **Status:** Completed
 - **Files changed:** `frontend/src/features/marketing/components/hero-section.tsx`, `design-qa.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -585,7 +598,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for approval before Phase 6 — Redis Cache and Idempotency; do not start P5-08 or Phase 6 automatically.
+- Wait for approval before P6-02 — Prompt Cache Contract Resolution; do not start cache implementation automatically.
 
 ## Do Not Forget
 

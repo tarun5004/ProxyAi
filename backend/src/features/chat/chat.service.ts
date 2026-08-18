@@ -1,5 +1,10 @@
 import { env } from "../../config/env.js";
 import { AppError } from "../../shared/errors/app-error.js";
+import {
+    idempotencyService,
+    type IdempotencyReservation,
+    type IdempotencyService,
+} from "../../shared/idempotency/idempotency.service.js";
 import type { AuthContext } from "../auth/auth-context.types.js";
 import {
     appendRequestUsage,
@@ -33,7 +38,6 @@ import type {
 import {
     chatControlService,
     type ChatControlService,
-    type ChatIdempotencyReservation,
 } from "./chat-control.service.js";
 import {
     loadChatOrganisationContext,
@@ -59,6 +63,7 @@ export interface ChatPipelineDependencies {
         orgId: string,
     ) => Promise<ChatOrganisationContext>;
     readonly controls: ChatControlService;
+    readonly idempotency: IdempotencyService;
     readonly readBudgetStatus: (
         orgId: string,
     ) => Promise<Readonly<BudgetStatus>>;
@@ -84,13 +89,14 @@ export interface PreparedChatStream {
     readonly iterator: AsyncIterator<StreamChunk>;
     readonly firstChunk: StreamChunk;
     readonly fallbackEvents: readonly ProviderFallbackEvent[];
-    readonly reservation: ChatIdempotencyReservation;
+    readonly reservation: IdempotencyReservation;
 }
 
 export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
     assertConversationOwner: getConversationForOwner,
     loadOrganisationContext: loadChatOrganisationContext,
     controls: chatControlService,
+    idempotency: idempotencyService,
     readBudgetStatus: readAuthoritativeBudgetStatus,
     processPrompt: processPiiPromptImmutably,
     candidates: productionCandidates,
@@ -119,11 +125,11 @@ export async function prepareChatStream(
     );
     assertRoutingAllowed(input.request, organisation);
 
-    const reservation = await dependencies.controls.reserveIdempotency({
+    const reservation = await dependencies.idempotency.reserve({
         orgId: input.auth.orgId,
         userId: input.auth.userId,
         clientRequestId: input.request.clientRequestId,
-        reservationToken: input.requestId,
+        requestId: input.requestId,
     });
     let providerStarted = false;
     let reservationFinalized = false;
@@ -153,7 +159,7 @@ export async function prepareChatStream(
         });
 
         if (decision.action === "BLOCK") {
-            await reservation.complete();
+            await reservation.markCompleted();
             reservationFinalized = true;
 
             throw new AppError(
@@ -238,7 +244,7 @@ export async function prepareChatStream(
                     dependencies,
                 );
             } else {
-                await reservation.release();
+                await reservation.releaseBeforeExecution();
             }
         }
 
@@ -314,7 +320,7 @@ async function recordUsageAndComplete(
         readonly userId: string;
         readonly providerId: "groq";
         readonly model: string;
-        readonly reservation: ChatIdempotencyReservation;
+        readonly reservation: IdempotencyReservation;
     },
     usage: Readonly<TokenUsage> | undefined,
     dependencies: ChatPipelineDependencies,
@@ -332,7 +338,7 @@ async function recordUsageAndComplete(
         await dependencies.reconcileBudget(input.orgId);
     }
 
-    await input.reservation.complete();
+    await input.reservation.markCompleted();
 }
 
 function normalizePreStreamError(error: unknown): AppError {

@@ -328,6 +328,7 @@ The implementation should prefer a small consistent set. `400` may be used inste
 | `PROMPT_TOO_LARGE` | 413 | Prompt or estimated provider context is too large |
 | `RATE_LIMITED` | 429 | Rate limit exceeded |
 | `PROVIDER_UNAVAILABLE` | 503 | No eligible provider completed the request |
+| `IDEMPOTENCY_UNAVAILABLE` | 503 | Redis cannot safely coordinate duplicate protection for a billable request |
 | `DEPENDENCY_UNAVAILABLE` | 503 | Required database or Redis dependency unavailable |
 | `INTERNAL_ERROR` | 500 | Unexpected internal error |
 
@@ -811,7 +812,7 @@ Before stream headers are committed, failures use the normal JSON error envelope
 | 409 | `REQUEST_IN_PROGRESS` | Same idempotency key currently processing |
 | 413 | `PROMPT_TOO_LARGE` | Body or provider context too large |
 | 429 | `RATE_LIMITED` | Chat rate limit exceeded |
-| 503 | `DEPENDENCY_UNAVAILABLE` | Redis unavailable when safe idempotency cannot be guaranteed |
+| 503 | `IDEMPOTENCY_UNAVAILABLE` | Redis unavailable when safe idempotency cannot be guaranteed |
 
 After validation and policy readiness, the server responds:
 

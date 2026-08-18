@@ -637,16 +637,15 @@ cache:prompt:{orgId}:{promptHash}
 ### Idempotency
 
 ```text
-idempotency:{orgId}:{requestId}
+idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
 ```
 
 States:
 
-- `processing`
-- `completed`
-- `failed`
+- `PROCESSING`
+- `COMPLETED`
 
-Recommended TTL: five minutes for MVP.
+`PROCESSING` TTL is 300 seconds. `COMPLETED` TTL is 3600 seconds. Redis/idempotency failures fail closed with `IDEMPOTENCY_UNAVAILABLE`. Safe completed-response replay remains deferred.
 
 ### Provider health
 

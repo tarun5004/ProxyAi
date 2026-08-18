@@ -921,16 +921,17 @@ Rules:
 ### 24.2 Idempotency
 
 ```text
-Key: idempotency:{orgId}:{userId}:{clientRequestId}
-Value: JSON { status, requestId, responseReference?, updatedAt }
-TTL: 300 seconds
+Key: idempotency:{opaqueHmac(orgId,userId,clientRequestId)}
+Value: JSON { status, requestId, startedAt? or completedAt? }
+TTL: 300 seconds for PROCESSING; 3600 seconds for COMPLETED
 ```
 
 Rules:
 
 - Create with `SET NX`.
 - `PROCESSING` prevents a second provider call.
-- `COMPLETED` returns the existing result or request reference.
+- `COMPLETED` returns `409 DUPLICATE_REQUEST` until safe replay is separately approved.
+- Failure before provider execution may release only the matching reservation; possible provider execution must not be blindly released.
 - Redis outage fails closed for new billable chat requests in the MVP to avoid duplicate paid calls.
 
 ### 24.3 Provider health

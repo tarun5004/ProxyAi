@@ -134,12 +134,12 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 5 — Chat, Conversations, and Streaming
-Current Task: P5-07 addendum — Landing Page Visual and Regression QA
-Current Status: Phase 5 Completed; awaiting approval before Phase 6
+Current Phase: Phase 6 — Redis Cache and Idempotency
+Current Task: P6-01 — Generalize Tenant-Scoped Idempotency Reservations
+Current Status: P6-01 Completed; awaiting approval before P6-02
 Current Blocker: None
-Last Completed Task: P5-07 addendum — Landing Page Visual and Regression QA
-Last Completed Commit: fix(marketing): remove unverified compliance claim
+Last Completed Task: P6-01 — Generalize Tenant-Scoped Idempotency Reservations
+Last Completed Commit: feat(idempotency): generalize tenant-scoped request reservations
 ```
 
 ---
@@ -534,12 +534,13 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 
 ## Idempotency
 
-- [ ] Key includes `orgId` and client request ID.
-- [ ] Use `SET NX`.
-- [ ] Add processing and completed states.
-- [ ] Add five-minute TTL.
-- [ ] Fail closed when Redis is unavailable.
-- [ ] Test 10 duplicate concurrent requests create exactly one provider call.
+- [x] P6-01 — Generalize tenant-scoped idempotency reservations.
+- [x] Key uses an opaque HMAC over trusted `orgId`, `userId`, and client request ID.
+- [x] Use `SET NX`.
+- [x] Add `PROCESSING` and `COMPLETED` states.
+- [x] Use validated 300-second processing and 3600-second completed TTLs.
+- [x] Fail closed with `IDEMPOTENCY_UNAVAILABLE` when Redis is unavailable.
+- [x] Test 10 duplicate concurrent requests create exactly one provider-call winner.
 
 ## Prompt Cache
 
@@ -877,7 +878,7 @@ Do not randomly change several files.
 | Phase 3 | Not Started | |
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
-| Phase 6 | Not Started | |
+| Phase 6 | In Progress | P6-01 tenant-scoped idempotency completed; prompt cache pending |
 | Phase 7 | Not Started | |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
@@ -890,19 +891,17 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P1-06 — Health Endpoints
+## P6-02 — Prompt Cache Contract Resolution
 
 **Effort:** Medium
 
 Do only this next:
 
-1. Read the approved health endpoint contracts.
-2. Keep liveness dependency-free.
-3. Add readiness using MongoDB and Redis state.
-4. Add service version.
-5. Add commit SHA when available.
-6. Add focused endpoint tests.
-7. Run tests, typecheck, and build.
+1. Resolve encrypted-or-safe-reference cache storage before implementation.
+2. Resolve metadata-only retention eligibility.
+3. Define canonical prompt/settings normalization.
+4. Preserve fail-open cache behavior without bypassing policy.
+5. Do not implement plaintext response caching.
 
 Do not begin API foundation work until P1-06 is complete.
 

@@ -87,19 +87,21 @@ function createRuntime({
             };
         },
     };
-    const controls = {
-        async reserveIdempotency() {
+    const idempotency = {
+        async reserve() {
             order.push("idempotency");
 
             return {
-                async complete() {
+                async markCompleted() {
                     reservationEvents.push("completed");
                 },
-                async release() {
+                async releaseBeforeExecution() {
                     reservationEvents.push("released");
                 },
             };
         },
+    };
+    const controls = {
         async consumeRateLimit() {
             order.push("rate-limit");
         },
@@ -122,6 +124,7 @@ function createRuntime({
             };
         },
         controls,
+        idempotency,
         async readBudgetStatus() {
             order.push("budget");
 
