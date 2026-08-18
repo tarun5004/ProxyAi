@@ -471,7 +471,7 @@ Recommended backend variables:
 ```env
 NODE_ENV=development
 PORT=8080
-FRONTEND_ORIGIN=http://localhost:3000
+FRONTEND_ORIGIN=http://localhost:3001
 
 MONGO_URI=mongodb://localhost:27017/proxiai
 REDIS_URL=redis://localhost:6379
@@ -540,7 +540,7 @@ Expected local services:
 
 | Service | Default URL |
 |---|---|
-| Frontend | `http://localhost:3000` |
+| Frontend | `http://localhost:3001` |
 | Backend API | `http://localhost:8080` |
 | Liveness | `http://localhost:8080/health/live` |
 | Readiness | `http://localhost:8080/health/ready` |

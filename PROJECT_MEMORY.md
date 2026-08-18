@@ -649,6 +649,15 @@ npm run dev
 - **Scope check:** No admin features, business routes, logout, password reset, durable audit, tests, or P2-08 implementation was added.
 - **Recommended completed commits:** `feat(auth): add permission and scope authorization`, `docs(progress): record P2-07 completion`.
 
+## Latest Verified Defect Fix
+
+- **Task:** Local development CORS origin alignment
+- **Status:** Completed on 2026-08-19 without changing production CORS behavior
+- **Files changed:** `backend/.env.example`, `docs/09_README.md`, and local ignored `backend/.env`
+- **Decision:** Local frontend origin is `http://localhost:3001`; `FRONTEND_ORIGIN` remains the single validated exact-origin credentialed CORS boundary with no wildcard or fallback.
+- **Verification:** Login and refresh preflights returned `204`; login, refresh, and authenticated `/api/v1/auth/me` requests returned `200` with `Access-Control-Allow-Origin: http://localhost:3001` and credentials enabled.
+- **Security:** No authentication logic, frontend behavior, wildcard origin, alias, or multi-origin production fallback was added.
+
 ## Recommended Next Task
 
 - Wait for approval before P7-01 — BullMQ Connection and Typed Payloads. Keep prompt cache, response replay, and durable crash recovery deferred to Phase 9 prerequisites.
