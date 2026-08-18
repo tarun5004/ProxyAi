@@ -5,7 +5,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 5 — Chat, Conversations, and Streaming
-- **Task:** P5-07 addendum — Public Landing Page
+- **Task:** P5-07 addendum — Local Development Admin Provisioning
 - **Status:** Completed; awaiting approval before Phase 6
 
 ## Completed Tasks
@@ -56,6 +56,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Phase 4 deferred BLOCK and masked-providerPrompt integration gates passed through P5-06 on 2026-08-18
 - P5-07 — Login and Chat Frontend completed on 2026-08-18
 - P5-07 addendum — Public Landing Page completed on 2026-08-18
+- P5-07 addendum — Local Development Admin Provisioning completed on 2026-08-18
 - Phase 5 — Chat, Conversations, and Streaming completed on 2026-08-18
 
 ## Important Decisions
@@ -346,8 +347,22 @@ npm run dev
 - The public `/` route is a statically rendered marketing page composed from `features/marketing`; `/login` and `/chat` remain the unchanged authenticated product entry points.
 - The landing page uses the supplied 2026-08-18 visual reference as its primary design specification: true white surfaces, dark typography, restrained ProxiAI green, thin borders, soft shadows, product-flow visuals, and responsive mobile composition.
 - Marketing claims remain limited to capabilities already implemented or explicitly architectural; no fake customer logos, compliance certifications, provider pricing, or future-product promises are presented.
+- `npm run dev:seed-admin` is a development-only local bootstrap for the fixed `proxiai-demo` organisation and `admin@proxiai.local` organisation administrator; it refuses every non-development environment.
+- The dev administrator password comes only from validated `DEV_ADMIN_PASSWORD`, is hashed through the approved Argon2id helper, and is printed only to the invoking development terminal as explicitly required. Password hashes, tokens, database credentials, and provider keys are never printed.
+- Re-running local admin provisioning uses scoped `{ orgId, emailNormalized }` lookup, preserves one organisation and one user, and reconciles active state, `ORG_ADMIN`, and the canonical permission allowlist without bypassing Mongoose validation.
+- Local admin provisioning does not add registration routes, registration UI, authentication changes, or production bootstrap behavior.
 
 ## Latest Task Record
+
+- **Task:** P5-07 addendum — Local Development Admin Provisioning
+- **Status:** Completed
+- **Files changed:** `backend/package.json`, `backend/.env.example`, `backend/src/scripts/seed-dev-admin.ts`, `docs/09_README.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Implementation:** Adds `npm run dev:seed-admin`, validates development-only seed input, uses the shared Mongo lifecycle, existing Organisation/User models, canonical permissions, and approved Argon2id password helper, and prints only the requested local login fields.
+- **Idempotency:** Two consecutive runs against a fresh isolated database produced exactly one `proxiai-demo` organisation and one scoped `admin@proxiai.local` user; the configured password continued to verify.
+- **Safety:** `NODE_ENV=production` refusal passed before any database import/connection. No password hash, JWT/refresh token, database credential, provider key, registration route, or auth architecture change was introduced.
+- **Browser verification:** Printed credentials authenticated through the existing `/login`; the workspace, Conversation navigation/creation, chat composer, and policy panel rendered against isolated ports `3001`/`8081` without disturbing the developer's existing `3000`/`8080` services.
+- **Verification:** `npm test` passed 160/160; `npm run typecheck`, `npm run build`, production refusal, duplicate-run idempotency, and end-to-end seeded login passed.
+- **Next task:** Await explicit approval before Phase 6 — Redis Cache and Idempotency. Registration remains out of scope.
 
 - **Task:** P5-07 addendum — Public Landing Page
 - **Status:** Completed

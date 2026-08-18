@@ -480,6 +480,7 @@ JWT_ACCESS_SECRET=replace-with-base64url-encoded-32-byte-random-secret
 AUTH_RATE_LIMIT_SECRET=replace-with-a-different-base64url-encoded-32-byte-random-secret
 ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=7
+DEV_ADMIN_PASSWORD=proxiai-local-admin-only
 CHAT_RATE_LIMIT_FREE_USER_RPM=10
 CHAT_RATE_LIMIT_FREE_ORG_RPM=60
 CHAT_RATE_LIMIT_PRO_USER_RPM=30
@@ -639,6 +640,21 @@ Seed data should contain only fake values and should create:
 - enabled fake or development provider configuration.
 
 Never seed real credentials or real employee data.
+
+For the minimal local login bootstrap, configure `DEV_ADMIN_PASSWORD` in
+`backend/.env`, then run:
+
+```bash
+cd backend
+npm run dev:seed-admin
+```
+
+The command creates or reconciles the development-only `proxiai-demo`
+organisation and `admin@proxiai.local` organisation administrator. It prints
+the local login password to the invoking terminal, never the password hash,
+and refuses to run unless `NODE_ENV=development`. Re-running the command with
+the same password is idempotent. This is provisioning only; the MVP does not
+expose self-service registration.
 
 ---
 
