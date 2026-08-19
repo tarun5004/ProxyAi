@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.git
+.next
+coverage
+node_modules
+npm-debug.log*
+*.log
+*.tsbuildinfo
+**/*.test.*
+vitest.config.ts
+vitest.setup.ts

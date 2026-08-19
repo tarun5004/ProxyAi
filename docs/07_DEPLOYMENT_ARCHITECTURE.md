@@ -66,7 +66,8 @@ No domain name is hardcoded in the repository.
 - Next.js production server;
 - container port `3000`;
 - no provider, database, JWT, Redis, or cloud secret;
-- ALB health path `/_health`;
+- container health path `/healthz` (the ALB may use `/healthz` when a
+  dedicated frontend target-group health check is configured);
 - no local filesystem/session authority.
 
 ### 5.2 API service

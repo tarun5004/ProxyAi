@@ -906,6 +906,18 @@ npm run dev
 
 ## Latest Deployment Task
 
+- **Task:** P12-04 — Production Frontend and Backend Docker Images
+- **Status:** Completed on 2026-08-19
+- **Images:** Added pinned Node 22 Debian-slim multi-stage images for the Next.js standalone server and the shared Express/BullMQ backend artifact.
+- **Runtime safety:** Both images use UID `1001`, production-only runtime files, explicit ports, container health checks, and `.dockerignore` rules that exclude dependency trees, build output, tests, logs, and environment files.
+- **Frontend health:** `/healthz` is a dependency-free container endpoint; the built image returned `status=ok` and Docker reported `healthy`.
+- **Backend roles:** The image defaults to `dist/server.js`; worker deployments set `RUNTIME_ROLE=worker` and run `dist/worker.js` from the same immutable image.
+- **Files changed:** `frontend/Dockerfile`, `frontend/.dockerignore`, `frontend/src/app/healthz/route.ts`, `backend/Dockerfile`, `backend/.dockerignore`, `docs/07_DEPLOYMENT_ARCHITECTURE.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Verification:** Frontend typecheck, lint, and standalone build passed; both real Docker image builds passed; image inspection proved non-root users, no copied `.env` files, both backend entrypoints, and configured health checks.
+- **Dependency observation:** The backend production dependency stage reported zero known npm audit vulnerabilities. The build-only dependency stage reported one high-severity development dependency finding; CI image scanning remains required before release.
+
+## Previous Deployment Task
+
 - **Task:** P12-03 — Separate API and BullMQ Worker Production Entrypoints
 - **Status:** Completed on 2026-08-19
 - **Runtime split:** `dist/server.js` now starts only HTTP plus billing/analytics producers. `dist/worker.js` owns all BullMQ schedulers and billing, analytics, anomaly, provider-health, and enqueue-recovery consumers.
@@ -915,7 +927,7 @@ npm run dev
 - **Verification:** Focused environment tests passed 6/6; full backend suite passed 196/196; typecheck, build, and diff-check passed.
 - **Security:** Worker no longer requires API JWT/CORS/rate-limit secrets. No secret values are logged, and queue consumers cannot accidentally start inside API tasks.
 
-## Previous Deployment Task
+## Earlier Deployment Task
 
 - **Task:** P12-02 — Immutable Frontend Deployment Configuration
 - **Status:** Completed on 2026-08-19
@@ -927,7 +939,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P12-04 — Add production frontend/backend Docker images; do not start Phase 8.
+- P12-05 — Add the production-like local Compose stack; do not start Phase 8.
 
 ## Do Not Forget
 

@@ -863,17 +863,17 @@ readiness. Phases 8–11 remain planned and are not cancelled.
 - [x] P12-01 — Align AWS ECS/Fargate deployment and CI/CD contracts.
 - [x] P12-02 — Make frontend configuration immutable across environments.
 - [x] P12-03 — Separate API and BullMQ worker production entrypoints.
-- [ ] P12-04 — Add production frontend/backend Docker images.
+- [x] P12-04 — Add production frontend/backend Docker images.
 - [ ] P12-05 — Add a production-like local Compose stack.
 - [ ] P12-06 — Add an idempotent production index deployment command.
 - [ ] P12-07 — Add parameterized AWS infrastructure definitions.
 - [ ] P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback.
 - [ ] P12-09 — Verify staging/production-like release smoke and rollback.
 
-- [ ] Multi-stage backend Dockerfile.
-- [ ] Non-root runtime.
-- [ ] Production dependencies only.
-- [ ] API and worker commands.
+- [x] Multi-stage backend Dockerfile.
+- [x] Non-root runtime.
+- [x] Production dependencies only.
+- [x] API and worker commands.
 - [ ] Docker Compose local stack.
 - [ ] CI: lint, typecheck, tests, builds, Docker build, smoke test.
 - [ ] Push SHA-tagged image.
@@ -1044,20 +1044,20 @@ Do not randomly change several files.
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
-| Phase 12 | In Progress | P12-01 through P12-03 complete; API and worker runtimes are independently deployable |
+| Phase 12 | In Progress | P12-01 through P12-04 complete; immutable non-root frontend/backend images build successfully |
 | Phase 13 | Not Started | |
 
 ---
 
 # 26. Immediate Next Task
 
-## P12-04 — Production Frontend and Backend Images
+## P12-05 — Production-Like Local Compose Stack
 
 **Effort:** Medium
 
-Add multi-stage, non-root production images for the standalone Next.js
-frontend and the shared Express API/BullMQ worker backend artifact. Do not
-start Phase 8 product work.
+Run the production images behind a local reverse proxy with API, worker,
+Redis, health checks, and environment boundaries that mirror the approved
+ALB routing contract. Do not start Phase 8 product work.
 
 ---
 
