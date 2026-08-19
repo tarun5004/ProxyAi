@@ -106,9 +106,17 @@ smoke and rollback gates run, then set frontend/API/worker desired counts to
 for staging. Retain only inexpensive task definitions, logs, and deployment
 metadata required for audit and rollback.
 
-Never point staging at production tenant data. If shared infrastructure is
-approved for the first demo, use separate databases, Redis keyspace/instance
-as supported, secrets, task definitions, service names, and smoke identities.
+Never point routine staging at production tenant data. For the one-time
+interview staging validation, the approved shared-demo exception permits the
+existing Atlas database, Redis endpoint, `proxiai/production` secret, ALB, and
+target groups. Use dedicated staging task/service names and a dedicated smoke
+identity, scale staging tasks to zero after verification, and remove staging
+targets before production promotion. Later staging deployments return to
+separate data, secrets, and target groups.
+
+The one-time staging origin may be the existing ALB DNS over HTTP. Production
+still requires an approved domain, ACM certificate, HTTPS listener, and HTTP to
+HTTPS redirect.
 
 ## 8. Logs, Images, and Secrets
 

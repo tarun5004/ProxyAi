@@ -131,6 +131,15 @@ Staging and production have separate:
 - Groq keys/spend limits;
 - smoke accounts.
 
+For the one-time interview staging validation, an approved shared-demo
+exception permits reuse of the existing ALB, target groups, Atlas database,
+Upstash Redis endpoint, and `proxiai/production` runtime secret. Dedicated
+staging ECS services/task definitions and a dedicated smoke account are still
+required. The staging frontend origin may use the existing ALB DNS over HTTP;
+production remains gated on HTTPS with ACM. Scale staging services to zero and
+remove staging targets before production promotion. Subsequent staging releases
+must restore the normal separation listed above.
+
 Production GitHub Environment requires manual approval and restricts deployment
 to `main`.
 

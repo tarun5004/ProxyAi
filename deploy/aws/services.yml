@@ -39,6 +39,10 @@ Parameters:
     ConstraintDescription: BackendImageUri must use an immutable repository digest.
   DomainName:
     Type: String
+  AppProtocol:
+    Type: String
+    Default: https
+    AllowedValues: [http, https]
   CommitSha:
     Type: String
   GroqModel:
@@ -109,6 +113,11 @@ Parameters:
     Default: 1200
 
 Rules:
+  ProductionRequiresHttps:
+    RuleCondition: !Equals [!Ref EnvironmentName, production]
+    Assertions:
+      - Assert: !Equals [!Ref AppProtocol, https]
+        AssertDescription: Production FRONTEND_ORIGIN must use HTTPS.
   ProductionDesiredCounts:
     RuleCondition: !Equals [!Ref EnvironmentName, production]
     Assertions:
@@ -185,7 +194,7 @@ Resources:
             - { Name: NODE_ENV, Value: production }
             - { Name: PORT, Value: "8080" }
             - Name: FRONTEND_ORIGIN
-              Value: !Sub "https://${DomainName}"
+              Value: !Sub "${AppProtocol}://${DomainName}"
             - { Name: LOG_LEVEL, Value: !Ref LogLevel }
             - { Name: ACCESS_TOKEN_TTL_MINUTES, Value: !Ref AccessTokenTtlMinutes }
             - { Name: REFRESH_TOKEN_TTL_DAYS, Value: !Ref RefreshTokenTtlDays }

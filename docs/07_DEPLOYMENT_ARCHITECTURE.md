@@ -150,6 +150,15 @@ The exact managed Redis product remains a deployment parameter until approved.
   command before application rollout.
 - Destructive migrations do not run automatically on API or worker startup.
 
+One-time interview staging exception: the first shared-demo validation may
+reuse the existing production-named ALB, target groups, Atlas database, Upstash
+Redis endpoint, and runtime secret to avoid duplicate infrastructure cost.
+Dedicated staging ECS task/service names and a dedicated smoke identity remain
+required. The temporary staging origin may use the ALB DNS over HTTP; production
+still requires HTTPS with an approved domain and ACM certificate. Staging tasks
+must be scaled to zero and removed from shared target groups before production
+promotion. This exception does not redefine the final isolation architecture.
+
 ## 10. Configuration and Secrets
 
 ### Public frontend configuration

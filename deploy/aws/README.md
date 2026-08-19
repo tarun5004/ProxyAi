@@ -35,7 +35,9 @@ hardcoded by the templates.
 8. After staging approval, pass the exact same digests to production.
 9. Wait for ECS stability, then run the authenticated smoke suite.
 
-The frontend and API are routed through one HTTPS origin. `/api/*` and
+The frontend and API are routed through one origin. Production requires HTTPS;
+the one-time shared-demo staging validation may use the existing ALB DNS over
+HTTP by setting `AppProtocol=http`. `/api/*` and
 `/health/*` reach the API; all other paths reach the frontend. Create the HTTPS
 listener only after an approved domain and matching ACM certificate exist.
 Because the current HTTP listener is external to the stack, switch its default
@@ -56,6 +58,14 @@ definitions, services, target groups, log groups, runtime secret, data scope,
 and smoke identity. Desired counts may be set to zero after verification. Do
 not create a second permanent cluster, ALB, NAT Gateway, Atlas cluster, or Redis
 deployment for staging.
+
+For the one-time interview staging validation only, an approved shared-demo
+exception also permits reuse of the existing target groups, Atlas database,
+Upstash Redis endpoint, and `proxiai/production` runtime secret. Dedicated
+staging ECS service/task names and a dedicated smoke identity remain mandatory.
+Scale these staging services to zero after verification and remove them from
+the shared target groups before any production promotion. This exception does
+not replace the final production isolation or HTTPS requirements.
 
 ## Rollback
 
