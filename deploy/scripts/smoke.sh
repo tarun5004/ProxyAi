@@ -97,13 +97,13 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
 fi
 echo "PASS chat allow stream"
 
-run_stream "Email the summary to smoke.person@example.test." "${temporary}/mask.sse"
+run_stream "Email the summary to first.smoke@example.test and second.smoke@example.test." "${temporary}/mask.sse"
 grep -q '"action":"ALLOW_WITH_MASK"' "${temporary}/mask.sse"
 grep -q '"masked":true' "${temporary}/mask.sse"
 echo "PASS chat mask policy"
 
 blocked_request_id="$(cat /proc/sys/kernel/random/uuid)"
-blocked_prompt="Use this API key: s""k-proxiai-smoke-12345678901234567890"
+blocked_prompt="Use these API keys: s""k-proxiai-smoke-12345678901234567890 and g""hp_proxiaiSmoke12345678901234567890"
 jq -n --arg conversationId "${conversation_id}" \
   --arg clientRequestId "${blocked_request_id}" \
   --arg prompt "${blocked_prompt}" \
