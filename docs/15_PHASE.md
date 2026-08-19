@@ -578,8 +578,9 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 
 - [x] P7-01 — Resolve safe async job, usage, correlation, billing-idempotency, rollup, retry, and failure contracts.
 - [x] P7-02 — Create BullMQ connection, typed payloads, validated billing queue producer, and reusable worker lifecycle foundation.
+- [x] P7-03 — Append the authoritative RequestLog before publishing one safe `request.completed` billing job.
 - [ ] Propagate canonical request ID across jobs and workers; map a separate trace ID only after a future approved tracing migration.
-- [ ] Add bounded retries and backoff.
+- [x] Add bounded retries and backoff.
 - [ ] Add worker entrypoint and graceful shutdown.
 - [ ] Add worker heartbeat.
 - [ ] Create idempotent billing worker.
@@ -588,15 +589,21 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [ ] Create basic analytics worker.
 - [ ] Create simple anomaly worker.
 - [ ] Create email worker with safe templates.
-- [ ] Keep raw prompts out of job payloads.
+- [x] Keep raw prompts out of job payloads.
+
+P7-03 keeps the current synchronous budget reconciliation until the billing
+worker exists. Queue publication is attempted only after append-only RequestLog
+persistence. A publication failure emits safe operational metadata, does not
+mutate the authoritative record, and does not reverse an already delivered
+provider response; the persisted record remains available for later recovery.
 
 ## Exit Criteria
 
-- [ ] Chat response does not wait for workers.
+- [x] Chat response does not wait for workers.
 - [ ] Billing replay does not double charge.
 - [ ] Worker heartbeat works.
-- [ ] Failed jobs are visible.
-- [ ] Queue payloads contain no raw prompts.
+- [x] Failed jobs are visible.
+- [x] Queue payloads contain no raw prompts.
 
 ---
 
@@ -891,7 +898,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-01 contract and P7-02 BullMQ foundation complete; billing producer integration and workers remain |
+| Phase 7 | In Progress | P7-01 contract, P7-02 BullMQ foundation, and P7-03 billing producer integration complete; workers remain |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -903,19 +910,19 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-03 — Request-Completed Billing Producer Integration
+## P7-04 — Idempotent Billing Worker
 
 **Effort:** Small
 
 Do only this next:
 
-1. Reuse the P7-02 billing queue producer without duplicating Redis or validation logic.
-2. Enqueue `request.completed` only after authoritative `RequestLog` persistence.
-3. Preserve trusted `requestId`, `orgId`, optional `userId`, provider/model, optional complete usage, and optional approved cost.
-4. Keep current budget enforcement correct while no billing worker exists.
-5. Keep raw prompts, responses, PII values, credentials, and secrets out of jobs and logs.
-6. Do not implement billing worker business logic in this task.
-7. Do not start P7-03 without approval.
+1. Consume the existing validated `request.completed` billing queue contract.
+2. Use the approved separate tenant-scoped billing processing ledger.
+3. Reconcile the authoritative rollup deterministically from append-only RequestLog records.
+4. Treat unknown usage as terminal accounting-unavailable data, never zero.
+5. Preserve bounded retries, retained failures, safe payloads, and canonical request IDs.
+6. Do not add analytics, anomaly, email, or provider-health workers.
+7. Do not start P7-04 without approval.
 
 ---
 

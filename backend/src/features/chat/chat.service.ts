@@ -1,4 +1,8 @@
 import { env } from "../../config/env.js";
+import {
+    ASYNC_JOB_SCHEMA_VERSION,
+    REQUEST_COMPLETED_JOB_TYPE,
+} from "../../shared/async/job-contract.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import {
     createIdempotencyRequestFingerprint,
@@ -6,7 +10,9 @@ import {
     type IdempotencyReservation,
     type IdempotencyService,
 } from "../../shared/idempotency/idempotency.service.js";
+import { logger } from "../../shared/lib/logger.js";
 import type { AuthContext } from "../auth/auth-context.types.js";
+import { enqueueRequestCompletedJob } from "../billing/billing.queue.js";
 import {
     appendRequestUsage,
     readAuthoritativeBudgetStatus,
@@ -72,6 +78,7 @@ export interface ChatPipelineDependencies {
     readonly candidates: readonly ProviderFallbackCandidate[];
     readonly streamProvider: typeof streamWithOrderedFallback;
     readonly appendUsage: typeof appendRequestUsage;
+    readonly enqueueBillingJob: typeof enqueueRequestCompletedJob;
     readonly reconcileBudget: (
         orgId: string,
     ) => Promise<Readonly<BudgetStatus>>;
@@ -103,6 +110,7 @@ export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
     candidates: productionCandidates,
     streamProvider: streamWithOrderedFallback,
     appendUsage: appendRequestUsage,
+    enqueueBillingJob: enqueueRequestCompletedJob,
     reconcileBudget: readAuthoritativeBudgetStatus,
     emitPolicyEvent: emitPolicyDecisionEvent,
 };
@@ -344,6 +352,31 @@ async function recordUsageAndComplete(
             model: input.model,
             ...(usage === undefined ? {} : { usage }),
         });
+
+        try {
+            await dependencies.enqueueBillingJob({
+                schemaVersion: ASYNC_JOB_SCHEMA_VERSION,
+                jobType: REQUEST_COMPLETED_JOB_TYPE,
+                requestId: input.requestId,
+                orgId: input.orgId,
+                userId: input.userId,
+                providerId: input.providerId,
+                model: input.model,
+                ...(usage === undefined ? {} : { usage }),
+                occurredAt: new Date().toISOString(),
+            });
+        } catch {
+            logger.error(
+                {
+                    errorCode: "BILLING_JOB_ENQUEUE_FAILED",
+                    event: "billing.job.enqueue_failed_after_request_log",
+                    orgId: input.orgId,
+                    requestId: input.requestId,
+                    userId: input.userId,
+                },
+                "Billing job enqueue failed after authoritative usage persistence",
+            );
+        }
 
         if (usage !== undefined) {
             await dependencies.reconcileBudget(input.orgId);

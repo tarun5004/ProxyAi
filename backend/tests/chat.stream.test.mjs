@@ -47,6 +47,7 @@ function createRuntime({
     const order = [];
     const providerRequests = [];
     const usageRecords = [];
+    const billingJobs = [];
     const policyEvents = [];
     const reservationEvents = [];
     let providerCalls = 0;
@@ -152,6 +153,10 @@ function createRuntime({
             usageRecords.push(input);
             return input;
         },
+        async enqueueBillingJob(input) {
+            billingJobs.push(input);
+            return input;
+        },
         async reconcileBudget() {
             order.push("reconcile-budget");
             return availableBudget();
@@ -169,6 +174,7 @@ function createRuntime({
         policyEvents,
         providerRequests,
         reservationEvents,
+        billingJobs,
         usageRecords,
         get providerCalls() {
             return providerCalls;
@@ -297,6 +303,7 @@ test("ALLOW streams output and records known provider usage", async () => {
     assert.match(streamText, /Safe streamed output/);
     assert.match(streamText, /event: done/);
     assert.equal(runtime.usageRecords.length, 1);
+    assert.equal(runtime.billingJobs.length, 1);
     assert.deepEqual(runtime.usageRecords[0]?.usage, {
         inputTokens: 12,
         outputTokens: 8,

@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-02 — BullMQ Foundation
-- **Status:** Completed; awaiting approval before P7-03
+- **Task:** P7-03 — Request-Completed Billing Producer Integration
+- **Status:** Completed; awaiting approval before P7-04
 
 ## Completed Tasks
 
@@ -66,6 +66,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Phase 6 — Redis idempotency implementation and secure cache contract completed on 2026-08-19; cache/replay/recovery implementation remains deferred
 - P7-01 — Safe async job and billing processing contract resolved on 2026-08-19; no BullMQ code added
 - P7-02 — BullMQ queue, typed job validation, producer helper, and reusable worker lifecycle foundation completed on 2026-08-19
+- P7-03 — Request-completed billing producer integration completed on 2026-08-19
 
 ## Important Decisions
 
@@ -344,6 +345,9 @@ npm run dev
 - The initial `billing-queue` validates `request.completed` payloads before enqueue and uses three exponential-backoff attempts, 100 completed-job retention, and 500 failed-job retention.
 - Runtime validation is repeated at the worker boundary. Malformed payloads become terminal `UnrecoverableError` failures without logging job data or validation input.
 - BullMQ custom IDs use `billing-request-completed-{requestId}` because `:` is not permitted in custom BullMQ job IDs.
+- Completed chat accounting now persists the append-only RequestLog before publishing exactly one validated `request.completed` billing job.
+- Billing jobs carry canonical `requestId`, trusted tenant identifiers, provider/model, and only complete known usage; pricing remains unavailable, so `estimatedCostMicros` is omitted.
+- Queue publication failure after RequestLog persistence emits safe operational metadata, leaves the authoritative record unchanged for later recovery, and does not reverse the completed provider response.
 - P7-02 adds no billing, analytics, anomaly, email, or provider-health business worker and does not change the chat request path.
 - `POST /api/v1/chat/stream` requires current authentication plus `chat:send`, strictly validates the body, and verifies Conversation ownership with trusted `orgId`, `userId`, and `conversationId` before any Redis or provider work.
 - P5-06 processing order is ownership, minimal tenant/user idempotency, both plan-selected Redis rate limits, authoritative persisted budget status, PII/classification/risk, policy, then provider routing and streaming.
@@ -664,30 +668,26 @@ npm run dev
 
 ## Latest Task
 
-- **Task:** P7-02 — BullMQ Foundation
+- **Task:** P7-03 — Request-Completed Billing Producer Integration
 - **Status:** Completed on 2026-08-19
-- **Files changed:** `backend/package.json`, `backend/package-lock.json`, `backend/src/shared/lib/redis.ts`, `backend/src/shared/async/job-contract.ts`, `backend/src/shared/async/bullmq.ts`, `backend/src/features/billing/billing.queue.ts`, `backend/src/server.ts`, `backend/tests/async-job-foundation.test.mjs`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`
-- **Foundation:** Adds BullMQ v6, a validated `request.completed` contract, lazy shared billing queue, fail-fast producer, and managed worker start/stop boundary.
-- **Safety:** Strict schemas reject unknown fields; payload and logs exclude prompts, responses, PII values, secrets, headers, cookies, and raw errors.
-- **Retry/DLQ:** Jobs use three exponential attempts starting at one second; malformed payloads are terminal; failed jobs retain the latest 500 records.
-- **Lifecycle:** Application startup connects Redis before the lazy billing queue, and shutdown closes BullMQ resources before Redis.
-- **Focused tests:** Four real-Redis tests cover valid frozen payloads, malformed/sensitive-field rejection, enqueue options, and three-attempt failed-job retention with clean worker shutdown.
-- **Verification:** Four focused tests and the complete 168-test backend suite passed; `npm run typecheck`, `npm run build`, `git diff --check`, focused leak scans, and the local `queue.connected` startup check passed.
-- **Dependency audit:** `npm audit --omit=dev` reports zero vulnerabilities. One high-severity transitive `brace-expansion` advisory remains in pre-existing development-only ESLint/nodemon dependencies and was not introduced by BullMQ.
-- **Recommended commit:** `feat(async): add BullMQ job foundation`.
-- **Next task:** P7-03 — Request-Completed Billing Producer Integration. Do not start without approval.
+- **Files changed:** `backend/src/features/chat/chat.service.ts`, `backend/tests/chat.stream.test.mjs`, `backend/tests/chat-billing-producer.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Ordering:** Chat finalization appends the authoritative RequestLog first, then enqueues one validated billing job, then preserves the existing synchronous budget reconciliation until P7-04 exists.
+- **Usage/cost:** Complete provider usage is forwarded only when known. Unknown usage and unavailable pricing remain omitted rather than becoming synthetic zero values.
+- **Failure behavior:** Enqueue failure emits safe operational metadata, does not mutate RequestLog, does not fail an already completed provider response, and leaves persisted accounting available for future recovery.
+- **Focused tests:** Three new tests prove append-before-enqueue ordering, one safe job with known usage, unknown usage omission, exact safe payload shape, and enqueue-failure preservation. Existing chat/billing tests also pass.
+- **Verification:** Focused chat/billing checks passed 7/7 and the final complete backend suite passed 171/171. One earlier BullMQ retry timing run was transient; its isolated rerun passed 4/4. Typecheck, build, diff-check, and production payload/log scans passed.
+- **Recommended commit:** `feat(async): enqueue completed request billing jobs`.
+- **Next task:** P7-04 — Idempotent Billing Worker. Do not start without approval.
 
 ## Previous Task
 
-- **Task:** P7-01 — Async Job Contract Resolution
-- **Status:** Completed on 2026-08-19; documentation only
-- **Files changed:** `docs/01_PRD.md`, `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/09_README.md`, `docs/12_SEQUENCE_DIAGRAMS.md`, `docs/14_OBSERVABILITY_DOCUMENTATION.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`
-- **Contract:** Safe typed `request.completed` payloads use `requestId`, trusted tenant identifiers, provider/model identity, optional complete usage, optional integer-micro cost, and timestamp only.
-- **Idempotency:** A separate async ledger replaces the stale `billingAppliedAt` mutation design; deterministic minimal rollup reconciliation prevents duplicate token increments.
-- **Async boundary:** Chat persists authoritative `RequestLog` data and attempts queue publication but never waits for billing, analytics, anomaly, email, or provider-health workers.
-- **Deferred:** BullMQ code, producers, workers, richer reporting rollups, pricing configuration, and email provider selection were not implemented.
-- **Recommended commit:** `docs(async): define safe Phase 7 job contracts`.
-- **Next task:** P7-02 — BullMQ Connection and Typed Payloads. Do not start without approval.
+- **Task:** P7-02 — BullMQ Foundation
+- **Status:** Completed on 2026-08-19
+- **Files changed:** `backend/package.json`, `backend/package-lock.json`, `backend/src/shared/lib/redis.ts`, `backend/src/shared/async/job-contract.ts`, `backend/src/shared/async/bullmq.ts`, `backend/src/features/billing/billing.queue.ts`, `backend/src/server.ts`, `backend/tests/async-job-foundation.test.mjs`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Foundation:** Added BullMQ v6, validated request-completed jobs, a lazy billing queue, fail-fast producer, and managed worker lifecycle boundary.
+- **Verification:** Four focused real-Redis tests and the complete 168-test backend suite passed with typecheck, build, diff-check, leak scans, and local queue startup.
+- **Recommended commit:** `feat(async): add BullMQ job foundation`.
+- **Next task:** P7-03 — Request-Completed Billing Producer Integration.
 
 ## Latest Verified Defect Fix
 
@@ -700,7 +700,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for approval before P7-03 — Request-Completed Billing Producer Integration. Keep billing worker business logic, richer billing projections, prompt cache, response replay, and durable crash recovery out of this task.
+- Wait for approval before P7-04 — Idempotent Billing Worker. Keep analytics, anomaly alerts, email, provider-health work, richer billing projections, prompt cache, response replay, and durable crash recovery out of that task.
 
 ## Do Not Forget
 
