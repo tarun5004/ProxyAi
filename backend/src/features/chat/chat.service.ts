@@ -40,9 +40,15 @@ import {
     type ProviderFallbackEvent,
     streamWithOrderedFallback,
 } from "../providers/provider-fallback.js";
-import { createGroqProviderAdapter } from "../providers/groq-provider.adapter.js";
+import {
+    readProviderHealth,
+    type ProviderHealthState,
+} from "../providers/provider-health.store.js";
+import { productionProviderCandidates } from
+    "../providers/provider-runtime.registry.js";
 import type {
     CompletionRequest,
+    ProviderId,
     StreamChunk,
     TokenUsage,
 } from "../providers/provider.types.js";
@@ -55,14 +61,6 @@ import {
     type ChatOrganisationContext,
 } from "./chat.repository.js";
 import type { ChatStreamRequest } from "./chat.schema.js";
-
-const groqAdapter = createGroqProviderAdapter();
-const productionCandidates = Object.freeze([
-    Object.freeze({
-        adapter: groqAdapter,
-        model: env.GROQ_MODEL,
-    }),
-]);
 
 export interface ChatPipelineDependencies {
     readonly assertConversationOwner: (
@@ -80,6 +78,9 @@ export interface ChatPipelineDependencies {
     ) => Promise<Readonly<BudgetStatus>>;
     readonly processPrompt: typeof processPiiPromptImmutably;
     readonly candidates: readonly ProviderFallbackCandidate[];
+    readonly readProviderHealth: (
+        providerId: ProviderId,
+    ) => Promise<Readonly<{ state: ProviderHealthState }>>;
     readonly streamProvider: typeof streamWithOrderedFallback;
     readonly appendUsage: typeof appendRequestUsage;
     readonly enqueueBillingJob: typeof enqueueRequestCompletedJob;
@@ -110,7 +111,8 @@ export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
     idempotency: idempotencyService,
     readBudgetStatus: readAuthoritativeBudgetStatus,
     processPrompt: processPiiPromptImmutably,
-    candidates: productionCandidates,
+    candidates: productionProviderCandidates,
+    readProviderHealth,
     streamProvider: streamWithOrderedFallback,
     appendUsage: appendRequestUsage,
     enqueueBillingJob: enqueueRequestCompletedJob,
@@ -234,9 +236,10 @@ export async function prepareChatStream(
             ? decision.providerPrompt
             : input.request.prompt;
         policyAction = decision.action;
-        const candidate = selectProductionCandidate(
+        const candidate = await selectProductionCandidate(
             input.request,
             dependencies.candidates,
+            dependencies.readProviderHealth,
         );
         const fallbackEvents: ProviderFallbackEvent[] = [];
         const providerStream = dependencies.streamProvider(
@@ -374,10 +377,11 @@ function assertRoutingAllowed(
     }
 }
 
-function selectProductionCandidate(
+export async function selectProductionCandidate(
     request: Readonly<ChatStreamRequest>,
     candidates: readonly ProviderFallbackCandidate[],
-): ProviderFallbackCandidate {
+    readHealth: ChatPipelineDependencies["readProviderHealth"],
+): Promise<ProviderFallbackCandidate> {
     const candidate = candidates.find(
         (entry) => entry.adapter.providerId === "groq",
     );
@@ -389,6 +393,16 @@ function selectProductionCandidate(
             && request.providerId !== candidate.adapter.providerId
         )
     ) {
+        throw new AppError(
+            503,
+            "PROVIDER_UNAVAILABLE",
+            "No configured provider is available.",
+        );
+    }
+
+    const health = await readHealth(candidate.adapter.providerId);
+
+    if (health.state === "UNHEALTHY") {
         throw new AppError(
             503,
             "PROVIDER_UNAVAILABLE",

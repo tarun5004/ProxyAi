@@ -4,6 +4,10 @@ export const PROVIDER_IDS = [
     "third",
 ] as const;
 
+export const ENABLED_PRODUCTION_PROVIDER_IDS = [
+    "groq",
+] as const satisfies readonly ProviderId[];
+
 export const PROVIDER_MESSAGE_ROLES = [
     "system",
     "user",
@@ -34,6 +38,8 @@ export const PROVIDER_ERROR_CATEGORIES = [
 ] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
+export type EnabledProductionProviderId =
+    (typeof ENABLED_PRODUCTION_PROVIDER_IDS)[number];
 export type ProviderMessageRole =
     (typeof PROVIDER_MESSAGE_ROLES)[number];
 export type ProviderFinishReason =

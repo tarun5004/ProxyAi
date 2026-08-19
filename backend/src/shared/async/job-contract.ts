@@ -1,11 +1,16 @@
 import { z } from "zod";
 
-import { PROVIDER_IDS } from "../../features/providers/provider.types.js";
+import {
+    ENABLED_PRODUCTION_PROVIDER_IDS,
+    PROVIDER_IDS,
+} from "../../features/providers/provider.types.js";
 
 export const ASYNC_JOB_SCHEMA_VERSION = 1 as const;
 export const REQUEST_COMPLETED_JOB_TYPE = "request.completed" as const;
 export const REQUEST_BLOCKED_JOB_TYPE = "request.blocked" as const;
 export const USAGE_UPDATED_JOB_TYPE = "usage.updated" as const;
+export const PROVIDER_HEALTH_CHECK_JOB_TYPE =
+    "provider.health_check" as const;
 export const REQUEST_COMPLETED_STATUSES = [
     "COMPLETED",
     "FAILED",
@@ -92,6 +97,14 @@ const usageUpdatedJobSchema = z.strictObject({
     occurredAt: z.string().datetime(),
 });
 
+const providerHealthCheckJobSchema = z.strictObject({
+    schemaVersion: z.literal(ASYNC_JOB_SCHEMA_VERSION),
+    jobType: z.literal(PROVIDER_HEALTH_CHECK_JOB_TYPE),
+    requestId: uuidV4Schema,
+    providerId: z.enum(ENABLED_PRODUCTION_PROVIDER_IDS),
+    occurredAt: z.string().datetime(),
+});
+
 export type RequestCompletedJob = Readonly<
     z.infer<typeof requestCompletedJobSchema>
 >;
@@ -103,6 +116,9 @@ export type AnalyticsRequestOutcomeJob = Readonly<
 >;
 export type UsageUpdatedJob = Readonly<
     z.infer<typeof usageUpdatedJobSchema>
+>;
+export type ProviderHealthCheckJob = Readonly<
+    z.infer<typeof providerHealthCheckJobSchema>
 >;
 export type RequestCompletedStatus =
     (typeof REQUEST_COMPLETED_STATUSES)[number];
@@ -156,6 +172,18 @@ export function parseAnalyticsRequestOutcomeJob(
 
 export function parseUsageUpdatedJob(input: unknown): UsageUpdatedJob {
     const result = usageUpdatedJobSchema.safeParse(input);
+
+    if (!result.success) {
+        throw new InvalidAsyncJobPayloadError();
+    }
+
+    return Object.freeze(result.data);
+}
+
+export function parseProviderHealthCheckJob(
+    input: unknown,
+): ProviderHealthCheckJob {
+    const result = providerHealthCheckJobSchema.safeParse(input);
 
     if (!result.success) {
         throw new InvalidAsyncJobPayloadError();

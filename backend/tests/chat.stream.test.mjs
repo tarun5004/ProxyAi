@@ -145,6 +145,9 @@ function createRuntime({
             return processPiiPromptImmutably(request);
         },
         candidates: [{ adapter, model: "test-model" }],
+        async readProviderHealth() {
+            return { state: "UNKNOWN" };
+        },
         streamProvider: streamWithOrderedFallback,
         async appendUsage(input) {
             if (usageError) {

@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-10 — Provider Health Worker
-- **Status:** P7-09 closure contract resolved; implementation not started
+- **Task:** P7-11 — Failed Enqueue Recovery
+- **Status:** P7-10 completed and verified; P7-11 not started
 
 ## Completed Tasks
 
@@ -77,6 +77,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-07 — Tenant-scoped daily token anomaly worker completed on 2026-08-19
 - P7-08 — Safe alert email notification contract resolved on 2026-08-19; no worker or provider code added
 - P7-09 — Phase 7 closure contract resolved on 2026-08-19; no production code added
+- P7-10 — Scheduled Redis provider-health worker and conservative routing gate completed on 2026-08-19
 
 ## Important Decisions
 
@@ -768,16 +769,17 @@ npm run dev
 
 ## Latest Task
 
-- **Task:** P7-09 — Phase 7 Closure Contract Resolution
-- **Status:** Completed documentation-only on 2026-08-19; Phase 7 remains open
-- **Files changed:** `docs/01_PRD.md`, `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/09_README.md`, `docs/12_SEQUENCE_DIAGRAMS.md`, `docs/14_OBSERVABILITY_DOCUMENTATION.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Provider health:** Approved registry-only `provider.health_check` jobs run every 60 seconds and write safe Redis-only state for 120 seconds. The current production registry contains configured Groq only; the fake adapter is test-only. Routing skips only `UNHEALTHY`; `UNKNOWN` preserves existing behavior. MongoDB history is deferred to Phase 10.
-- **Enqueue recovery:** A safe tenant-scoped recovery ledger and bounded startup/60-second scan reconstruct missing billing/analytics jobs from append-only RequestLog. Deterministic queue IDs and existing worker ledgers prevent duplicate effects; recovery stops after three failed publication attempts or a terminal job.
-- **Failure visibility:** BullMQ's failed set and safe logs are canonical. Bull Board/manual replay UI are deferred to controlled Phase 10 tooling.
-- **Email and alerts:** Phase 7 email delivery is explicitly waived to Phase 8 pending provider/config/template approval. Alert list/resolve/reopen remains Phase 8.
-- **Remaining Phase 7 implementation:** P7-10 provider-health worker, then P7-11 failed-enqueue recovery and final closure verification.
-- **Recommended commit:** `docs(async): define Phase 7 provider health and recovery closure`.
-- **Next task:** P7-10 — Implement only the approved provider-health worker and conservative routing gate.
+- **Task:** P7-10 — Provider Health Worker
+- **Status:** Completed and verified on 2026-08-19; Phase 7 remains open
+- **Files changed:** `backend/src/features/chat/chat.service.ts`, `backend/src/features/providers/provider.types.ts`, `backend/src/features/providers/provider-runtime.registry.ts`, `backend/src/features/providers/provider-health.store.ts`, `backend/src/features/providers/provider-health.queue.ts`, `backend/src/features/providers/provider-health.worker.ts`, `backend/src/shared/async/job-contract.ts`, `backend/src/server.ts`, `backend/tests/chat.stream.test.mjs`, `backend/tests/provider-health.worker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Implementation:** One Groq-only BullMQ scheduler runs every 60 seconds, the managed worker calls the shared adapter health contract, and Redis stores only safe `HEALTHY`, `UNHEALTHY`, or `UNKNOWN` state plus `checkedAt` for 120 seconds.
+- **Routing:** Chat reads the Redis health overlay after policy. Only `UNHEALTHY` is rejected; `UNKNOWN`, including degraded, missing, malformed, expired, or Redis-error state, preserves existing capability/circuit/retry/fallback behavior.
+- **Lifecycle:** Queue, scheduler, worker, and Redis resources reuse the existing BullMQ lifecycle. Scheduler upsert and module singletons prevent duplicate schedules/workers; shared shutdown closes them.
+- **Focused tests:** Four tests prove HEALTHY+TTL, UNHEALTHY/degraded mapping, missing-key UNKNOWN behavior, and routing skip semantics.
+- **Verification:** Focused tests passed `4/4`; full backend suite passed `191/191`; `npm run typecheck`, `npm run build`, and `git diff --check` passed. Focused source/log scans found no provider response, raw error, prompt, credential, API key, cookie, token, or SDK payload logging.
+- **Scope:** No Mongo provider-health history, Bull Board, new routing score, fallback redesign, email, P7-11 recovery, or Phase 8 work was added.
+- **Recommended commit:** `feat(provider): add scheduled provider health worker`.
+- **Next task:** P7-11 — Implement only the approved bounded tenant-scoped failed-enqueue recovery.
 
 ## Previous Contract Task — P7-08
 
@@ -890,7 +892,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P7-10 — Implement the approved Redis-only provider-health worker and conservative routing health gate. Do not start P7-11 or Phase 8.
+- P7-11 — Implement the approved bounded tenant-scoped failed-enqueue recovery. Do not start Phase 8.
 
 ## Do Not Forget
 

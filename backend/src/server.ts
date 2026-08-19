@@ -10,6 +10,12 @@ import { startAnomalyWorker } from
     "./features/anomaly/anomaly.worker.js";
 import { connectBillingQueue } from "./features/billing/billing.queue.js";
 import { startBillingWorker } from "./features/billing/billing.worker.js";
+import {
+    connectProviderHealthQueue,
+    scheduleProviderHealthChecks,
+} from "./features/providers/provider-health.queue.js";
+import { startProviderHealthWorker } from
+    "./features/providers/provider-health.worker.js";
 import { disconnectBullMq } from "./shared/async/bullmq.js";
 import { logger } from "./shared/lib/logger.js";
 import { connectMongo, disconnectMongo } from "./shared/lib/mongo.js";
@@ -123,11 +129,14 @@ void Promise.all([mongoConnection, redisConnection])
             connectBillingQueue(),
             connectAnalyticsQueue(),
             connectAnomalyQueue(),
+            connectProviderHealthQueue(),
         ]);
+        await scheduleProviderHealthChecks();
         await Promise.all([
             startBillingWorker(),
             startAnalyticsWorker(),
             startAnomalyWorker(),
+            startProviderHealthWorker(),
         ]);
     })
     .catch(() => {

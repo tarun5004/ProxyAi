@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 7 — Background Jobs, Billing, and Alerts
-Current Task: P7-10 — Provider Health Worker
-Current Status: P7-09 closure contract resolved; implementation not started
+Current Task: P7-11 — Failed Enqueue Recovery
+Current Status: P7-10 provider-health worker completed; P7-11 not started
 Current Blocker: None
-Last Completed Task: P7-09 — Phase 7 Closure Contract Resolution
-Last Completed Commit: docs(email): define safe alert notification contract
+Last Completed Task: P7-10 — Provider Health Worker
+Last Completed Commit: feat(provider): add scheduled provider health worker
 ```
 
 ---
@@ -608,7 +608,7 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] P7-08 — Define the safe `alert.created` email notification contract.
 - [x] P7-09 — Resolve provider-health, failed-enqueue recovery, failure-visibility, email-waiver, and Phase 7 exit contracts.
 - [x] Approve a Phase 7 email implementation waiver; move delivery to Phase 8 after provider, configuration, sender, error mapping, and template approval.
-- [ ] P7-10 — Implement the scheduled Redis provider-health worker and conservative routing health gate.
+- [x] P7-10 — Implement the scheduled Redis provider-health worker and conservative routing health gate.
 - [ ] P7-11 — Implement tenant-scoped bounded failed-enqueue recovery.
 - [x] Keep raw prompts out of job payloads.
 
@@ -689,6 +689,16 @@ Adapter states map as `healthy -> HEALTHY`, `degraded -> UNKNOWN`, and
 `unhealthy -> UNHEALTHY` so transient degradation remains observable without
 blocking normal routing.
 
+P7-10 adds one idempotently upserted BullMQ schedule per enabled production
+provider, currently Groq only. The lifecycle-managed worker reuses the shared
+BullMQ/Redis infrastructure, calls `ProviderAdapter.checkHealth()`, applies the
+approved adapter-state mapping, and writes only `{ state, checkedAt }` with the
+120-second TTL. Chat routing reads this state after policy evaluation and skips
+only `UNHEALTHY`; missing, malformed, expired, or unreadable state remains
+`UNKNOWN`. Focused tests and the full backend regression suite prove the TTL,
+mapping, missing-state, and conservative routing behavior without adding Mongo
+history, Bull Board, or new routing intelligence.
+
 Failed billing or analytics publication after RequestLog persistence uses a
 separate safe recovery ledger and a bounded startup/60-second backfill scan.
 The scan processes trusted organisations separately, reconstructs allowlisted
@@ -708,7 +718,7 @@ and email delivery remain Phase 8 responsibilities.
 - [x] Queue payloads contain no raw prompts.
 - [x] Basic analytics jobs are tenant-scoped and idempotent.
 - [x] Daily token anomalies are feature-gated, tenant/user scoped, and atomically deduplicated.
-- [ ] Provider-health jobs refresh safe Redis state every 60 seconds with a 120-second TTL, and routing applies only the approved conservative gate.
+- [x] Provider-health jobs refresh safe Redis state every 60 seconds with a 120-second TTL, and routing applies only the approved conservative gate.
 - [ ] Missed billing/analytics enqueues are recovered through the bounded tenant-scoped ledger/backfill contract without duplicate effects.
 - [ ] P7-10 and P7-11 focused tests, typecheck, build, lifecycle checks, and sensitive-data scans pass.
 
@@ -1006,7 +1016,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-09 closure contract resolved; P7-10 provider health and P7-11 failed-enqueue recovery remain; email delivery waived to Phase 8 |
+| Phase 7 | In Progress | P7-10 provider health completed; P7-11 failed-enqueue recovery remains; email delivery waived to Phase 8 |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -1018,20 +1028,19 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-10 — Provider Health Worker
+## P7-11 — Failed Enqueue Recovery
 
 **Effort:** Medium
 
 Do only this next:
 
-1. Implement only `provider.health_check` for provider IDs from the approved
-   enabled-provider registry, scheduled every 60 seconds.
-2. Store only `HEALTHY`, `UNHEALTHY`, or `UNKNOWN` plus `checkedAt` at
-   `health:{providerId}` with a 120-second TTL.
-3. Add only the approved routing gate: skip `UNHEALTHY`; treat missing/error as
-   `UNKNOWN`; preserve all existing capability/circuit/retry/fallback behavior.
-4. Do not add MongoDB health history, new routing intelligence, email delivery,
-   P7-11 recovery, or Phase 8 work.
+1. Implement the approved safe `async_enqueue_recovery` coordination ledger.
+2. Run the bounded recovery scan at worker startup and every 60 seconds using
+   trusted tenant scope for every RequestLog query.
+3. Re-enqueue only missing deterministic billing/analytics jobs and rely on
+   existing worker ledgers to prevent duplicate effects.
+4. Stop automatic recovery after three failed publication attempts or a
+   terminal BullMQ failed job. Do not mutate RequestLog or add Phase 8 work.
 
 ---
 
