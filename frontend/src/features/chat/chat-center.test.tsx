@@ -1,17 +1,21 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatCenter } from "./chat-center";
 
 describe("chat message presentation", () => {
     it("renders assistant Markdown and tables without interpreting raw HTML or user markup", () => {
+        let finishSend: (() => void) | undefined;
+        const onSend = vi.fn(() => new Promise<void>((resolve) => {
+            finishSend = resolve;
+        }));
         const { container } = render(
             <ChatCenter
                 title="Markdown review"
                 retainedMessages={[]}
                 conversationStatus="ready"
                 streaming={false}
-                onSend={vi.fn()}
+                onSend={onSend}
                 onOpenConversations={vi.fn()}
                 messages={[
                     {
@@ -59,5 +63,25 @@ describe("chat message presentation", () => {
         expect(screen.getByText("<strong>User input stays plain</strong>")).toBeInTheDocument();
         expect(container.querySelector("[onerror]")).toBeNull();
         expect(container.querySelector("script")).toBeNull();
+
+        const composer = screen.getByRole("textbox", { name: "Message" });
+        fireEvent.change(composer, { target: { value: "Line one" } });
+        expect(fireEvent.keyDown(composer, { key: "Enter", shiftKey: true })).toBe(true);
+        fireEvent.change(composer, { target: { value: "Line one\nLine two" } });
+        expect(composer).toHaveValue("Line one\nLine two");
+        expect(onSend).not.toHaveBeenCalled();
+
+        fireEvent.change(composer, { target: { value: "   " } });
+        fireEvent.keyDown(composer, { key: "Enter" });
+        expect(onSend).not.toHaveBeenCalled();
+
+        fireEvent.change(composer, { target: { value: "Send securely" } });
+        expect(fireEvent.keyDown(composer, { key: "Enter" })).toBe(false);
+        fireEvent.keyDown(composer, { key: "Enter" });
+        expect(onSend).toHaveBeenCalledTimes(1);
+        expect(onSend).toHaveBeenCalledWith("Send securely");
+
+        act(() => finishSend?.());
+        return waitFor(() => expect(composer).toHaveFocus());
     });
 });

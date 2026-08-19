@@ -7,7 +7,12 @@ import {
     Sparkle,
 } from "@phosphor-icons/react";
 import Image from "next/image";
-import { useState, type FormEvent } from "react";
+import {
+    useRef,
+    useState,
+    type FormEvent,
+    type KeyboardEvent,
+} from "react";
 
 import { ConversationTitleEditor } from "@/features/conversations/conversation-title-editor";
 import type { MessageSummary } from "@/features/conversations/conversation.types";
@@ -30,6 +35,8 @@ interface ChatCenterProps {
 
 export function ChatCenter(props: ChatCenterProps) {
     const [prompt, setPrompt] = useState("");
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const submitting = useRef(false);
     const unavailableHistoryCount = props.retainedMessages.filter(
         (message) => !message.contentAvailable,
     ).length;
@@ -40,14 +47,39 @@ export function ChatCenter(props: ChatCenterProps) {
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        await submitPrompt();
+    }
+
+    async function submitPrompt() {
         const value = prompt;
 
-        if (value.trim().length === 0 || props.streaming) {
+        if (value.trim().length === 0 || composerDisabled || submitting.current) {
             return;
         }
 
+        submitting.current = true;
         setPrompt("");
-        await props.onSend(value);
+
+        try {
+            await props.onSend(value);
+        } finally {
+            submitting.current = false;
+            textareaRef.current?.focus();
+        }
+    }
+
+    function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+        if (
+            event.key !== "Enter"
+            || event.shiftKey
+            || event.repeat
+            || event.nativeEvent.isComposing
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+        event.currentTarget.form?.requestSubmit();
     }
 
     return (
@@ -172,9 +204,11 @@ export function ChatCenter(props: ChatCenterProps) {
                 ) : null}
                 <form className="mx-auto grid max-w-205 rounded-[15px] border border-border-strong bg-surface pt-3.5 pr-3.5 pb-3 pl-[18px] shadow-soft focus-within:border-brand/70" onSubmit={handleSubmit}>
                     <textarea
+                        ref={textareaRef}
                         className="min-h-17.5 w-full resize-none border-0 text-text-primary outline-0 placeholder:text-text-faint max-[720px]:min-h-[55px]"
                         value={prompt}
                         onChange={(event) => setPrompt(event.target.value)}
+                        onKeyDown={handleKeyDown}
                         placeholder="Type your message…"
                         aria-label="Message"
                         rows={3}

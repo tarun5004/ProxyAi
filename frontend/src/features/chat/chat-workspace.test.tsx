@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatWorkspace } from "./chat-workspace";
@@ -9,6 +9,9 @@ const conversationApi = vi.hoisted(() => ({
     listConversationMessages: vi.fn(),
     listConversations: vi.fn(),
     updateConversationTitle: vi.fn(),
+}));
+const chatApi = vi.hoisted(() => ({
+    streamChat: vi.fn(),
 }));
 
 vi.mock("@/features/auth/auth-provider", () => ({
@@ -24,9 +27,7 @@ vi.mock("@/features/auth/auth-provider", () => ({
 
 vi.mock("@/features/conversations/conversation.api", () => conversationApi);
 
-vi.mock("./chat.api", () => ({
-    streamChat: vi.fn(),
-}));
+vi.mock("./chat.api", () => chatApi);
 
 vi.mock("next/navigation", () => ({
     useRouter: () => ({
@@ -85,6 +86,16 @@ describe("conversation workspace loading", () => {
                 }],
             }),
         );
+        chatApi.streamChat.mockImplementation(async function* ({ signal }) {
+            await new Promise<void>((resolve) => {
+                if (signal.aborted) {
+                    resolve();
+                    return;
+                }
+
+                signal.addEventListener("abort", () => resolve(), { once: true });
+            });
+        });
     });
 
     it("loads real conversations and restores selected metadata-only history", async () => {
@@ -105,12 +116,21 @@ describe("conversation workspace loading", () => {
             `/chat/${secondConversation.conversationId}`,
         );
 
+        fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+            target: { value: "Streaming request" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+        await waitFor(() => expect(chatApi.streamChat).toHaveBeenCalledTimes(1));
+        const activeSignal = chatApi.streamChat.mock.calls[0]?.[0].signal;
+
         rerender(
             <ChatWorkspace
                 key={secondConversation.conversationId}
                 initialConversationId={secondConversation.conversationId}
             />,
         );
+
+        expect(activeSignal?.aborted).toBe(true);
 
         await waitFor(() => {
             expect(conversationApi.getConversation).toHaveBeenLastCalledWith(

@@ -57,7 +57,10 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [inspectorOpen, setInspectorOpen] = useState(false);
 
-    useEffect(() => () => activeRequest.current?.abort(), []);
+    useEffect(() => () => {
+        activeRequest.current?.abort();
+        activeRequest.current = undefined;
+    }, [initialConversationId]);
 
     useEffect(() => {
         if (auth.status !== "authenticated" || !auth.accessToken) {
