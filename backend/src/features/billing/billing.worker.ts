@@ -18,6 +18,9 @@ import { BILLING_QUEUE_NAME } from "./billing.queue.js";
 import { reconcileAuthoritativeTokenRollup } from "./billing.service.js";
 import type { BillingJobOutcome } from "./billing.types.js";
 
+export const BILLING_WORKER_HEARTBEAT_INTERVAL_MS = 30_000;
+export const BILLING_WORKER_HEARTBEAT_FRESHNESS_MS = 120_000;
+
 export type BillingJobProcessingResult =
     | BillingJobOutcome
     | "SKIPPED_COMPLETED"
@@ -43,6 +46,12 @@ export function getBillingWorker(): ManagedWorker {
         queueName: BILLING_QUEUE_NAME,
         parse: parseRequestCompletedJob,
         process: processRequestCompletedBillingJob,
+        heartbeat: {
+            workerId: "billing-worker",
+            workerType: "billing",
+            intervalMs: BILLING_WORKER_HEARTBEAT_INTERVAL_MS,
+            freshnessMs: BILLING_WORKER_HEARTBEAT_FRESHNESS_MS,
+        },
     });
 
     return billingWorker;
@@ -50,6 +59,16 @@ export function getBillingWorker(): ManagedWorker {
 
 export async function startBillingWorker(): Promise<void> {
     await getBillingWorker().start();
+}
+
+export function getBillingWorkerHealth() {
+    const health = getBillingWorker().getHealth();
+
+    if (health === undefined) {
+        throw new Error("Billing worker heartbeat is not configured.");
+    }
+
+    return health;
 }
 
 export async function processRequestCompletedBillingJob(

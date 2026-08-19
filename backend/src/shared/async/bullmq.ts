@@ -15,6 +15,10 @@ import {
 } from "../lib/redis.js";
 import { logger } from "../lib/logger.js";
 import { InvalidAsyncJobPayloadError } from "./job-contract.js";
+import {
+    createWorkerHeartbeat,
+    type WorkerHealthState,
+} from "./worker-heartbeat.js";
 
 export const BULLMQ_JOB_ATTEMPTS = 3;
 export const BULLMQ_BACKOFF_DELAY_MS = 1_000;
@@ -32,6 +36,7 @@ export interface SafeWorkerJobContext {
 export interface ManagedWorker {
     start(): Promise<void>;
     close(): Promise<void>;
+    getHealth(): WorkerHealthState | undefined;
 }
 
 export function createManagedQueue<
@@ -107,6 +112,12 @@ export function createManagedWorker<DataType, ResultType>(input: {
         context: SafeWorkerJobContext,
         signal?: AbortSignal,
     ) => Promise<ResultType>;
+    readonly heartbeat?: {
+        readonly workerId: string;
+        readonly workerType: string;
+        readonly intervalMs: number;
+        readonly freshnessMs: number;
+    };
 }): ManagedWorker {
     const connection = createRedisClient({
         enableOfflineQueue: true,
@@ -114,6 +125,30 @@ export function createManagedWorker<DataType, ResultType>(input: {
     });
     let runPromise: Promise<void> | undefined;
     let closed = false;
+    const heartbeat = input.heartbeat === undefined
+        ? undefined
+        : createWorkerHeartbeat({
+            ...input.heartbeat,
+            probe: async () => {
+                const response = await connection.ping();
+
+                if (response !== "PONG") {
+                    throw new Error("BullMQ worker heartbeat failed.");
+                }
+            },
+            onFailure: () => {
+                logger.error(
+                    {
+                        errorCode: "BULLMQ_WORKER_HEARTBEAT_FAILED",
+                        event: "queue.worker.heartbeat_failed",
+                        queue: input.queueName,
+                        workerId: input.heartbeat?.workerId,
+                        workerType: input.heartbeat?.workerType,
+                    },
+                    "BullMQ worker heartbeat failed",
+                );
+            },
+        });
 
     const processor: Processor<unknown, ResultType> = async (
         job: Job<unknown>,
@@ -134,7 +169,7 @@ export function createManagedWorker<DataType, ResultType>(input: {
             throw error;
         }
 
-        return input.process(
+        const result = await input.process(
             data,
             {
                 attemptsMade: job.attemptsMade,
@@ -142,6 +177,10 @@ export function createManagedWorker<DataType, ResultType>(input: {
             },
             signal,
         );
+
+        heartbeat?.recordSuccessfulJob();
+
+        return result;
     };
     const worker = new Worker<unknown, ResultType>(
         input.queueName,
@@ -193,6 +232,8 @@ export function createManagedWorker<DataType, ResultType>(input: {
 
             runPromise = worker.run();
             void runPromise.catch(() => {
+                void heartbeat?.stop();
+
                 logger.error(
                     {
                         errorCode: "BULLMQ_WORKER_RUN_FAILED",
@@ -205,6 +246,7 @@ export function createManagedWorker<DataType, ResultType>(input: {
 
             try {
                 await worker.waitUntilReady();
+                heartbeat?.start();
 
                 logger.info(
                     {
@@ -225,6 +267,7 @@ export function createManagedWorker<DataType, ResultType>(input: {
 
             closed = true;
             managedWorkers.delete(managedWorker);
+            await heartbeat?.stop();
             await worker.close();
             await runPromise?.catch(() => undefined);
             await closeRedisClient(connection);
@@ -236,6 +279,9 @@ export function createManagedWorker<DataType, ResultType>(input: {
                 },
                 "BullMQ worker stopped",
             );
+        },
+        getHealth() {
+            return heartbeat?.getHealth();
         },
     };
 

@@ -1391,6 +1391,28 @@ Other idempotency keys remain:
 - Daily analytics key: `orgId + date`
 - Alert dedupe key: `orgId + userId + type + timeWindow`
 
+### 28.5 Worker heartbeat
+
+The billing worker probes Redis every 30 seconds through its existing BullMQ
+worker connection. No second Redis connection or heartbeat key is created.
+Heartbeat health is stale after 120 seconds, matching the approved worker
+heartbeat alert boundary.
+
+The internal safe health state contains only:
+
+- fixed worker identity and type;
+- whether the worker lifecycle is running;
+- whether the latest heartbeat is fresh and successful;
+- the last successful heartbeat timestamp;
+- the last successful job timestamp when available.
+
+A failed probe marks the worker unhealthy and emits a safe structured
+operational event without job payloads, tenant data, connection details, or
+secrets. Heartbeat failure does not block chat traffic. Worker shutdown clears
+the timer and waits for any in-flight probe before closing the existing BullMQ
+connection. Public detailed-health or metrics exposure remains a later approved
+observability boundary.
+
 ## 29. Billing Worker
 
 ### 29.1 Period

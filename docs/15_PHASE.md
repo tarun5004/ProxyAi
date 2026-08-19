@@ -583,7 +583,7 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] Propagate canonical request ID across jobs and workers; map a separate trace ID only after a future approved tracing migration.
 - [x] Add bounded retries and backoff.
 - [x] Add worker entrypoint and graceful shutdown.
-- [ ] Add worker heartbeat.
+- [x] Add worker heartbeat.
 - [x] Create idempotent billing worker.
 - [x] Create monthly rollups.
 - [x] Prevent replay from double charging.
@@ -604,11 +604,17 @@ RequestLog records and written with `$set`, so duplicate or retried jobs cannot
 increment usage twice. Unknown usage completes with `USAGE_UNAVAILABLE` and
 never creates a synthetic zero-token rollup.
 
+P7-05 runs one lifecycle-owned billing-worker heartbeat every 30 seconds through
+the worker's existing BullMQ Redis connection. A heartbeat is stale after 120
+seconds. The internal status exposes only fixed worker identity/type, running
+and healthy flags, and safe heartbeat/job timestamps. Failed probes are logged
+with safe operational metadata and do not block chat traffic.
+
 ## Exit Criteria
 
 - [x] Chat response does not wait for workers.
 - [x] Billing replay does not double charge.
-- [ ] Worker heartbeat works.
+- [x] Worker heartbeat works.
 - [x] Failed jobs are visible.
 - [x] Queue payloads contain no raw prompts.
 
@@ -905,7 +911,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-01 through P7-04 complete; worker heartbeat and later background-job scope remain |
+| Phase 7 | In Progress | P7-01 through P7-05 complete; later background-job scope remains |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -917,19 +923,17 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-05 — Worker Heartbeat
+## P7-06 — Basic Analytics Worker
 
-**Effort:** Small
+**Effort:** Medium
 
 Do only this next:
 
-1. Define the approved safe worker heartbeat contract and freshness window.
-2. Record only worker identity/type, status, and safe timestamps.
-3. Expose heartbeat health only through an approved internal/readiness boundary.
-4. Keep raw job payloads, tenant data, and secrets out of heartbeat records and logs.
-5. Preserve current billing worker processing and shutdown behavior.
-6. Do not add analytics, anomaly, email, or provider-health workers.
-7. Do not start P7-05 without approval.
+1. Audit the approved analytics projection and idempotency contract.
+2. Reuse the existing BullMQ job foundation and safe payload rules.
+3. Keep RequestLog append-only and every tenant query scoped by trusted `orgId`.
+4. Do not add anomaly, email, or provider-health workers.
+5. Do not start P7-06 without approval.
 
 ---
 

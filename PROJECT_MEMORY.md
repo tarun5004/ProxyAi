@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-04 — Idempotent Billing Worker
-- **Status:** Completed; awaiting approval before P7-05
+- **Task:** P7-05 — Worker Heartbeat
+- **Status:** Completed; awaiting approval before P7-06
 
 ## Completed Tasks
 
@@ -68,6 +68,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-02 — BullMQ queue, typed job validation, producer helper, and reusable worker lifecycle foundation completed on 2026-08-19
 - P7-03 — Request-completed billing producer integration completed on 2026-08-19
 - P7-04 — Idempotent async billing worker completed on 2026-08-19
+- P7-05 — Billing worker heartbeat completed on 2026-08-19
 
 ## Important Decisions
 
@@ -674,6 +675,20 @@ npm run dev
 
 ## Latest Task
 
+- **Task:** P7-05 — Worker Heartbeat
+- **Status:** Completed on 2026-08-19
+- **Files changed:** `backend/src/shared/async/worker-heartbeat.ts`, `backend/src/shared/async/bullmq.ts`, `backend/src/features/billing/billing.worker.ts`, `backend/tests/worker-heartbeat.test.mjs`, `docs/03_TDD.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Contract:** The billing worker probes Redis every 30 seconds through its existing BullMQ connection; health becomes stale after the approved 120-second alert boundary.
+- **Safe state:** Internal health exposes only fixed worker identity/type, `running`, `healthy`, `lastHeartbeatAt`, and `lastSuccessfulJobAt`. It does not expose job payloads, tenant data, Redis details, or secrets.
+- **Lifecycle:** Startup is idempotent, creates one heartbeat timer, and records successful jobs through the managed worker processor. Shutdown clears the timer and awaits any in-flight probe before closing BullMQ resources.
+- **Failure behavior:** A failed probe marks health unhealthy and emits `queue.worker.heartbeat_failed` with safe fixed metadata. It does not block chat requests or create another Redis connection.
+- **Focused tests:** Four tests prove timestamp/freshness updates, duplicate-start prevention, clean shutdown, failed-probe health, and a real managed-worker heartbeat over the existing BullMQ connection.
+- **Verification:** Focused heartbeat tests passed 4/4; the combined heartbeat/BullMQ/billing worker suite passed 12/12. Typecheck, build, diff-check, and sensitive log/source scans passed.
+- **Recommended commit:** `feat(async): add billing worker heartbeat`.
+- **Next task:** P7-06 — Basic Analytics Worker. Do not start without approval.
+
+## Previous Task
+
 - **Task:** P7-04 — Idempotent Billing Worker
 - **Status:** Completed on 2026-08-19
 - **Files changed:** `backend/src/features/billing/billing.types.ts`, `backend/src/features/billing/billing-job-ledger.model.ts`, `backend/src/features/billing/billing.repository.ts`, `backend/src/features/billing/billing.service.ts`, `backend/src/features/billing/billing.worker.ts`, `backend/src/server.ts`, `backend/tests/billing.worker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -686,7 +701,7 @@ npm run dev
 - **Recommended commit:** `feat(billing): add idempotent async billing worker`.
 - **Next task:** P7-05 — Worker Heartbeat. Do not start without approval.
 
-## Previous Task
+## Prior Task
 
 - **Task:** P7-03 — Request-Completed Billing Producer Integration
 - **Status:** Completed on 2026-08-19
@@ -707,7 +722,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for approval before P7-05 — Worker Heartbeat. Keep analytics, anomaly alerts, email, provider-health work, richer billing projections, prompt cache, response replay, and durable crash recovery out of that task.
+- Wait for approval before P7-06 — Basic Analytics Worker. Keep anomaly alerts, email, provider-health work, richer billing projections, prompt cache, response replay, and durable crash recovery out of that task.
 
 ## Do Not Forget
 
