@@ -12,6 +12,7 @@ import { useState, type FormEvent } from "react";
 import { ConversationTitleEditor } from "@/features/conversations/conversation-title-editor";
 import type { MessageSummary } from "@/features/conversations/conversation.types";
 
+import { AssistantMarkdown } from "./assistant-markdown";
 import type { UiChatMessage } from "./chat.types";
 
 interface ChatCenterProps {
@@ -130,18 +131,28 @@ export function ChatCenter(props: ChatCenterProps) {
                                 YOU
                             </span>
                         ) : (
-                            <Image
-                                className="h-10 w-[43px] object-cover object-left max-[720px]:h-[34px] max-[720px]:w-[35px]"
-                                src="/proxiai-logo.png"
-                                alt="ProxyAi"
-                                width={96}
-                                height={24}
-                            />
+                            <span className="flex size-10 items-center overflow-hidden rounded-full bg-surface-soft max-[720px]:size-[34px]">
+                                <Image
+                                    className="h-auto w-40 max-w-none shrink-0 max-[720px]:w-34"
+                                    src="/proxiai-logo.png"
+                                    alt="ProxyAi"
+                                    width={360}
+                                    height={90}
+                                />
+                            </span>
                         )}
                         <div className="min-w-0">
-                            <p className="mt-[7px] mb-0 wrap-anywhere whitespace-pre-wrap text-sm leading-[1.7] text-[#222724] max-[720px]:mt-[3px] max-[720px]:text-[13px]">
-                                {message.content || (message.state === "streaming" ? "Thinking…" : "")}
-                            </p>
+                            <div className="mt-[7px] text-sm text-[#222724] max-[720px]:mt-[3px] max-[720px]:text-[13px]">
+                                {message.role === "assistant" ? (
+                                    <AssistantMarkdown
+                                        content={message.content || (message.state === "streaming" ? "Thinking…" : "")}
+                                    />
+                                ) : (
+                                    <p className="m-0 wrap-anywhere whitespace-pre-wrap leading-[1.7]">
+                                        {message.content}
+                                    </p>
+                                )}
+                            </div>
                             {message.state === "streaming" ? (
                                 <span className="mt-3 inline-block text-[11px] font-semibold text-brand">Streaming</span>
                             ) : null}
