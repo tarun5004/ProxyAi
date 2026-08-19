@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
-- **Task:** P12-01 — AWS deployment contract alignment
-- **Status:** Documentation aligned; deployment implementation in progress; Phase 8 remains deferred
+- **Task:** P12-09 — Staging and Production-Like Release Verification
+- **Status:** Local production-like release gates pass; live AWS staging, same-digest production promotion, and rollback proof remain pending. Phase 8 remains deferred.
 
 ## Completed Tasks
 
@@ -80,6 +80,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-10 — Scheduled Redis provider-health worker and conservative routing gate completed on 2026-08-19
 - P7-11 — Durable tenant-scoped billing/analytics enqueue recovery completed on 2026-08-19
 - Phase 7 — Background jobs, billing, analytics, anomaly detection, provider health, and bounded enqueue recovery completed on 2026-08-19; email delivery remains explicitly waived to Phase 8
+- P12-01 through P12-08 — AWS contracts, immutable frontend configuration, split API/worker runtimes, production images, local Compose, create-only indexes, parameterized AWS infrastructure, and GitHub Actions release/rollback automation completed on 2026-08-19
 
 ## Important Decisions
 
@@ -257,7 +258,8 @@ npm run dev
 
 ## Known Blockers
 
-- None.
+- P12-09 live AWS verification requires approved region, VPC/private subnet IDs, domain/certificate values, task sizing/counts, OIDC deployment roles, GitHub Environment approvals/secrets, MongoDB Atlas and managed Redis connectivity, and staging/production smoke identities. These values are intentionally parameterized and were not guessed.
+- CloudFormation service-side validation, ECR push, ECS rollout, CloudWatch worker proof, production promotion, and rollback cannot be executed until AWS credentials and the approved account inputs exist.
 
 ## Documentation Gaps
 
@@ -275,7 +277,7 @@ npm run dev
 - Future `AppError` callers must ensure optional `details` contain only safe client-correctable data.
 - Unknown errors intentionally omit raw exceptions and stack traces from logs, improving data safety but reducing immediate diagnostic detail.
 - Organisation policy invariants are enforced for document validation; future query-style partial updates need a service flow that reconstructs and validates the complete policy object.
-- Organisation indexes are currently declared in the Mongoose schema; production-safe index migration tooling has not been introduced.
+- Organisation indexes remain schema-declared, while production deployment now uses the explicit create-only `npm run deploy:indexes` command with `autoIndex=false`; destructive index synchronization and general data migrations remain intentionally unimplemented.
 - User/Team schemas cannot prove cross-collection organisation ownership by themselves. Team assignment and `createdBy` checks require future trusted service/repository lookups using `orgId`.
 - Future user-creation services must call the password hashing helper before persistence; direct internal model writes can still bypass that service boundary.
 - Compromised/common-password blocklisting remains deferred. Login rate limiting and missing-user timing equalization are now implemented.
@@ -903,6 +905,20 @@ npm run dev
 - **Decision:** Local frontend origin is `http://localhost:3001`; `FRONTEND_ORIGIN` remains the single validated exact-origin credentialed CORS boundary with no wildcard or fallback.
 - **Verification:** Login and refresh preflights returned `204`; login, refresh, and authenticated `/api/v1/auth/me` requests returned `200` with `Access-Control-Allow-Origin: http://localhost:3001` and credentials enabled.
 - **Security:** No authentication logic, frontend behavior, wildcard origin, alias, or multi-origin production fallback was added.
+
+## Latest Deployment Verification
+
+- **Task:** P12-09 local production-like release verification
+- **Status:** Local gates completed on 2026-08-19; live AWS deployment remains blocked on external account configuration.
+- **Files changed:** `backend/src/features/analytics/analytics.repository.ts`, `backend/tests/analytics.worker.test.mjs`, `deploy/scripts/smoke.sh`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Runtime defect fixed:** Mongo aggregation returned an internal `_id` field that was accidentally spread into an existing analytics aggregate update. The explicit canonical projection now prevents immutable Mongo `_id` updates, and a second same-tenant request regression test proves aggregate updates continue without duplicate effects.
+- **Smoke contract fixed:** Deployment MASK/BLOCK prompts now deterministically cross the seeded policy thresholds without changing policy or product behavior.
+- **Local smoke:** The isolated gateway/frontend/API/worker/Redis stack became healthy. Frontend, `/healthz`, `/health/live`, `/health/ready`, login, refresh, `/auth/me`, Conversation create/list/read, Groq ALLOW SSE, PII MASK, and pre-provider BLOCK all passed.
+- **Accounting/async proof:** The correlated ALLOW request produced exactly one immutable COMPLETED RequestLog with known provider usage, one applied billing job, one completed analytics job, and a positive BillingRollup. No analytics processing failure remained after the fix.
+- **Verification:** Backend tests passed 197/197 plus lint, typecheck, and build. Frontend tests passed 9/9 with a constrained-environment CLI timeout plus lint, typecheck, and production build. Both Docker images rebuilt successfully; ShellCheck, Gitleaks (111 commits), `git diff --check`, and service-log secret scans passed.
+- **Security:** Eight configured/synthetic sensitive sentinels were absent from service logs; Gitleaks found no repository leaks. No provider key, database/Redis URL, password, prompt sentinel, cookie, or token was printed by verification output.
+- **Completed commits:** `fix(analytics): prevent aggregate id leakage during updates`; `fix(deploy): align policy smoke inputs with seeded thresholds`.
+- **Remaining gate:** Run CloudFormation validation and actual immutable-digest staging → approval → production → rollback flow after approved AWS parameters and secrets are provisioned.
 
 ## Latest Deployment Task
 

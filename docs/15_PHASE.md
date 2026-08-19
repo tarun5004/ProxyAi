@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
-Current Task: P12-01 — Align AWS ECS and CI/CD release contracts
-Current Status: Phase 8 product work explicitly deferred until after first live deployment
-Current Blocker: None
-Last Completed Task: P7-11 — Durable Enqueue Recovery
-Last Completed Commit: feat(async): add durable enqueue recovery
+Current Task: P12-09 — Staging and Production-Like Release Verification
+Current Status: Local release gates pass; live AWS staging, promotion, and rollback remain pending
+Current Blocker: Approved AWS account inputs, OIDC roles, environment secrets, Atlas/Redis connectivity, domain/certificate values, and smoke identities are not configured locally
+Last Completed Task: P12-08 — GitHub Actions Validation, Deployment, Smoke, and Rollback
+Last Completed Commit: ci(deploy): add immutable AWS release and rollback pipelines
 ```
 
 ---
