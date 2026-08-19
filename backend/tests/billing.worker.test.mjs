@@ -160,6 +160,8 @@ test("unknown provider usage records a terminal outcome without zero rollup", as
         requestId: job.requestId,
         orgId: job.orgId,
         userId: job.userId,
+        status: job.status,
+        policyAction: job.policyAction,
         providerId: job.providerId,
         model: job.model,
     });
@@ -187,6 +189,8 @@ async function createKnownUsageJob(inputTokens, outputTokens) {
         requestId: job.requestId,
         orgId: job.orgId,
         userId: job.userId,
+        status: job.status,
+        policyAction: job.policyAction,
         providerId: job.providerId,
         model: job.model,
         usage: {
@@ -206,6 +210,8 @@ function createJob() {
         requestId: randomUUID(),
         orgId: randomUUID(),
         userId: randomUUID(),
+        status: "COMPLETED",
+        policyAction: "ALLOW",
         providerId: "groq",
         model: "openai/gpt-oss-20b",
         occurredAt: new Date().toISOString(),

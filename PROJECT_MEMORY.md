@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-06 — Basic Analytics Worker
-- **Status:** Ready for implementation; not started
+- **Task:** P7-07 — Simple Anomaly Worker
+- **Status:** Awaiting planning approval; not started
 
 ## Completed Tasks
 
@@ -72,6 +72,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-03 — Request-completed billing producer integration completed on 2026-08-19
 - P7-04 — Idempotent async billing worker completed on 2026-08-19
 - P7-05 — Billing worker heartbeat completed on 2026-08-19
+- P7-06 — Tenant-scoped async request analytics completed on 2026-08-19
 
 ## Important Decisions
 
@@ -686,6 +687,22 @@ npm run dev
 
 ## Latest Task
 
+- **Task:** P7-06 — Basic Analytics Worker
+- **Status:** Completed and verified on 2026-08-19
+- **Files changed:** `backend/src/shared/async/job-contract.ts`, `backend/src/features/billing/billing.types.ts`, `backend/src/features/billing/request-log.model.ts`, `backend/src/features/billing/billing.repository.ts`, `backend/src/features/billing/billing.service.ts`, `backend/src/features/chat/chat.service.ts`, `backend/src/features/chat/chat.controller.ts`, `backend/src/features/analytics/analytics.types.ts`, `backend/src/features/analytics/analytics-daily.model.ts`, `backend/src/features/analytics/analytics-job-ledger.model.ts`, `backend/src/features/analytics/analytics.repository.ts`, `backend/src/features/analytics/analytics.queue.ts`, `backend/src/features/analytics/analytics.worker.ts`, `backend/src/server.ts`, `backend/tests/analytics.worker.test.mjs`, `backend/tests/async-job-foundation.test.mjs`, `backend/tests/billing.accounting.integration.mjs`, `backend/tests/billing.worker.test.mjs`, `backend/tests/chat-billing-producer.test.mjs`, `backend/tests/chat.stream.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Outcome contract:** RequestLog and queue payloads now carry explicit canonical `status` and `policyAction`. Provider outcomes publish `request.completed`; policy blocks publish analytics-only `request.blocked` after the immutable RequestLog append.
+- **Analytics projection:** The worker recomputes UTC-day organisation and user aggregates for total, successful, blocked, masked, failed, and interrupted requests plus provider/model counts and known provider token usage.
+- **Idempotency and authority:** A separate tenant-scoped `{ orgId, requestId, jobType }` analytics ledger prevents duplicate effects. The worker verifies each event against its authoritative scoped RequestLog before projection and never mutates RequestLog or BillingRollup.
+- **Unknown usage:** Unknown provider usage remains explicit through `unknownUsageRequestCount`; no token count or cost is synthesized. Billing remains the only authoritative BudgetRollup source.
+- **Lifecycle and failures:** The analytics worker reuses the central BullMQ connection factory, bounded three-attempt retry/failed-job retention, managed shutdown, and heartbeat. Invalid or mismatched authoritative outcomes are terminal; transient failures release the processing claim for a bounded retry.
+- **Focused tests:** Four tests cover safe outcome enqueue, duplicate idempotency, blocked counting, tenant isolation, and unknown-usage handling.
+- **Verification:** Analytics tests passed 4/4; worker/chat/billing regressions passed 23/23; full backend suite passed 183/183. `npm run typecheck`, `npm run build`, `git diff --check`, console scan, and sensitive contract/log scan passed.
+- **Security/scope:** Analytics payloads and logs contain no prompt, response, PII, password, cookie, authorization header, API key, or secret. No anomaly, email, provider-health worker, reporting API, pricing, or Phase 8 work was added.
+- **Completed commit:** `feat(analytics): add tenant-scoped async request analytics`.
+- **Next task:** P7-07 — Simple Anomaly Worker planning/audit only; do not implement without approval.
+
+## Previous Application Task
+
 - **Task:** P5-08 — Chat Workspace Contract Corrections
 - **Status:** Completed and browser-verified on 2026-08-19
 - **Files changed:** `backend/src/features/conversations/conversation.controller.ts`, `backend/src/features/conversations/conversation.repository.ts`, `backend/src/features/conversations/conversation.routes.ts`, `backend/src/features/conversations/conversation.schema.ts`, `backend/src/features/conversations/conversation.service.ts`, `backend/src/features/conversations/conversation.types.ts`, `backend/tests/conversation.title-update.integration.mjs`, `frontend/package.json`, `frontend/package-lock.json`, `frontend/src/app/(workspace)/chat/[conversationId]/page.tsx`, `frontend/src/features/chat/assistant-markdown.tsx`, `frontend/src/features/chat/chat-center.tsx`, `frontend/src/features/chat/chat-workspace.tsx`, `frontend/src/features/chat/chat-center.test.tsx`, `frontend/src/features/chat/chat-workspace.test.tsx`, `frontend/src/features/conversations/conversation-sidebar.tsx`, `frontend/src/features/conversations/conversation-title-editor.tsx`, `frontend/src/features/conversations/conversation.api.ts`, `frontend/src/lib/api/api-client.ts`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -761,7 +778,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P7-06 — Basic Analytics Worker, using the approved request-outcome contract and existing BullMQ lifecycle. Do not start without approval.
+- P7-07 — Simple Anomaly Worker contract audit. Do not implement without approval.
 
 ## Do Not Forget
 

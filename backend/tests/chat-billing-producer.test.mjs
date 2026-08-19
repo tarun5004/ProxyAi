@@ -19,6 +19,7 @@ function createRuntime({ enqueueError } = {}) {
     const order = [];
     const requestLogs = [];
     const billingJobs = [];
+    const analyticsJobs = [];
     let completed = 0;
     const prepared = {
         requestId: randomUUID(),
@@ -26,6 +27,9 @@ function createRuntime({ enqueueError } = {}) {
         userId: randomUUID(),
         providerId: "groq",
         model: "openai/gpt-oss-20b",
+        decision: {
+            action: "ALLOW",
+        },
         reservation: {
             async markCompleted() {
                 completed += 1;
@@ -48,6 +52,11 @@ function createRuntime({ enqueueError } = {}) {
             billingJobs.push(structuredClone(input));
             return input;
         },
+        async enqueueAnalyticsJob(input) {
+            order.push("analytics-job");
+            analyticsJobs.push(structuredClone(input));
+            return input;
+        },
     };
 
     return {
@@ -56,6 +65,7 @@ function createRuntime({ enqueueError } = {}) {
         order,
         requestLogs,
         billingJobs,
+        analyticsJobs,
         get completed() {
             return completed;
         },
@@ -72,13 +82,17 @@ test("completed request persists usage before one safe billing job", async () =>
 
     await finalizeChatStream(
         runtime.prepared,
-        usage,
+        {
+            status: "COMPLETED",
+            usage,
+        },
         runtime.dependencies,
     );
 
     assert.deepEqual(runtime.order, [
         "request-log",
         "billing-job",
+        "analytics-job",
     ]);
     assert.equal(runtime.billingJobs.length, 1);
     assert.deepEqual(runtime.billingJobs[0]?.usage, usage);
@@ -91,9 +105,11 @@ test("completed request persists usage before one safe billing job", async () =>
             "model",
             "occurredAt",
             "orgId",
+            "policyAction",
             "providerId",
             "requestId",
             "schemaVersion",
+            "status",
             "usage",
             "userId",
         ],
@@ -105,7 +121,7 @@ test("unknown provider usage stays omitted", async () => {
 
     await finalizeChatStream(
         runtime.prepared,
-        undefined,
+        { status: "INTERRUPTED" },
         runtime.dependencies,
     );
 
@@ -128,7 +144,10 @@ test("enqueue failure preserves authoritative RequestLog and completion", async 
 
     await finalizeChatStream(
         runtime.prepared,
-        usage,
+        {
+            status: "COMPLETED",
+            usage,
+        },
         runtime.dependencies,
     );
 

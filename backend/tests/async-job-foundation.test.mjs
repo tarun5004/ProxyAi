@@ -132,6 +132,8 @@ function createValidPayload() {
         requestId: randomUUID(),
         orgId: randomUUID(),
         userId: randomUUID(),
+        status: "COMPLETED",
+        policyAction: "ALLOW",
         providerId: "groq",
         model: "openai/gpt-oss-20b",
         usage: {

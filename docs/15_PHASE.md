@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 7 — Background Jobs, Billing, and Alerts
-Current Task: P7-06 — Basic Analytics Worker
-Current Status: Ready for implementation; not started
+Current Task: P7-07 — Simple Anomaly Worker
+Current Status: Awaiting planning approval; not started
 Current Blocker: None
-Last Completed Task: P5-08 — Chat Workspace Contract Corrections
-Last Completed Commit: docs(progress): record P5-08 chat UX completion
+Last Completed Task: P7-06 — Basic Analytics Worker
+Last Completed Commit: feat(analytics): add tenant-scoped async request analytics
 ```
 
 ---
@@ -602,7 +602,7 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] Create idempotent billing worker.
 - [x] Create monthly rollups.
 - [x] Prevent replay from double charging.
-- [ ] Create basic analytics worker.
+- [x] P7-06 — Create a tenant-scoped idempotent basic analytics worker.
 - [ ] Create simple anomaly worker.
 - [ ] Create email worker with safe templates.
 - [x] Keep raw prompts out of job payloads.
@@ -632,6 +632,15 @@ explicit `COMPLETED`, `FAILED`, or `INTERRUPTED` status plus `ALLOW` or
 `BLOCKED` plus `BLOCK` and no provider/model/usage fields. Both event paths
 append immutable RequestLog metadata before queue publication.
 
+P7-06 publishes those safe request outcomes to a dedicated analytics queue and
+recomputes tenant-scoped UTC-day organisation and user projections from the
+append-only RequestLog source. A separate `{ orgId, requestId, jobType }`
+ledger makes duplicate and retried jobs idempotent. Aggregates track approved
+outcome counters, provider/model request counts, known provider token totals,
+and an explicit unknown-usage request count; unknown usage is never converted
+to zero. Analytics does not mutate RequestLog or BillingRollup and is not a
+second budget-accounting source of truth.
+
 ## Exit Criteria
 
 - [x] Chat response does not wait for workers.
@@ -639,6 +648,7 @@ append immutable RequestLog metadata before queue publication.
 - [x] Worker heartbeat works.
 - [x] Failed jobs are visible.
 - [x] Queue payloads contain no raw prompts.
+- [x] Basic analytics jobs are tenant-scoped and idempotent.
 
 ---
 
@@ -933,7 +943,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-01 through P7-05 complete; later background-job scope remains |
+| Phase 7 | In Progress | P7-01 through P7-06 complete; anomaly and email workers remain |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -945,17 +955,16 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-06 — Basic Analytics Worker
+## P7-07 — Simple Anomaly Worker
 
 **Effort:** Medium
 
 Do only this next:
 
-1. Implement the already-approved safe analytics job contract without inferring outcomes.
-2. Enqueue tenant-scoped `request.completed` and `request.blocked` analytics jobs using safe metadata only.
-3. Add idempotent tenant-scoped aggregation for approved MVP counters and known usage only.
-4. Reuse the existing BullMQ connection, lifecycle, retry, failed-job retention, and heartbeat foundations.
-5. Do not add reporting APIs, anomaly alerts, email delivery, pricing, prompts, responses, PII, or secrets.
+1. Audit and resolve the approved anomaly signal, threshold, delivery, and idempotency contracts.
+2. Reuse the existing tenant-scoped analytics aggregates and BullMQ lifecycle.
+3. Do not implement email delivery, provider-health jobs, reporting APIs, pricing, or Phase 8 work.
+4. Do not start implementation until the P7-07 contract is approved.
 
 ---
 

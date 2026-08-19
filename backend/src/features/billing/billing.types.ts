@@ -1,6 +1,10 @@
 import type { HydratedDocument } from "mongoose";
 
 import type {
+    RequestOutcomePolicyAction,
+    RequestOutcomeStatus,
+} from "../../shared/async/job-contract.js";
+import type {
     ProviderId,
     TokenUsage,
 } from "../providers/provider.types.js";
@@ -9,8 +13,10 @@ export interface RequestUsageRecord {
     requestId: string;
     orgId: string;
     userId: string;
-    providerId: ProviderId;
-    model: string;
+    status: RequestOutcomeStatus;
+    policyAction: RequestOutcomePolicyAction;
+    providerId?: ProviderId;
+    model?: string;
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
@@ -21,8 +27,10 @@ export interface NewRequestUsageRecord {
     readonly requestId: string;
     readonly orgId: string;
     readonly userId: string;
-    readonly providerId: ProviderId;
-    readonly model: string;
+    readonly status: RequestOutcomeStatus;
+    readonly policyAction: RequestOutcomePolicyAction;
+    readonly providerId?: ProviderId;
+    readonly model?: string;
     readonly usage?: Readonly<TokenUsage>;
 }
 

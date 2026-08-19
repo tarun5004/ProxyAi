@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import type { Model } from "mongoose";
 
+import {
+    REQUEST_COMPLETED_STATUSES,
+    REQUEST_POLICY_ACTIONS,
+} from "../../shared/async/job-contract.js";
 import { PROVIDER_IDS } from "../providers/provider.types.js";
 import type { RequestUsageRecord } from "./billing.types.js";
 
@@ -28,18 +32,28 @@ const requestLogSchema = new Schema<RequestUsageRecord>(
             match: UUID_V4_PATTERN,
             required: true,
         },
+        status: {
+            type: String,
+            enum: [...REQUEST_COMPLETED_STATUSES, "BLOCKED"],
+            immutable: true,
+            required: true,
+        },
+        policyAction: {
+            type: String,
+            enum: [...REQUEST_POLICY_ACTIONS, "BLOCK"],
+            immutable: true,
+            required: true,
+        },
         providerId: {
             type: String,
             enum: PROVIDER_IDS,
             immutable: true,
-            required: true,
         },
         model: {
             type: String,
             immutable: true,
             minlength: 1,
             maxlength: 200,
-            required: true,
         },
         inputTokens: tokenField(),
         outputTokens: tokenField(),
@@ -82,6 +96,53 @@ requestLogSchema.pre("validate", function validateUsageCompleteness() {
         this.invalidate(
             "totalTokens",
             "totalTokens must equal inputTokens plus outputTokens.",
+        );
+    }
+});
+
+requestLogSchema.pre("validate", function validateOutcomeShape() {
+    if (this.status === "BLOCKED") {
+        if (this.policyAction !== "BLOCK") {
+            this.invalidate(
+                "policyAction",
+                "Blocked requests require the BLOCK policy action.",
+            );
+        }
+
+        if (
+            this.providerId !== undefined
+            || this.model !== undefined
+            || this.inputTokens !== undefined
+            || this.outputTokens !== undefined
+            || this.totalTokens !== undefined
+        ) {
+            this.invalidate(
+                "status",
+                "Blocked requests cannot contain provider or usage metadata.",
+            );
+        }
+
+        return;
+    }
+
+    if (this.policyAction === "BLOCK") {
+        this.invalidate(
+            "policyAction",
+            "Provider outcomes cannot use the BLOCK policy action.",
+        );
+    }
+
+    if (this.providerId === undefined) {
+        this.invalidate(
+            "providerId",
+            "Provider outcomes require providerId.",
+        );
+    }
+
+    if (this.model === undefined) {
+        this.invalidate(
+            "model",
+            "Provider outcomes require model.",
         );
     }
 });

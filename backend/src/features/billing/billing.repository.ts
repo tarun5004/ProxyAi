@@ -70,8 +70,12 @@ export const billingRepository: BillingRepository = {
             requestId: input.requestId,
             orgId: input.orgId,
             userId: input.userId,
-            providerId: input.providerId,
-            model: input.model,
+            status: input.status,
+            policyAction: input.policyAction,
+            ...(input.providerId === undefined
+                ? {}
+                : { providerId: input.providerId }),
+            ...(input.model === undefined ? {} : { model: input.model }),
             ...(input.usage === undefined
                 ? {}
                 : {
@@ -97,6 +101,9 @@ export const billingRepository: BillingRepository = {
             {
                 $match: {
                     orgId,
+                    status: {
+                        $ne: "BLOCKED",
+                    },
                     createdAt: {
                         $gte: periodStart,
                         $lt: periodEnd,

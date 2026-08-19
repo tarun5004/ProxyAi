@@ -136,6 +136,8 @@ test("unknown provider usage fails closed instead of assuming zero", async () =>
         requestId: randomUUID(),
         orgId: organisation.orgId,
         userId: randomUUID(),
+        status: "INTERRUPTED",
+        policyAction: "ALLOW",
         providerId: "groq",
         model: "test-model",
     });
@@ -173,6 +175,8 @@ async function appendKnownUsage(
         requestId: randomUUID(),
         orgId,
         userId,
+        status: "COMPLETED",
+        policyAction: "ALLOW",
         providerId: "groq",
         model: "test-model",
         usage: {

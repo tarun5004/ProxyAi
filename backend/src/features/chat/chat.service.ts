@@ -1,7 +1,9 @@
 import { env } from "../../config/env.js";
 import {
     ASYNC_JOB_SCHEMA_VERSION,
+    REQUEST_BLOCKED_JOB_TYPE,
     REQUEST_COMPLETED_JOB_TYPE,
+    type RequestCompletedStatus,
 } from "../../shared/async/job-contract.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import {
@@ -12,6 +14,8 @@ import {
 } from "../../shared/idempotency/idempotency.service.js";
 import { logger } from "../../shared/lib/logger.js";
 import type { AuthContext } from "../auth/auth-context.types.js";
+import { enqueueAnalyticsRequestOutcomeJob } from
+    "../analytics/analytics.queue.js";
 import { enqueueRequestCompletedJob } from "../billing/billing.queue.js";
 import {
     appendRequestUsage,
@@ -79,6 +83,8 @@ export interface ChatPipelineDependencies {
     readonly streamProvider: typeof streamWithOrderedFallback;
     readonly appendUsage: typeof appendRequestUsage;
     readonly enqueueBillingJob: typeof enqueueRequestCompletedJob;
+    readonly enqueueAnalyticsJob:
+        typeof enqueueAnalyticsRequestOutcomeJob;
     readonly emitPolicyEvent: typeof emitPolicyDecisionEvent;
 }
 
@@ -108,6 +114,7 @@ export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
     streamProvider: streamWithOrderedFallback,
     appendUsage: appendRequestUsage,
     enqueueBillingJob: enqueueRequestCompletedJob,
+    enqueueAnalyticsJob: enqueueAnalyticsRequestOutcomeJob,
     emitPolicyEvent: emitPolicyDecisionEvent,
 };
 
@@ -146,6 +153,7 @@ export async function prepareChatStream(
     });
     let providerStarted = false;
     let reservationFinalized = false;
+    let policyAction: "ALLOW" | "ALLOW_WITH_MASK" | undefined;
 
     try {
         await dependencies.controls.consumeRateLimit({
@@ -172,6 +180,42 @@ export async function prepareChatStream(
         });
 
         if (decision.action === "BLOCK") {
+            const occurredAt = new Date().toISOString();
+
+            await dependencies.appendUsage({
+                requestId: input.requestId,
+                orgId: input.auth.orgId,
+                userId: input.auth.userId,
+                status: "BLOCKED",
+                policyAction: "BLOCK",
+            });
+
+            try {
+                await dependencies.enqueueAnalyticsJob({
+                    schemaVersion: ASYNC_JOB_SCHEMA_VERSION,
+                    jobType: REQUEST_BLOCKED_JOB_TYPE,
+                    requestId: input.requestId,
+                    orgId: input.auth.orgId,
+                    userId: input.auth.userId,
+                    status: "BLOCKED",
+                    policyAction: "BLOCK",
+                    occurredAt,
+                });
+            } catch {
+                logger.error(
+                    {
+                        errorCode: "ANALYTICS_JOB_ENQUEUE_FAILED",
+                        event:
+                            "analytics.job.enqueue_failed_after_request_log",
+                        jobType: REQUEST_BLOCKED_JOB_TYPE,
+                        orgId: input.auth.orgId,
+                        requestId: input.requestId,
+                        userId: input.auth.userId,
+                    },
+                    "Analytics job enqueue failed after RequestLog persistence",
+                );
+            }
+
             await reservation.markCompleted();
             reservationFinalized = true;
 
@@ -189,6 +233,7 @@ export async function prepareChatStream(
         const approvedPrompt = decision.action === "ALLOW_WITH_MASK"
             ? decision.providerPrompt
             : input.request.prompt;
+        policyAction = decision.action;
         const candidate = selectProductionCandidate(
             input.request,
             dependencies.candidates,
@@ -254,7 +299,12 @@ export async function prepareChatStream(
                         model: env.GROQ_MODEL,
                         reservation,
                     },
-                    undefined,
+                    {
+                        status: "FAILED",
+                        policyAction: requireProviderPolicyAction(
+                            policyAction,
+                        ),
+                    },
                     dependencies,
                 );
             } else {
@@ -266,12 +316,34 @@ export async function prepareChatStream(
     }
 }
 
+function requireProviderPolicyAction(
+    policyAction: "ALLOW" | "ALLOW_WITH_MASK" | undefined,
+): "ALLOW" | "ALLOW_WITH_MASK" {
+    if (policyAction === undefined) {
+        throw new Error("Provider policy action is unavailable.");
+    }
+
+    return policyAction;
+}
+
 export async function finalizeChatStream(
     prepared: PreparedChatStream,
-    usage: Readonly<TokenUsage> | undefined,
+    outcome: {
+        readonly status: RequestCompletedStatus;
+        readonly usage?: Readonly<TokenUsage>;
+    },
     dependencies: ChatPipelineDependencies = defaultChatPipelineDependencies,
 ): Promise<void> {
-    await recordUsageAndComplete(prepared, usage, dependencies);
+    await recordUsageAndComplete(
+        prepared,
+        {
+            ...outcome,
+            policyAction: prepared.decision.action === "ALLOW_WITH_MASK"
+                ? "ALLOW_WITH_MASK"
+                : "ALLOW",
+        },
+        dependencies,
+    );
 }
 
 function evaluatePolicy(input: PolicyEvaluationInput): PolicyDecision {
@@ -336,17 +408,27 @@ async function recordUsageAndComplete(
         readonly model: string;
         readonly reservation: IdempotencyReservation;
     },
-    usage: Readonly<TokenUsage> | undefined,
+    outcome: {
+        readonly status: RequestCompletedStatus;
+        readonly policyAction: "ALLOW" | "ALLOW_WITH_MASK";
+        readonly usage?: Readonly<TokenUsage>;
+    },
     dependencies: ChatPipelineDependencies,
 ): Promise<void> {
     try {
+        const occurredAt = new Date().toISOString();
+
         await dependencies.appendUsage({
             requestId: input.requestId,
             orgId: input.orgId,
             userId: input.userId,
+            status: outcome.status,
+            policyAction: outcome.policyAction,
             providerId: input.providerId,
             model: input.model,
-            ...(usage === undefined ? {} : { usage }),
+            ...(outcome.usage === undefined
+                ? {}
+                : { usage: outcome.usage }),
         });
 
         try {
@@ -356,10 +438,14 @@ async function recordUsageAndComplete(
                 requestId: input.requestId,
                 orgId: input.orgId,
                 userId: input.userId,
+                status: outcome.status,
+                policyAction: outcome.policyAction,
                 providerId: input.providerId,
                 model: input.model,
-                ...(usage === undefined ? {} : { usage }),
-                occurredAt: new Date().toISOString(),
+                ...(outcome.usage === undefined
+                    ? {}
+                    : { usage: outcome.usage }),
+                occurredAt,
             });
         } catch {
             logger.error(
@@ -371,6 +457,37 @@ async function recordUsageAndComplete(
                     userId: input.userId,
                 },
                 "Billing job enqueue failed after authoritative usage persistence",
+            );
+        }
+
+        try {
+            await dependencies.enqueueAnalyticsJob({
+                schemaVersion: ASYNC_JOB_SCHEMA_VERSION,
+                jobType: REQUEST_COMPLETED_JOB_TYPE,
+                requestId: input.requestId,
+                orgId: input.orgId,
+                userId: input.userId,
+                status: outcome.status,
+                policyAction: outcome.policyAction,
+                providerId: input.providerId,
+                model: input.model,
+                ...(outcome.usage === undefined
+                    ? {}
+                    : { usage: outcome.usage }),
+                occurredAt,
+            });
+        } catch {
+            logger.error(
+                {
+                    errorCode: "ANALYTICS_JOB_ENQUEUE_FAILED",
+                    event:
+                        "analytics.job.enqueue_failed_after_request_log",
+                    jobType: REQUEST_COMPLETED_JOB_TYPE,
+                    orgId: input.orgId,
+                    requestId: input.requestId,
+                    userId: input.userId,
+                },
+                "Analytics job enqueue failed after RequestLog persistence",
             );
         }
 

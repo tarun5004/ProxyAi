@@ -48,6 +48,7 @@ function createRuntime({
     const providerRequests = [];
     const usageRecords = [];
     const billingJobs = [];
+    const analyticsJobs = [];
     const policyEvents = [];
     const reservationEvents = [];
     let providerCalls = 0;
@@ -157,6 +158,10 @@ function createRuntime({
             billingJobs.push(input);
             return input;
         },
+        async enqueueAnalyticsJob(input) {
+            analyticsJobs.push(input);
+            return input;
+        },
         emitPolicyEvent(input) {
             const event = createPolicyDecisionEvent(input);
             policyEvents.push(event);
@@ -171,6 +176,7 @@ function createRuntime({
         providerRequests,
         reservationEvents,
         billingJobs,
+        analyticsJobs,
         usageRecords,
         get providerCalls() {
             return providerCalls;

@@ -18,7 +18,7 @@ export async function appendRequestUsage(
         return await repository.appendUsage(input);
     } catch {
         throw accountingUnavailable(
-            "Token usage could not be recorded.",
+            "Request outcome could not be recorded.",
         );
     }
 }

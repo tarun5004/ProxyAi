@@ -1,5 +1,9 @@
 import { app } from "./app.js";
 import { env } from "./config/env.js";
+import { connectAnalyticsQueue } from
+    "./features/analytics/analytics.queue.js";
+import { startAnalyticsWorker } from
+    "./features/analytics/analytics.worker.js";
 import { connectBillingQueue } from "./features/billing/billing.queue.js";
 import { startBillingWorker } from "./features/billing/billing.worker.js";
 import { disconnectBullMq } from "./shared/async/bullmq.js";
@@ -111,8 +115,14 @@ const redisConnection = connectRedis();
 
 void Promise.all([mongoConnection, redisConnection])
     .then(async () => {
-        await connectBillingQueue();
-        await startBillingWorker();
+        await Promise.all([
+            connectBillingQueue(),
+            connectAnalyticsQueue(),
+        ]);
+        await Promise.all([
+            startBillingWorker(),
+            startAnalyticsWorker(),
+        ]);
     })
     .catch(() => {
         logger.error(

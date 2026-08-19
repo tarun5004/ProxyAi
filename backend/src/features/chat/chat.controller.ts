@@ -69,7 +69,11 @@ export function createChatStreamHandler(
 
             if (disconnected) {
                 accountingStarted = true;
-                await finalizeChatStream(prepared, undefined, dependencies);
+                await finalizeChatStream(
+                    prepared,
+                    { status: "INTERRUPTED" },
+                    dependencies,
+                );
                 return;
             }
 
@@ -97,7 +101,12 @@ export function createChatStreamHandler(
                     accountingStarted = true;
                     await finalizeChatStream(
                         prepared,
-                        currentChunk.usage,
+                        {
+                            status: "COMPLETED",
+                            ...(currentChunk.usage === undefined
+                                ? {}
+                                : { usage: currentChunk.usage }),
+                        },
                         dependencies,
                     );
                     await writeSseEvent(response, "done", {
@@ -125,7 +134,15 @@ export function createChatStreamHandler(
 
             if (!accountingStarted) {
                 accountingStarted = true;
-                await finalizeChatStream(prepared, undefined, dependencies);
+                await finalizeChatStream(
+                    prepared,
+                    {
+                        status: disconnected
+                            ? "INTERRUPTED"
+                            : "FAILED",
+                    },
+                    dependencies,
+                );
             }
 
             if (!disconnected) {
@@ -146,7 +163,15 @@ export function createChatStreamHandler(
                 accountingStarted = true;
 
                 try {
-                    await finalizeChatStream(prepared, undefined, dependencies);
+                    await finalizeChatStream(
+                        prepared,
+                        {
+                            status: disconnected
+                                ? "INTERRUPTED"
+                                : "FAILED",
+                        },
+                        dependencies,
+                    );
                 } catch {}
             }
 
