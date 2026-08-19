@@ -88,8 +88,8 @@ The following are not added to the MVP:
 
 1. **Browser frontend** — accepts user credentials and prompts, displays streamed responses, and calls the backend.
 2. **ProxiAI API** — authenticates users, validates requests, enforces permissions, scans prompts, applies policy, routes requests, streams responses, and writes security-relevant events.
-3. **BullMQ workers** — process billing, analytics, anomaly, email, and health-check jobs asynchronously.
-4. **MongoDB** — stores organisation configuration, users, sessions, conversation metadata, encrypted messages, request logs, audit records, billing rollups, alerts, and provider health history.
+3. **BullMQ workers** — process billing, analytics, anomaly, provider-health, and failed-enqueue recovery jobs asynchronously; email delivery is deferred to Phase 8.
+4. **MongoDB** — stores organisation configuration, users, sessions, conversation metadata, encrypted messages, request logs, audit records, billing rollups, alerts, and safe async recovery ledgers. Provider-health history is deferred to Phase 10.
 5. **Redis** — stores prompt-cache entries, idempotency state, rate-limit counters, provider-health state, and BullMQ data.
 6. **External LLM providers** — receive only prompts allowed by policy and return model output.
 7. **Email and payment providers** — receive only the minimum information required for approved workflows.
@@ -660,7 +660,7 @@ Risk ratings are qualitative for the MVP:
 | Risk | High |
 | Scenario | Raw prompts or credentials persist in BullMQ job payloads or failed-job dashboards. |
 | Prevention | Queue only IDs and safe metadata; workers retrieve authorised records when required; never include secrets or raw prompt content. |
-| Detection | Inspect queue payload schemas and Bull Board during testing. |
+| Detection | Inspect strict queue schemas, retained BullMQ failed jobs, and safe structured logs in a controlled environment. |
 
 ### TM-031 — Health endpoint information disclosure
 
@@ -1023,10 +1023,41 @@ The prompt-cache HMAC input binds trusted `orgId`, exact approved `providerPromp
 - Each side effect has an idempotency key, and retry count is bounded to approved transient failures.
 - Invalid payloads, unknown usage, and unavailable pricing are terminal outcomes rather than retry loops.
 - Exhausted jobs remain visible in BullMQ's failed set, which is the MVP dead-letter mechanism.
-- Failed jobs are visible in Bull Board only in controlled environments.
-- Bull Board must not be publicly exposed in production.
+- BullMQ's failed set and safe structured logs are the Phase 7 visibility
+  sources. Bull Board is deferred to optional Phase 10 controlled tooling and
+  must never be publicly exposed.
 
-### 19.4 Anomaly worker security contract
+### 19.4 Failed-enqueue recovery security contract
+
+- RequestLog remains append-only and is the authoritative source for rebuilding
+  missed billing or analytics publications.
+- The recovery ledger is uniquely scoped by trusted
+  `{ orgId, requestId, queueName, jobType }` and stores only state, bounded
+  attempt count, and safe timestamps.
+- Recovery enumerates trusted organisations and includes `orgId` in every
+  tenant-owned RequestLog and ledger query.
+- Deterministic queue IDs and existing business worker ledgers prevent duplicate
+  billing or analytics effects.
+- Recovery attempts are bounded to three. Terminal BullMQ failed jobs and
+  exhausted recovery records are not automatically replayed.
+- Prompts, responses, PII, recipient data, headers, cookies, credentials,
+  provider payloads, and secrets are prohibited from recovery records, jobs,
+  and logs.
+
+### 19.5 Provider-health worker security contract
+
+- Only provider IDs from the approved enabled-provider registry may be
+  scheduled; clients cannot provide a provider ID.
+- Redis stores only `HEALTHY`, `UNHEALTHY`, or `UNKNOWN` plus `checkedAt` at
+  `health:{providerId}` for 120 seconds.
+- Raw provider responses, errors, SDK payloads, credentials, headers, prompts,
+  and model output are prohibited.
+- Routing may only skip `UNHEALTHY`; `HEALTHY` and `UNKNOWN` preserve existing
+  capability, circuit-breaker, retry, and ordered-fallback behavior.
+- Redis failure or stale/missing state becomes `UNKNOWN`; it does not crash the
+  worker or create new routing intelligence.
+
+### 19.6 Anomaly worker security contract
 
 - Analytics is the only producer of safe `usage.updated` anomaly jobs.
 - Every anomaly lookup and write uses trusted `orgId` and `userId`; client

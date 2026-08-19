@@ -189,7 +189,7 @@ The API and worker may use the same backend image but run with different command
 | Validation | Zod | Environment and request validation |
 | Database | MongoDB | Tenant data, metadata, audit, billing, alerts |
 | Cache | Redis | Prompt cache, idempotency, rate limits, provider health |
-| Jobs | BullMQ | Billing, analytics, anomaly, email, health checks |
+| Jobs | BullMQ | Billing, analytics, anomaly, provider health, and failed-enqueue recovery; email delivery deferred to Phase 8 |
 | Logging | Pino | Structured and redacted application logs |
 | Metrics | Prometheus | Core API, provider, cache, and queue metrics |
 | Dashboard | Grafana | Operational visualisation |
@@ -418,7 +418,7 @@ Redis has distinct responsibilities and key namespaces.
 |---|---|---|
 | Prompt cache | `cache:prompt:{opaqueHmac(canonicalCacheInput)}` | Fail open and call provider; implementation deferred pending Phase 9 prerequisites |
 | Idempotency | `idempotency:{orgId}:{clientRequestId}` | Fail closed for paid request safety |
-| Provider health | `health:{providerId}` | Use static capability defaults |
+| Provider health | `health:{providerId}` with 120-second TTL | Missing/error becomes `UNKNOWN`; use static capability and local circuit defaults |
 | Rate limit | `rate:{orgId}:{userId}:{window}` | Follow documented environment policy |
 | Queue data | BullMQ-managed keys | Async work pauses or retries |
 
@@ -433,11 +433,24 @@ Approved worker responsibilities:
 - billing rollups;
 - analytics rollups;
 - anomaly detection;
-- notification email;
 - provider health checks;
+- failed-enqueue recovery;
 - optional retention cleanup where database TTL does not already solve the requirement.
 
+Phase 7 email delivery has an explicit waiver. Its safe `alert.created`
+contract is retained, but implementation moves to Phase 8 after provider,
+sender, timeout, error mapping, and template content are approved.
+
+If billing or analytics enqueue fails after RequestLog persistence, a safe
+tenant-scoped recovery record and bounded backfill scan reconstruct the job
+from allowlisted RequestLog metadata. RequestLog is never mutated, and existing
+worker ledgers prevent duplicate effects.
+
 Every job handler must be idempotent because BullMQ provides at-least-once processing behavior.
+
+The Phase 7 failed-job source is BullMQ's retained failed set plus safe
+structured logs. Bull Board is deferred to optional controlled Phase 10 tooling
+and must never be publicly exposed.
 
 The API and worker failure domains must remain separate: an email failure must not delay the user-facing chat response.
 

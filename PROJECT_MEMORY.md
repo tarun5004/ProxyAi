@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-08 — Email Worker Implementation
-- **Status:** Contract resolved; implementation blocked on provider, configuration, sender, provider-error mapping, template IDs, and template content approval
+- **Task:** P7-10 — Provider Health Worker
+- **Status:** P7-09 closure contract resolved; implementation not started
 
 ## Completed Tasks
 
@@ -76,6 +76,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-07 prerequisite — Tenant-scoped daily anomaly contract resolved on 2026-08-19; no worker code added
 - P7-07 — Tenant-scoped daily token anomaly worker completed on 2026-08-19
 - P7-08 — Safe alert email notification contract resolved on 2026-08-19; no worker or provider code added
+- P7-09 — Phase 7 closure contract resolved on 2026-08-19; no production code added
 
 ## Important Decisions
 
@@ -373,6 +374,36 @@ npm run dev
   template content remain unresolved. No delivery provider is selected, and
   email worker implementation must not begin until these items are explicitly
   approved.
+- Phase 7 explicitly waives email delivery implementation. The safe
+  `alert.created`/`ORG_ADMIN` contract remains approved, but provider-backed
+  delivery moves to Phase 8 after provider, configuration, sender, error
+  mapping, template IDs, and rendered template content are approved.
+- P7-09 provider health uses `provider.health_check` every 60 seconds for only
+  approved enabled-provider registry IDs. Redis stores `HEALTHY`, `UNHEALTHY`,
+  or `UNKNOWN` plus `checkedAt` at `health:{providerId}` for 120 seconds.
+- Provider health is Redis-only in Phase 7. MongoDB history and incident
+  timelines move to Phase 10 observability.
+- Routing may skip only `UNHEALTHY`. `HEALTHY`, `UNKNOWN`, missing, expired, and
+  Redis-error states preserve existing capability, circuit-breaker, retry, and
+  ordered-fallback behavior; no new routing score is introduced.
+- Provider-adapter health maps as `healthy -> HEALTHY`,
+  `degraded -> UNKNOWN`, and `unhealthy -> UNHEALTHY`. Transient degradation is
+  observable but does not block normal routing.
+- Failed billing/analytics enqueue recovery uses append-only RequestLog as the
+  source plus a separate unique
+  `{ orgId, requestId, queueName, jobType }` recovery ledger. It stores only
+  coordination state, bounded attempt count, and safe timestamps.
+- The recovery scan runs at worker startup and every 60 seconds, enumerates
+  trusted organisations, and includes `orgId` in every tenant-owned scan. It
+  uses deterministic queue IDs and existing worker ledgers to prevent duplicate
+  effects.
+- Recovery stops after three failed publication attempts or a terminal BullMQ
+  failed job. RequestLog is never mutated, and prompts, responses, PII,
+  recipient data, credentials, provider payloads, and secrets are prohibited.
+- BullMQ's failed set plus safe structured logs are the Phase 7 failure-
+  visibility source. Bull Board and manual replay UI move to Phase 10 controlled
+  observability tooling and must never be public.
+- Alert listing, resolution, and reopening remain Phase 8 admin work.
 - BullMQ producers reuse the shared fail-fast Redis client. Managed workers obtain dedicated clients through the same central Redis factory with `maxRetriesPerRequest: null`; Redis connection configuration is not duplicated.
 - The initial `billing-queue` validates `request.completed` payloads before enqueue and uses three exponential-backoff attempts, 100 completed-job retention, and 500 failed-job retention.
 - Runtime validation is repeated at the worker boundary. Malformed payloads become terminal `UnrecoverableError` failures without logging job data or validation input.
@@ -737,15 +768,22 @@ npm run dev
 
 ## Latest Task
 
+- **Task:** P7-09 — Phase 7 Closure Contract Resolution
+- **Status:** Completed documentation-only on 2026-08-19; Phase 7 remains open
+- **Files changed:** `docs/01_PRD.md`, `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/09_README.md`, `docs/12_SEQUENCE_DIAGRAMS.md`, `docs/14_OBSERVABILITY_DOCUMENTATION.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Provider health:** Approved registry-only `provider.health_check` jobs run every 60 seconds and write safe Redis-only state for 120 seconds. The current production registry contains configured Groq only; the fake adapter is test-only. Routing skips only `UNHEALTHY`; `UNKNOWN` preserves existing behavior. MongoDB history is deferred to Phase 10.
+- **Enqueue recovery:** A safe tenant-scoped recovery ledger and bounded startup/60-second scan reconstruct missing billing/analytics jobs from append-only RequestLog. Deterministic queue IDs and existing worker ledgers prevent duplicate effects; recovery stops after three failed publication attempts or a terminal job.
+- **Failure visibility:** BullMQ's failed set and safe logs are canonical. Bull Board/manual replay UI are deferred to controlled Phase 10 tooling.
+- **Email and alerts:** Phase 7 email delivery is explicitly waived to Phase 8 pending provider/config/template approval. Alert list/resolve/reopen remains Phase 8.
+- **Remaining Phase 7 implementation:** P7-10 provider-health worker, then P7-11 failed-enqueue recovery and final closure verification.
+- **Recommended commit:** `docs(async): define Phase 7 provider health and recovery closure`.
+- **Next task:** P7-10 — Implement only the approved provider-health worker and conservative routing gate.
+
+## Previous Contract Task — P7-08
+
 - **Task:** P7-08 — Safe Alert Email Notification Contract
-- **Status:** Completed documentation-only on 2026-08-19; implementation remains blocked
-- **Files changed:** `docs/03_TDD.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/09_README.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Event and recipient:** Only `alert.created` may trigger email. Recipient lookup selects `ORG_ADMIN` users through trusted tenant `orgId`; clients cannot provide recipients.
-- **Payload and privacy:** Jobs carry only schema/job/correlation/tenant/alert/template/timestamp identifiers and optional trusted subject user scope. Recipient email, rendered content, prompts, responses, PII, credentials, secrets, and arbitrary objects are forbidden.
-- **Idempotency and failure:** `{ orgId, alertId, templateId }` identifies one intended delivery. Existing three-attempt exponential retry and BullMQ failed-set visibility apply; email failure cannot reverse completed request or alert state.
-- **Deferred decisions:** Provider, credentials, sender, timeout, provider-error mapping, template allowlist values, and rendered template content are unresolved. Reminders, escalations, and resolution emails are deferred. Stale provider-specific assumptions were removed.
+- **Status:** Completed documentation-only on 2026-08-19
 - **Completed commit:** `docs(email): define safe alert notification contract`.
-- **Next task:** Resolve the remaining P7-08 provider/configuration/template blocker through approved documentation. Do not implement email or start P7-09 yet.
 
 ## Previous Implementation Task — P7-07
 
@@ -852,7 +890,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Resolve the remaining P7-08 email provider, configuration, sender, provider-error mapping, exact template IDs, and rendered-content decisions. Do not implement email or start P7-09 until approved.
+- P7-10 — Implement the approved Redis-only provider-health worker and conservative routing health gate. Do not start P7-11 or Phase 8.
 
 ## Do Not Forget
 

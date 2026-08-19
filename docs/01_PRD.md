@@ -217,7 +217,7 @@ The MVP should keep this role minimal and should not create a full platform-mana
 | Resilience | Retry, backoff, jitter, circuit breaker, fallback chain |
 | Redis | Idempotency and provider health state; prompt-cache implementation deferred to Phase 9 prerequisites |
 | Retention | Metadata Only and Encrypted Storage; custom TTL support if practical |
-| Background jobs | Billing, analytics, anomaly, email, and health checks |
+| Background jobs | Billing, analytics, anomaly, provider health, and failed-enqueue recovery; email delivery moves to Phase 8 pending provider approval |
 | Audit | Append-only audit records for important actions |
 | Dashboard | Basic KPIs, logs, filters, cursor pagination, alerts |
 | Observability | Pino logs and core Prometheus metrics |
@@ -577,6 +577,9 @@ duplicate. P7-07 does not enqueue email or notification work.
 
 An organisation admin shall be able to mark an alert as resolved.
 
+Alert listing, resolution, and reopening are Phase 8 administration work. They
+are not part of the Phase 7 anomaly worker.
+
 ## 9.14 Audit logging
 
 ### FR-AUDIT-001 — Append-only audit record
@@ -646,8 +649,12 @@ The MVP shall include queues for:
 - Billing.
 - Analytics.
 - Anomaly detection.
-- Email notifications.
 - Provider health checks.
+- Failed-enqueue recovery.
+
+Phase 7 has an explicit waiver for email delivery. The safe `alert.created`
+contract remains approved, but provider/configuration/template implementation
+moves to Phase 8 after those decisions are approved.
 
 ### FR-JOB-002 — Retry failed jobs
 
@@ -655,7 +662,10 @@ Jobs shall use a limited retry count with exponential backoff.
 
 ### FR-JOB-003 — Failed-job visibility
 
-Failed jobs shall be logged and visible through Bull Board in local development.
+Failed jobs shall remain in BullMQ's failed set and emit safe structured logs.
+Local inspection may use BullMQ APIs or CLI tooling in a controlled developer
+environment. Bull Board is optional Phase 10 observability tooling and must
+never be public.
 
 ## 9.17 Health endpoints
 
@@ -985,7 +995,8 @@ Exit criteria:
 4. What default PII mask and block thresholds should be used?
 5. Which encryption library and key format will be used for stored message content?
 6. Will the first frontend use EventSource directly or `fetch` with a readable stream for authenticated SSE?
-7. Will email notifications be enabled in the first demo or logged only?
+7. Which email provider, sender, timeout, error mapping, and template content
+   will be approved before the deferred Phase 8 email implementation?
 8. Is Razorpay required in the first working MVP, or can subscription plans be assigned manually for the demo?
 
 ## 21. MVP Acceptance Checklist

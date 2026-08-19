@@ -414,6 +414,13 @@ enum: [manual, auto, fallback, cache]
 
 `PATCH /admin/alerts/{alertId}` is not a new feature: it is the API contract for the already approved alert-resolution requirement.
 
+Phase 7 closure adds no public HTTP route. Provider-health scheduling and
+failed-enqueue recovery are internal worker contracts. The current provider
+state is Redis-only and uses `HEALTHY`, `UNHEALTHY`, or `UNKNOWN`; any future
+admin/provider-health response remains Phase 8/10 work. Alert listing,
+resolution, reopening, and the deferred `alert.created` email delivery remain
+Phase 8 responsibilities.
+
 # 14. Authentication APIs
 
 ## 14.1 POST `/auth/login`

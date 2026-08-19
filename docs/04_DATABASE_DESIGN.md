@@ -32,7 +32,7 @@ The design is intentionally suitable for one beginner solo developer. It avoids 
 - Append-only audit logs
 - Monthly billing and usage rollups
 - Alerts
-- Provider health history
+- Provider-health Redis state; durable history is deferred to Phase 10
 - Organisation policy, budget, feature, and retention settings
 - Metadata-only and encrypted-storage retention modes
 - Optional custom-retention expiry field and TTL index
@@ -133,7 +133,7 @@ This avoids exposing MongoDB `ObjectId` values as the primary external contract 
 | `audit_logs` | Append-only security and admin history | Yes | No raw prompt/response | Auth, policy, admin services |
 | `billing_rollups` | Monthly organisation/user/provider totals | Yes | Financial usage data | Billing worker |
 | `alerts` | PII, budget, anomaly, and system alerts | Yes | No raw prompt/response | Workers and policy engine |
-| `provider_health` | Current and historical provider state | Platform-level | No | Health worker |
+| `async_enqueue_recovery` | Safe coordination for failed billing/analytics publication | Yes | No request content | Recovery worker |
 
 ## 9. Organisation Collection
 
@@ -737,45 +737,58 @@ alertSchema.index(
   Re-evaluation updates or resolves that same alert instead of inserting a
   duplicate.
 
-## 19. Provider Health Collection
+## 19. Provider Health and Enqueue Recovery
 
-### 19.1 Purpose
+### 19.1 Provider health storage
 
-Stores current provider state and small incident history for dashboard and troubleshooting.
+Phase 7 provider health is Redis-only. The worker writes `health:{providerId}`
+every 60 seconds with a 120-second TTL. The value stores only `HEALTHY`,
+`UNHEALTHY`, or `UNKNOWN` plus `checkedAt`. Missing, expired, or unreadable
+state is `UNKNOWN`.
+
+No Phase 7 MongoDB `provider_health` collection is created. Provider-health
+history, incident timelines, and historical latency are deferred to Phase 10
+observability.
+
+### 19.2 Async enqueue recovery ledger
+
+RequestLog remains append-only and is the durable source for reconstructing a
+missed billing or analytics publication. Publication coordination uses a
+separate collection:
 
 ```ts
-interface ProviderIncident {
-  startedAt: Date;
-  endedAt?: Date;
-  reason?: string;
-}
-
-interface ProviderHealthDocument {
-  _id: Types.ObjectId;
-  providerId: string;
-  state: 'HEALTHY' | 'DEGRADED' | 'UNAVAILABLE';
-  circuitState: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
-  failureCount: number;
-  consecutiveSuccessCount: number;
-  avgLatencyMs?: number;
-  lastCheckedAt: Date;
-  lastSuccessAt?: Date;
-  lastFailureAt?: Date;
-  incidents: ProviderIncident[];
+interface AsyncEnqueueRecoveryRecord {
+  orgId: string;
+  requestId: string;
+  queueName: 'billing-queue' | 'analytics-queue';
+  jobType: 'request.completed' | 'request.blocked';
+  state: 'PENDING' | 'ENQUEUED' | 'COMPLETED' | 'FAILED';
+  attemptCount: number;
+  nextAttemptAt?: Date;
+  lastAttemptAt?: Date;
+  completedAt?: Date;
+  failedAt?: Date;
+  createdAt: Date;
   updatedAt: Date;
 }
 ```
 
-### 19.2 Indexes
-
 ```ts
-providerHealthSchema.index({ providerId: 1 }, { unique: true });
-providerHealthSchema.index({ state: 1, lastCheckedAt: -1 });
+asyncEnqueueRecoverySchema.index(
+  { orgId: 1, requestId: 1, queueName: 1, jobType: 1 },
+  { unique: true }
+);
+asyncEnqueueRecoverySchema.index(
+  { state: 1, nextAttemptAt: 1, orgId: 1 }
+);
 ```
 
-### 19.3 Redis relationship
-
-Redis is the hot-path source for current provider state. MongoDB stores durable history and dashboard data. If Redis is unavailable, routing may fall back to static provider configuration as defined in the TDD.
+The ledger stores no job body, prompt, response, PII, email, credential,
+provider payload, or secret. Recovery scans each trusted organisation
+separately and always includes `orgId` in RequestLog and ledger queries.
+Deterministic BullMQ job IDs plus existing billing/analytics processing ledgers
+prevent duplicate side effects. Three failed publication attempts or a
+terminal BullMQ failed job produces `FAILED`; automatic replay then stops.
 
 ## 20. Relationship Map
 
@@ -952,8 +965,8 @@ Rules:
 
 ```text
 Key: health:{providerId}
-Value: JSON { state, circuitState, failureCount, avgLatencyMs, lastCheckedAt }
-TTL: none; actively refreshed
+Value: JSON { state: HEALTHY | UNHEALTHY | UNKNOWN, checkedAt }
+TTL: 120 seconds; refreshed every 60 seconds
 ```
 
 ### 24.4 Rate limiting
@@ -1257,13 +1270,14 @@ For MVP-sized test data:
 
 - RequestLog schema
 - Cursor pagination
-- Provider health schema
+- Redis-only provider-health state contract
 
 ### Step 5 — Async and admin data
 
 - AuditLog schema and append-only repository
 - BillingRollup schema and idempotent worker update
 - Alert schema
+- Async enqueue-recovery coordination ledger
 
 ### Step 6 — Hardening
 
@@ -1297,7 +1311,8 @@ The database design is implemented for MVP when:
 - No sharding is designed or required.
 - One application encryption key may protect all organisations.
 - TTL deletion is not immediate to the exact second.
-- Provider health Redis and MongoDB states may briefly differ.
+- Provider-health history is unavailable until Phase 10; Phase 7 keeps only the
+  current TTL-bounded Redis state.
 - Dashboard totals may lag while BullMQ jobs process.
 - Full prompt search is unavailable because content is encrypted.
 - Audit logs are append-only at the application level but not yet backed by immutable object storage.
@@ -1327,7 +1342,8 @@ The database design is implemented for MVP when:
 | Billing and budget | `billing_rollups`, organisation budget |
 | Alerts | `alerts` |
 | Audit trail | Append-only `audit_logs` |
-| Provider health | Redis hot state and `provider_health` history |
+| Provider health | TTL-bounded Redis current state; MongoDB history deferred to Phase 10 |
+| Failed enqueue recovery | Append-only RequestLog plus `async_enqueue_recovery` coordination ledger |
 | Admin dashboard | Indexed request logs, billing rollups, alerts, provider health |
 
 ## 39. Database Self-Audit

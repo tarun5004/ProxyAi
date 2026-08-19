@@ -135,10 +135,10 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 7 — Background Jobs, Billing, and Alerts
-Current Task: P7-08 — Email Worker Implementation
-Current Status: Contract resolved; implementation not started
-Current Blocker: Email provider, validated configuration, sender, provider-specific error mapping, allowlisted template values, and rendered template content are not approved
-Last Completed Task: P7-08 — Safe Alert Email Notification Contract
+Current Task: P7-10 — Provider Health Worker
+Current Status: P7-09 closure contract resolved; implementation not started
+Current Blocker: None
+Last Completed Task: P7-09 — Phase 7 Closure Contract Resolution
 Last Completed Commit: docs(email): define safe alert notification contract
 ```
 
@@ -606,7 +606,10 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] P7-07 prerequisite — Define the tenant-scoped daily anomaly rule, feature gate, baseline, severity, and deduplication contract.
 - [x] P7-07 — Create tenant-scoped daily token anomaly worker.
 - [x] P7-08 — Define the safe `alert.created` email notification contract.
-- [ ] Create email worker with safe templates — deferred until provider, configuration, sender, provider-error mapping, template IDs, and template content are approved.
+- [x] P7-09 — Resolve provider-health, failed-enqueue recovery, failure-visibility, email-waiver, and Phase 7 exit contracts.
+- [x] Approve a Phase 7 email implementation waiver; move delivery to Phase 8 after provider, configuration, sender, error mapping, and template approval.
+- [ ] P7-10 — Implement the scheduled Redis provider-health worker and conservative routing health gate.
+- [ ] P7-11 — Implement tenant-scoped bounded failed-enqueue recovery.
 - [x] Keep raw prompts out of job payloads.
 
 P7-03 keeps the current synchronous budget reconciliation until the billing
@@ -675,15 +678,39 @@ deferred. Email implementation remains blocked because no provider, runtime
 configuration, sender, provider-specific error mapping, template allowlist, or
 rendered template content is approved.
 
+P7-09 closes the remaining contract ambiguity without closing Phase 7. Provider
+health is platform-scoped, scheduled every 60 seconds from the approved enabled-
+provider registry, and stored only as `HEALTHY`, `UNHEALTHY`, or `UNKNOWN` at
+`health:{providerId}` with a 120-second TTL. Routing may skip only
+`UNHEALTHY`; missing, stale, or unavailable Redis state becomes `UNKNOWN` and
+preserves existing capability, circuit-breaker, retry, and fallback behavior.
+MongoDB provider-health history is deferred to Phase 10.
+Adapter states map as `healthy -> HEALTHY`, `degraded -> UNKNOWN`, and
+`unhealthy -> UNHEALTHY` so transient degradation remains observable without
+blocking normal routing.
+
+Failed billing or analytics publication after RequestLog persistence uses a
+separate safe recovery ledger and a bounded startup/60-second backfill scan.
+The scan processes trusted organisations separately, reconstructs allowlisted
+jobs from append-only RequestLog records, uses deterministic queue IDs, and
+relies on existing worker ledgers for side-effect idempotency. Three failed
+publication attempts or a terminal BullMQ failed job stops automatic recovery.
+BullMQ's failed set and safe logs are the Phase 7 visibility source; Bull Board
+is deferred to optional controlled Phase 10 tooling. Alert listing/resolution
+and email delivery remain Phase 8 responsibilities.
+
 ## Exit Criteria
 
 - [x] Chat response does not wait for workers.
 - [x] Billing replay does not double charge.
 - [x] Worker heartbeat works.
-- [x] Failed jobs are visible.
+- [x] Failed jobs remain visible in BullMQ's failed set with safe structured logs; Bull Board is explicitly deferred to Phase 10.
 - [x] Queue payloads contain no raw prompts.
 - [x] Basic analytics jobs are tenant-scoped and idempotent.
 - [x] Daily token anomalies are feature-gated, tenant/user scoped, and atomically deduplicated.
+- [ ] Provider-health jobs refresh safe Redis state every 60 seconds with a 120-second TTL, and routing applies only the approved conservative gate.
+- [ ] Missed billing/analytics enqueues are recovered through the bounded tenant-scoped ledger/backfill contract without duplicate effects.
+- [ ] P7-10 and P7-11 focused tests, typecheck, build, lifecycle checks, and sensitive-data scans pass.
 
 ---
 
@@ -699,6 +726,7 @@ rendered template content is approved.
 - [ ] Revoke sessions when deactivating user.
 - [ ] Policy and retention settings UI.
 - [ ] Alert listing and resolution.
+- [ ] Implement `alert.created` ORG_ADMIN email delivery only after provider, validated configuration, sender, error mapping, and template content are approved.
 - [ ] Audit all admin changes.
 
 ## Exit Criteria
@@ -978,7 +1006,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-01 through P7-07 and the P7-08 email contract are complete; email and provider-health worker implementation remain |
+| Phase 7 | In Progress | P7-09 closure contract resolved; P7-10 provider health and P7-11 failed-enqueue recovery remain; email delivery waived to Phase 8 |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -990,19 +1018,20 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-08 — Email Worker Implementation Blocker Resolution
+## P7-10 — Provider Health Worker
 
 **Effort:** Medium
 
 Do only this next:
 
-1. Approve the email provider, validated environment configuration, sender
-   identity, timeout and provider-error mapping, exact template allowlist, and
-   rendered template content before implementation.
-2. Preserve the approved `alert.created`-only, trusted-`ORG_ADMIN`, safe-payload,
-   and `{ orgId, alertId, templateId }` idempotency contract.
-3. Do not implement email delivery or start P7-09 until the blocker is resolved
-   through approved documentation.
+1. Implement only `provider.health_check` for provider IDs from the approved
+   enabled-provider registry, scheduled every 60 seconds.
+2. Store only `HEALTHY`, `UNHEALTHY`, or `UNKNOWN` plus `checkedAt` at
+   `health:{providerId}` with a 120-second TTL.
+3. Add only the approved routing gate: skip `UNHEALTHY`; treat missing/error as
+   `UNKNOWN`; preserve all existing capability/circuit/retry/fallback behavior.
+4. Do not add MongoDB health history, new routing intelligence, email delivery,
+   P7-11 recovery, or Phase 8 work.
 
 ---
 

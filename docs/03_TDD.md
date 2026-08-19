@@ -1350,8 +1350,9 @@ security events only and does not create the MongoDB audit collection.
 | `billing-queue` | `request.completed` | Chat finalizer | Billing worker |
 | `analytics-queue` | `request.completed`, `request.blocked` | Chat outcome finalizer | Analytics worker |
 | `anomaly-queue` | `usage.updated` | Analytics worker only | Anomaly worker |
-| `email-queue` | `alert.created` | Alert service | Email worker |
+| `email-queue` | `alert.created` | Alert service | Deferred Phase 8 email worker |
 | `health-check-queue` | `provider.health_check` | Repeat scheduler | Health worker |
+| `recovery-queue` | `async.enqueue_recovery_scan` | Repeat scheduler | Enqueue-recovery worker |
 
 The architecture source mentions an archive queue. For the simplified MVP, retention deletion is handled through MongoDB TTL where applicable, so a separate archive worker is not required unless custom retention is implemented later.
 
@@ -1420,9 +1421,36 @@ publishing an outcome event. Billing consumes only `request.completed`.
 Analytics consumes both event types. Queue publication failure emits safe
 operational metadata and never changes the already determined client outcome.
 
+### 28.4 Failed-enqueue recovery
+
+The append-only RequestLog is the authoritative recovery source. Required
+publications are derived deterministically: non-blocked outcomes require both
+billing and analytics jobs; blocked outcomes require analytics only. A safe
+publication ledger is unique by `{ orgId, requestId, queueName, jobType }` and
+stores only `PENDING`, `ENQUEUED`, `COMPLETED`, or `FAILED`, attempt count, and
+safe timestamps.
+
+The API records `PENDING` when enqueue fails after RequestLog persistence. A
+repeatable recovery scan runs at worker startup and every 60 seconds. It first
+loads trusted organisation IDs, then scans each organisation's RequestLogs in
+bounded cursor batches with `orgId` in every tenant-owned query. Missing
+publication-ledger rows are created from safe RequestLog metadata so a crash
+between persistence and recovery-record creation is recoverable.
+
+Before enqueue, recovery checks the matching business worker ledger and the
+deterministic BullMQ job ID. Completed work becomes `COMPLETED`; active,
+waiting, or delayed work is not duplicated; absent work is enqueued and marked
+`ENQUEUED`. A terminal BullMQ failed job or three failed publication attempts
+becomes `FAILED` and is not automatically replayed. Existing billing and
+analytics ledgers remain the final side-effect idempotency boundary.
+
+RequestLog is never mutated. Recovery payloads contain no prompt, response,
+PII, recipient, credential, provider secret, cookie, header, or arbitrary
+object. Recovery cannot change an already delivered HTTP/SSE result.
+
 `requestId` is the canonical correlation ID. Existing request-derived jobs preserve it, and scheduled jobs generate a server UUID request ID. Phase 7 does not introduce `traceId`; future distributed tracing may add a separate mapping without replacing `requestId`.
 
-### 28.4 Idempotent workers
+### 28.5 Idempotent workers
 
 Every worker must tolerate duplicate delivery. Billing processing uses a separate tenant-scoped async ledger keyed uniquely by `{ orgId, requestId, jobType }`; it never mutates the append-only `RequestLog`.
 
@@ -1573,13 +1601,15 @@ create another alert.
 - Email is created only for `alert.created`. Reminders, escalations, and alert
   resolution emails are deferred. The provider, credentials, sender,
   provider-specific timeout/error mapping, allowlisted template values, and
-  rendered template content remain unresolved and must be approved before
-  implementation.
+  rendered template content remain unresolved. Phase 7 explicitly waives email
+  implementation; it moves to Phase 8 after these decisions are approved.
 - Provider health consumes `provider.health_check`, is platform-scoped, and carries provider ID, request ID, schema version, and schedule timestamp only.
 
 ## 31. Provider Health Worker
 
-Run once every 60 seconds.
+Run once every 60 seconds for every provider ID from the approved enabled-
+provider registry. The scheduler generates the canonical server request ID;
+clients cannot enqueue arbitrary provider IDs.
 
 ### 31.1 Redis key
 
@@ -1591,16 +1621,38 @@ health:{providerId}
 
 ```ts
 interface HealthStatus {
-  state: 'healthy' | 'degraded' | 'down';
-  avgLatencyMs: number;
-  consecutiveFailures: number;
+  state: 'HEALTHY' | 'UNHEALTHY' | 'UNKNOWN';
   checkedAt: string;
 }
 ```
 
+The Redis value contains no raw provider response, raw error, SDK payload,
+credential, header, model output, or prompt. It expires after 120 seconds.
+
+Phase 7 provider health is Redis-only. MongoDB history and incident timelines
+are Phase 10 observability work.
+
+The current production enabled-provider registry contains configured Groq only.
+The fake adapter is test-only and must never be scheduled by the production
+health worker. Adding another production provider requires an approved registry
+change first.
+
 ### 31.3 Failure behaviour
 
-When Redis is unavailable, routing falls back to static capabilities and local circuit-breaker state. Health checks should continue logging failures without crashing the worker process.
+Routing reads the Redis state before the existing ordered candidate execution.
+`UNHEALTHY` skips the candidate. `HEALTHY` and `UNKNOWN` do not change existing
+capability, circuit-breaker, retry, or fallback behavior. Missing, expired, or
+unreadable state is `UNKNOWN`. Redis failure therefore falls back to static
+capabilities and local circuit-breaker state; health checks log only safe
+failure categories and do not crash the worker process.
+
+Canonical adapter mapping:
+
+```text
+healthy   -> HEALTHY
+degraded  -> UNKNOWN
+unhealthy -> UNHEALTHY
+```
 
 ## 32. Redis Key Catalog
 
@@ -1608,7 +1660,7 @@ When Redis is unavailable, routing falls back to static capabilities and local c
 |---|---|---:|---|
 | Prompt cache | `cache:prompt:{opaqueHmac(canonicalCacheInput)}` | `PROMPT_CACHE_TTL_SECONDS=3600` when enabled | Fail open; implementation deferred pending Phase 9 storage |
 | Idempotency | `chat:idempotency:{opaqueHmac(orgId,userId,clientRequestId)}` | `PROCESSING=300s`; `COMPLETED=3600s` | Fail closed for chat write |
-| Provider health | `health:{providerId}` | 2 min refreshed | Use static/local state |
+| Provider health | `health:{providerId}` | 120 seconds; refreshed every 60 seconds | Missing/error becomes `UNKNOWN`; use static/local state |
 | Rate limit | `rate:{orgId}:{userId}:{window}` | Window length | Fail closed on login; configurable on chat |
 | Queue data | BullMQ-managed keys | Queue-managed | Async features delayed |
 
@@ -1881,7 +1933,10 @@ The MVP avoids large multi-document transactions where possible.
 4. Mark idempotency result.
 5. Enqueue asynchronous jobs.
 
-If job enqueue fails after persistence, log the failure and retry enqueue when possible. The request response should not be changed after the stream is already complete.
+If job enqueue fails after persistence, log the safe failure and create the
+durable recovery signal defined in Section 28.4. The bounded backfill worker
+reconstructs safe jobs from RequestLog without changing the already completed
+request response.
 
 ### 42.2 Audit-sensitive changes
 

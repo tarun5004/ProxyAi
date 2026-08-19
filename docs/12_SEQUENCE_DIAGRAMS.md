@@ -767,13 +767,20 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant API
+    participant MongoDB
     participant BullMQ
+    participant RecoveryWorker
     participant BillingWorker
     participant AnalyticsWorker
     participant AnomalyWorker
 
-    API->>BullMQ: Add billing job
-    API->>BullMQ: Add analytics job
+    API->>MongoDB: Append authoritative RequestLog
+    API->>BullMQ: Add billing and analytics jobs
+    alt Enqueue fails
+        API->>MongoDB: Upsert safe PENDING recovery signal
+        RecoveryWorker->>MongoDB: Scan scoped RequestLogs and recovery ledgers
+        RecoveryWorker->>BullMQ: Re-enqueue missing deterministic job
+    end
     API-->>API: Return without waiting for workers
 
     BullMQ-->>BillingWorker: Deliver billing job
@@ -791,6 +798,8 @@ sequenceDiagram
 - Jobs use typed payloads.
 - Raw prompts must not be included.
 - Every worker must be idempotent.
+- RequestLog remains append-only; recovery state lives in a separate ledger.
+- Recovery attempts are bounded and tenant-scoped.
 
 ---
 
@@ -874,7 +883,6 @@ sequenceDiagram
     participant HealthWorker
     participant ProviderAdapter
     participant Redis
-    participant MongoDB
 
     Scheduler->>BullMQ: Add repeating health-check job
     BullMQ->>HealthWorker: Deliver provider health job
@@ -882,12 +890,12 @@ sequenceDiagram
 
     alt Provider healthy
         ProviderAdapter-->>HealthWorker: Healthy + latency
-        HealthWorker->>Redis: Update live health cache
-        HealthWorker->>MongoDB: Update provider-health history
+        HealthWorker->>Redis: Set HEALTHY with 120s TTL
     else Provider unhealthy
         ProviderAdapter-->>HealthWorker: Failure
-        HealthWorker->>Redis: Mark degraded/unhealthy
-        HealthWorker->>MongoDB: Record incident state
+        HealthWorker->>Redis: Set UNHEALTHY with 120s TTL
+    else Health unavailable or state missing
+        HealthWorker->>Redis: Set UNKNOWN with 120s TTL when writable
     end
 ```
 
@@ -895,8 +903,10 @@ sequenceDiagram
 
 - Health checks must use minimal-cost requests.
 - Provider secrets must not appear in logs.
-- Routing reads Redis health status.
-- Static capability data remains the fallback if Redis is unavailable.
+- Only approved enabled-provider registry IDs are scheduled every 60 seconds.
+- Routing skips only `UNHEALTHY`; `HEALTHY` and `UNKNOWN` preserve existing rules.
+- Static capability and local circuit state remain the fallback if Redis is unavailable.
+- Phase 7 stores no MongoDB provider-health history.
 
 ---
 
@@ -932,7 +942,8 @@ sequenceDiagram
 - `orgId` comes from authenticated context, not arbitrary query input.
 - Admin dashboard defaults to metadata.
 - High-cardinality raw data is not loaded unnecessarily.
-- Provider health may be more current than MongoDB rollups.
+- Provider health is TTL-bounded Redis current state; Phase 7 keeps no MongoDB
+  provider-health history.
 
 ---
 
@@ -1388,7 +1399,7 @@ sequenceDiagram
     participant BullMQ
     participant Worker
     participant Dependency
-    participant DeadLetterReview as Failed Job View
+    participant DeadLetterReview as BullMQ Failed Set + Safe Logs
 
     BullMQ->>Worker: Deliver job attempt 1
     Worker->>Dependency: Process operation
@@ -1413,7 +1424,8 @@ sequenceDiagram
 - Retry count is bounded.
 - Workers are idempotent.
 - Failed jobs remain visible.
-- Manual replay UI is roadmap; Bull Board is sufficient for MVP.
+- Manual replay UI and Bull Board are deferred to Phase 10 controlled tooling.
+- Failed payloads remain restricted to safe IDs and metadata.
 
 ---
 

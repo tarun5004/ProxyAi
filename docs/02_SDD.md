@@ -40,7 +40,9 @@ The system design is intentionally limited to the already approved MVP.
 - Redis idempotency, provider health, and BullMQ support; prompt-cache implementation deferred to Phase 9 prerequisites
 - MongoDB persistence
 - Metadata-only and encrypted-storage retention modes
-- Basic billing, analytics, anomaly, email, and health-check workers
+- Basic billing, analytics, anomaly, provider-health, and failed-enqueue
+  recovery workers; email delivery is deferred to Phase 8 pending provider and
+  template approval
 - Append-only audit logging
 - Basic admin dashboard APIs
 - Structured logs, core metrics, Docker Compose, and Cloud Run deployment
@@ -119,7 +121,8 @@ The MVP uses two application processes from one repository:
 
 2. **Worker process**
    - Runs BullMQ workers
-   - Performs billing, analytics, anomaly, email, and provider health jobs
+   - Performs billing, analytics, anomaly, provider-health, and failed-enqueue
+     recovery jobs
 
 Supporting services:
 
@@ -674,10 +677,24 @@ health:{providerId}
 
 Contains:
 
-- State
-- Failure count
-- Average latency
+- Safe state: `HEALTHY`, `UNHEALTHY`, or `UNKNOWN`
 - Last checked time
+
+Phase 7 keeps provider-health state in Redis only with a 120-second TTL. A
+missing, expired, or unreadable value is `UNKNOWN`. The scheduled worker runs
+every 60 seconds for provider IDs obtained from the approved enabled-provider
+registry. Queue jobs and keys never accept a client-supplied provider ID.
+
+Routing consumes this state only as a conservative eligibility overlay:
+`UNHEALTHY` skips that provider, while `HEALTHY` and `UNKNOWN` leave the existing
+capability, circuit-breaker, retry, and ordered-fallback rules unchanged. Redis
+failure therefore falls back to `UNKNOWN`; it does not create new routing
+scores or intelligence. MongoDB provider-health history is deferred to Phase
+10 observability.
+
+Adapter health maps into the Redis contract as `healthy -> HEALTHY`,
+`degraded -> UNKNOWN`, and `unhealthy -> UNHEALTHY`. A transient degraded probe
+therefore remains observable without blocking normal routing.
 
 ### BullMQ
 
@@ -694,8 +711,9 @@ The MVP may use direct BullMQ job publication instead of implementing two separa
 | `billing-queue` | Request completed | Update monthly usage and cost rollup |
 | `analytics-queue` | Request completed or policy blocked | Update daily organisation and user aggregates |
 | `anomaly-queue` | Analytics `usage.updated` | Compare scoped daily known usage with the approved rolling baseline |
-| `email-queue` | Alert created | Send notification email |
+| `email-queue` | Alert created | Deferred to Phase 8 pending provider/configuration/template approval |
 | `health-check-queue` | Repeating schedule | Check provider availability and latency |
+| `recovery-queue` | Repeating schedule | Reconcile persisted RequestLogs whose required billing/analytics publication did not complete |
 | `retention-queue` | Daily schedule | Optional cleanup support; MongoDB TTL remains primary for custom expiry |
 
 ### Common job fields
@@ -738,7 +756,9 @@ the already determined HTTP/SSE outcome.
 - Retry three times with exponential backoff.
 - Only transient dependency and availability failures are retryable. Invalid schemas, missing trusted identifiers, unsupported versions, and genuinely unavailable provider usage or pricing are terminal data outcomes.
 - After bounded retries, jobs remain in BullMQ's failed set as the MVP dead-letter/failure-visibility mechanism.
-- Bull Board is optional development tooling only and must never be exposed publicly.
+- BullMQ's failed set plus safe structured logs are the Phase 7 failure-visibility
+  source. Bull Board is deferred to optional controlled Phase 10 tooling and
+  must never be exposed publicly.
 - Email failure must not reverse billing or request completion.
 
 ## 8.17 Retention Component
@@ -1081,6 +1101,15 @@ The complete request and response contracts belong in the OpenAPI document.
 | Idempotency | Fail closed for requests that require duplicate protection; return service unavailable |
 | BullMQ publication | Log failure and return delivered response if provider response already completed; otherwise fail safely before provider call when practical |
 
+After RequestLog persistence, a failed billing or analytics enqueue creates a
+safe durable publication-recovery record. A periodic recovery job also scans
+trusted organisations in bounded cursor batches so a crash before that record
+is written remains discoverable. It reconstructs only allowlisted job fields
+from the append-only RequestLog, uses deterministic queue IDs, and relies on
+the existing worker ledgers to prevent duplicate effects. Publication recovery
+is limited to three attempts; exhausted recovery records and terminal BullMQ
+jobs remain failed and require explicit later operational action.
+
 ## 12.2 MongoDB unavailable
 
 - Readiness endpoint reports unhealthy.
@@ -1416,7 +1445,8 @@ These must be resolved before or during implementation without expanding feature
 2. Which provider and model will be the default fallback floor?
 3. Will MongoDB be local-only during MVP or use a managed development cluster?
 4. Which secure frontend hosting method will be used for the demo?
-5. Will email notifications be enabled in MVP or represented through logged jobs until credentials are available?
+5. Which provider, sender, timeout, error mapping, and template content will be
+   approved before the Phase 8 email implementation?
 6. What maximum prompt size will the API accept?
 7. Should organisation admins be permitted to view decrypted conversation content? Current design says no.
 8. What exact PII regex set will be accepted after false-positive testing?

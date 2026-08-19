@@ -85,7 +85,8 @@ The MVP does not require:
 | Trace ID | Which async jobs belong to the same business flow? | Cross-process correlation |
 | Prometheus | What is the system trend? | Time-series metrics |
 | Grafana | How can humans view those trends? | Dashboards |
-| Bull Board | Are queues healthy? | Queue depth and failed jobs |
+| BullMQ failed set | Which jobs exhausted retries? | Retained failed jobs |
+| Bull Board (Phase 10 optional) | Can controlled operators inspect queues? | Restricted queue tooling |
 | Health Endpoints | Can the process receive traffic? | Liveness and readiness |
 | Provider Health Store | Which providers are available? | Current state and latency |
 | OpenTelemetry Roadmap | Where did time go across boundaries? | Distributed traces |
@@ -1162,7 +1163,9 @@ TTL should be slightly longer than the heartbeat interval.
 
 # 47. BullMQ Observability
 
-Use Bull Board in local and staging environments.
+Phase 7 uses BullMQ's failed set plus safe structured logs as the canonical
+failed-job visibility source. Bull Board is deferred to optional controlled
+Phase 10 tooling and must never be exposed as a public admin surface.
 
 Monitor:
 
@@ -1173,9 +1176,8 @@ Monitor:
 - retries;
 - processing duration.
 
-Production access must be restricted.
-
-Bull Board is not a substitute for metrics and alerts.
+Any future Bull Board access must be restricted and is not a substitute for
+metrics and alerts.
 
 ---
 
@@ -1571,7 +1573,7 @@ A log-leak test should be part of security-critical CI where practical.
 Local setup should provide:
 
 - readable pretty logs;
-- Bull Board;
+- BullMQ failed-set inspection through local tooling;
 - `/metrics`;
 - health endpoints;
 - fake provider failure toggles;
@@ -1673,7 +1675,7 @@ Production must have:
 - add Grafana dashboard;
 - add cache and idempotency metrics;
 - add billing and anomaly metrics;
-- add Bull Board.
+- validate BullMQ failed-set visibility.
 
 ## Week 5
 
@@ -1731,7 +1733,8 @@ Production must have:
 - [ ] Log leak tests pass.
 - [ ] Metrics contain no raw IDs or content.
 - [ ] Detailed health endpoint is protected.
-- [ ] Bull Board is protected.
+- [ ] If optional Phase 10 Bull Board tooling is enabled, it is protected and
+  never publicly reachable.
 - [ ] Audit logs remain separate from app logs.
 
 ---
@@ -1766,7 +1769,8 @@ Production must have:
 9. Whether detailed health uses admin JWT or network restriction.
 10. When to introduce OpenTelemetry.
 11. Exact production alert thresholds.
-12. Whether Bull Board is enabled in production.
+12. Whether optional Phase 10 Bull Board tooling is enabled in any controlled
+    environment.
 
 ---
 
@@ -1824,7 +1828,9 @@ Observability is complete for MVP when:
 
 **Result: PASS**
 
-- Pino, Prometheus, Grafana, Bull Board, and health endpoints are sufficient for MVP.
+- Pino, Prometheus, Grafana, BullMQ failed-set visibility, and health endpoints
+  are sufficient for the MVP.
+- Bull Board remains optional controlled Phase 10 tooling.
 - One dashboard is recommended.
 - Manual trace IDs are used before OpenTelemetry.
 - Alert rules are intentionally limited.
