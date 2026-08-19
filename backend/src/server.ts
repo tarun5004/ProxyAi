@@ -1,5 +1,7 @@
 import { app } from "./app.js";
 import { env } from "./config/env.js";
+import { connectBillingQueue } from "./features/billing/billing.queue.js";
+import { disconnectBullMq } from "./shared/async/bullmq.js";
 import { logger } from "./shared/lib/logger.js";
 import { connectMongo, disconnectMongo } from "./shared/lib/mongo.js";
 import { connectRedis, disconnectRedis } from "./shared/lib/redis.js";
@@ -41,6 +43,20 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
                     event: "app.shutdown.failed",
                 },
                 "HTTP server failed to close",
+            );
+        }
+
+        try {
+            await disconnectBullMq();
+        } catch {
+            process.exitCode = 1;
+
+            logger.error(
+                {
+                    errorCode: "BULLMQ_DISCONNECT_FAILED",
+                    event: "queue.disconnect.failed",
+                },
+                "BullMQ disconnect failed",
             );
         }
 
@@ -90,4 +106,14 @@ process.once("SIGTERM", () => {
 });
 
 void connectMongo().catch(() => undefined);
-void connectRedis().catch(() => undefined);
+void connectRedis()
+    .then(connectBillingQueue)
+    .catch(() => {
+        logger.error(
+            {
+                errorCode: "ASYNC_INFRASTRUCTURE_START_FAILED",
+                event: "queue.startup.failed",
+            },
+            "Async infrastructure startup failed",
+        );
+    });

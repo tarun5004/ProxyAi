@@ -1,4 +1,5 @@
 import { Redis } from "ioredis";
+import type { RedisOptions } from "ioredis";
 
 import { env } from "../../config/env.js";
 import { logger } from "./logger.js";
@@ -14,13 +15,28 @@ export function getRedisReconnectDelay(attempt: number): number | null {
     return Math.min(attempt * 200, REDIS_MAX_RECONNECT_DELAY_MS);
 }
 
-export const redis = new Redis(env.REDIS_URL, {
-    enableOfflineQueue: false,
-    enableReadyCheck: true,
-    lazyConnect: true,
-    maxRetriesPerRequest: 1,
-    retryStrategy: getRedisReconnectDelay,
-});
+export function createRedisClient(
+    overrides: RedisOptions = {},
+): Redis {
+    return new Redis(env.REDIS_URL, {
+        enableOfflineQueue: false,
+        enableReadyCheck: true,
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+        retryStrategy: getRedisReconnectDelay,
+        ...overrides,
+    });
+}
+
+export async function closeRedisClient(client: Redis): Promise<void> {
+    if (client.status === "ready") {
+        await client.quit();
+    } else if (client.status !== "end") {
+        client.disconnect();
+    }
+}
+
+export const redis = createRedisClient();
 
 let connectionPromise: Promise<void> | undefined;
 let disconnectRequested = false;
@@ -116,11 +132,7 @@ export async function disconnectRedis(): Promise<void> {
         await connectionPromise.catch(() => undefined);
     }
 
-    if (redis.status === "ready") {
-        await redis.quit();
-    } else if (redis.status !== "end") {
-        redis.disconnect();
-    }
+    await closeRedisClient(redis);
 
     logger.info(
         {

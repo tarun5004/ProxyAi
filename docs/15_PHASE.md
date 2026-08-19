@@ -577,7 +577,7 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 **Effort:** High
 
 - [x] P7-01 — Resolve safe async job, usage, correlation, billing-idempotency, rollup, retry, and failure contracts.
-- [ ] P7-02 — Create BullMQ connection and typed payloads.
+- [x] P7-02 — Create BullMQ connection, typed payloads, validated billing queue producer, and reusable worker lifecycle foundation.
 - [ ] Propagate canonical request ID across jobs and workers; map a separate trace ID only after a future approved tracing migration.
 - [ ] Add bounded retries and backoff.
 - [ ] Add worker entrypoint and graceful shutdown.
@@ -891,7 +891,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-01 async job contract resolved; BullMQ implementation not started |
+| Phase 7 | In Progress | P7-01 contract and P7-02 BullMQ foundation complete; billing producer integration and workers remain |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -903,18 +903,19 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-02 — BullMQ Connection and Typed Payloads
+## P7-03 — Request-Completed Billing Producer Integration
 
 **Effort:** Small
 
 Do only this next:
 
-1. Reuse the approved P7-01 async job contract.
-2. Implement only shared BullMQ connections and the typed safe payload boundary.
-3. Keep usage and cost optional; never synthesize unknown values.
-4. Keep raw prompts, responses, PII values, credentials, and secrets out of jobs.
-5. Do not add producers or workers until separately approved.
-6. Do not start P7-02 without approval.
+1. Reuse the P7-02 billing queue producer without duplicating Redis or validation logic.
+2. Enqueue `request.completed` only after authoritative `RequestLog` persistence.
+3. Preserve trusted `requestId`, `orgId`, optional `userId`, provider/model, optional complete usage, and optional approved cost.
+4. Keep current budget enforcement correct while no billing worker exists.
+5. Keep raw prompts, responses, PII values, credentials, and secrets out of jobs and logs.
+6. Do not implement billing worker business logic in this task.
+7. Do not start P7-03 without approval.
 
 ---
 

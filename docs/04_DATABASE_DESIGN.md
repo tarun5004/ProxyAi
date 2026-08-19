@@ -653,7 +653,7 @@ Future user/provider/cost projections may use incremental contributions only aft
 
 ### 17.5 Idempotent billing rule
 
-A BullMQ job ID should be derived from job type plus `requestId`, for example `billing:request.completed:${requestId}`. BullMQ deduplication is only the first guard; the durable guard is a separate async job ledger with a unique `{ orgId, requestId, jobType }` index.
+A BullMQ job ID should be derived from job type plus `requestId`, for example `billing-request-completed-${requestId}`. BullMQ custom job IDs must not contain `:`. BullMQ deduplication is only the first guard; the durable guard is a separate async job ledger with a unique `{ orgId, requestId, jobType }` index.
 
 The ledger stores tenant scope, request ID, job type, `PROCESSING` or `COMPLETED` state, safe timestamps, and a bounded safe outcome. It never stores prompts, responses, PII values, secrets, token/cookie/header data, or arbitrary payloads. `RequestLog` remains append-only and must never receive `billingAppliedAt` or any worker mutation.
 

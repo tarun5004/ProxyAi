@@ -313,7 +313,7 @@ requestId
 
 ```ts
 interface AuthenticatedUserContext {
-  userId: string;
+  userId?: string;
   orgId: string;
   role: UserRole;
   permissions: UserPermission[];
