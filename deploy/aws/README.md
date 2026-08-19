@@ -18,14 +18,17 @@ hardcoded by the templates.
 
 ## Bootstrap order
 
-1. Deploy `foundation.yml`.
-2. Populate the created MongoDB, Redis, and Groq Secrets Manager secrets.
-3. Confirm Atlas and managed Redis accept private-task connectivity. Redis must
+1. Deploy `registry.yml` once per AWS account/region. Staging and production
+   promote the same two repository image digests; they do not rebuild images.
+2. Deploy `foundation.yml` separately for staging and production.
+3. Populate the created MongoDB, Redis, and Groq Secrets Manager secrets.
+4. Confirm Atlas and managed Redis accept private-task connectivity. Redis must
    use TLS, persistence appropriate to the provider, and `noeviction`.
-4. Build, scan, and push frontend/backend images by immutable SHA.
-5. Deploy `services.yml` with image digests (`repository@sha256:...`).
-6. Run the one-off backend task with `node dist/scripts/deploy-indexes.js`.
-7. Wait for ECS stability, then run the authenticated smoke suite.
+5. Build, scan, and push frontend/backend images by immutable SHA.
+6. Deploy staging `services.yml` with image digests (`repository@sha256:...`).
+7. Run the one-off backend task with `node dist/scripts/deploy-indexes.js`.
+8. After staging approval, pass the exact same digests to production.
+9. Wait for ECS stability, then run the authenticated smoke suite.
 
 The frontend and API are routed through one HTTPS origin. `/api/*` and
 `/health/*` reach the API; all other paths reach the frontend. Worker tasks are

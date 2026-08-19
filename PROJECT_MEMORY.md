@@ -908,11 +908,11 @@ npm run dev
 
 - **Task:** P12-07 — Parameterized AWS Infrastructure Definitions
 - **Status:** Completed on 2026-08-19
-- **Foundation:** `deploy/aws/foundation.yml` defines two immutable scan-on-push ECR repositories, ECS cluster, retained Secrets Manager containers, least-privilege execution/task roles, CloudWatch logs, internet-facing ALB, exact path routing, target-group health checks, security groups, and Route 53/ACM integration.
+- **Registry/foundation:** `deploy/aws/registry.yml` defines exactly two shared immutable scan-on-push ECR repositories so staging and production use identical digests. `foundation.yml` defines each environment's ECS cluster, retained Secrets Manager containers, least-privilege roles, CloudWatch logs, ALB routing, health checks, security groups, and Route 53/ACM integration.
 - **Services:** `deploy/aws/services.yml` defines independent private-subnet Fargate frontend, API, and worker services. Frontend/API use ALB target groups; worker has no listener or public IP; API and worker share one backend image digest with different commands and secret sets.
 - **Parameters:** Region remains the CloudFormation deployment context. VPC/subnets, domain, certificate, images, SHA, model, task sizing/counts, and external MongoDB/Redis connectivity remain explicit inputs rather than guessed values.
 - **Data services:** MongoDB Atlas and managed Redis are intentionally external. Secret containers are created without committing endpoint credentials; JWT and rate-limit secrets are independently generated and retained.
-- **Files changed:** `deploy/aws/foundation.yml`, `deploy/aws/services.yml`, `deploy/aws/README.md`, `docs/07_DEPLOYMENT_ARCHITECTURE.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Files changed:** `deploy/aws/registry.yml`, `deploy/aws/foundation.yml`, `deploy/aws/services.yml`, `deploy/aws/README.md`, `docs/07_DEPLOYMENT_ARCHITECTURE.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
 - **Verification:** Both YAML templates parsed locally with CloudFormation intrinsic-tag support (23 foundation resources and 6 service resources); diff-check passed. AWS service validation could not run because no local AWS credentials are configured, so first staging bootstrap must run `aws cloudformation validate-template` before create/update.
 - **Security:** ECS tasks run in private subnets without public IPs; only ALB security-group traffic reaches ports 3000/8080; secret values are runtime-injected and absent from task plaintext configuration.
 

@@ -21,52 +21,6 @@ Parameters:
     AllowedValues: [7, 14, 30, 60, 90, 120, 150, 180, 365]
 
 Resources:
-  FrontendRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub "proxiai-${EnvironmentName}-frontend"
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      ImageTagMutability: IMMUTABLE
-      LifecyclePolicy:
-        LifecyclePolicyText: |
-          {
-            "rules": [{
-              "rulePriority": 1,
-              "description": "Expire untagged images after seven days",
-              "selection": {
-                "tagStatus": "untagged",
-                "countType": "sinceImagePushed",
-                "countUnit": "days",
-                "countNumber": 7
-              },
-              "action": { "type": "expire" }
-            }]
-          }
-
-  BackendRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub "proxiai-${EnvironmentName}-backend"
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      ImageTagMutability: IMMUTABLE
-      LifecyclePolicy:
-        LifecyclePolicyText: |
-          {
-            "rules": [{
-              "rulePriority": 1,
-              "description": "Expire untagged images after seven days",
-              "selection": {
-                "tagStatus": "untagged",
-                "countType": "sinceImagePushed",
-                "countUnit": "days",
-                "countNumber": 7
-              },
-              "action": { "type": "expire" }
-            }]
-          }
-
   Cluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -319,10 +273,6 @@ Resources:
         HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
 
 Outputs:
-  FrontendRepositoryUri:
-    Value: !GetAtt FrontendRepository.RepositoryUri
-  BackendRepositoryUri:
-    Value: !GetAtt BackendRepository.RepositoryUri
   ClusterArn:
     Value: !GetAtt Cluster.Arn
   TaskExecutionRoleArn:

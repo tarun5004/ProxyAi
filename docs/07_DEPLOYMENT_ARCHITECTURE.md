@@ -208,8 +208,10 @@ rollback does not automatically roll back database changes.
 
 ## 12.1 Infrastructure definitions
 
-- `deploy/aws/foundation.yml` creates immutable ECR repositories, ECS cluster,
-  CloudWatch log groups, retained Secrets Manager secrets, least-privilege ECS
+- `deploy/aws/registry.yml` creates the two shared immutable ECR repositories
+  used to promote identical image digests from staging to production.
+- `deploy/aws/foundation.yml` creates the environment ECS cluster, CloudWatch
+  log groups, retained Secrets Manager secrets, least-privilege ECS
   roles, ALB/target groups, HTTPS routing, security groups, and Route 53 alias.
 - `deploy/aws/services.yml` creates separate frontend, API, and worker Fargate
   task definitions/services from immutable image digest parameters.

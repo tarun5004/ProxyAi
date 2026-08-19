@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Shared immutable ProxiAI release image repositories.
+
+Parameters:
+  FrontendRepositoryName:
+    Type: String
+    Default: proxiai-frontend
+  BackendRepositoryName:
+    Type: String
+    Default: proxiai-backend
+
+Resources:
+  FrontendRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref FrontendRepositoryName
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Expire untagged images after seven days",
+              "selection": {
+                "tagStatus": "untagged",
+                "countType": "sinceImagePushed",
+                "countUnit": "days",
+                "countNumber": 7
+              },
+              "action": { "type": "expire" }
+            }]
+          }
+
+  BackendRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref BackendRepositoryName
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Expire untagged images after seven days",
+              "selection": {
+                "tagStatus": "untagged",
+                "countType": "sinceImagePushed",
+                "countUnit": "days",
+                "countNumber": 7
+              },
+              "action": { "type": "expire" }
+            }]
+          }
+
+Outputs:
+  FrontendRepositoryUri:
+    Value: !GetAtt FrontendRepository.RepositoryUri
+  BackendRepositoryUri:
+    Value: !GetAtt BackendRepository.RepositoryUri
