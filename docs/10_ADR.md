@@ -1350,7 +1350,7 @@ Rejected because it is unnecessary for MVP.
 
 ---
 
-# ADR-022 — Deploy the API to GCP Cloud Run
+# ADR-022 — Deploy Containers to AWS ECS/Fargate
 
 ## Status
 
@@ -1362,7 +1362,10 @@ The API needs a simple managed deployment with automatic scaling and low idle co
 
 ## Decision
 
-Deploy the API container to GCP Cloud Run.
+Deploy frontend, API, and BullMQ worker containers to AWS ECS/Fargate behind an
+Application Load Balancer. Store frontend and backend images in ECR, reuse the
+backend image for API and worker commands, and inject runtime secrets from AWS
+Secrets Manager.
 
 Initial configuration should use:
 
@@ -1380,7 +1383,8 @@ Rejected due to operational complexity.
 
 ### Self-managed VM for all components
 
-Not selected for the API because Cloud Run provides simpler managed scaling.
+Not selected because ECS/Fargate provides the approved managed container
+boundary without introducing Kubernetes.
 
 ## Consequences
 
@@ -1424,11 +1428,11 @@ Acceptable MVP options:
 
 - a small VM;
 - a managed container service that supports continuous background processing;
-- carefully verified Cloud Run configuration with at least one active instance and appropriate CPU behavior.
+- a separate ECS/Fargate worker service with an explicit desired count and verified heartbeat.
 
 ## Alternatives Considered
 
-### Ordinary scale-to-zero Cloud Run service
+### Request-driven scale-to-zero worker runtime
 
 Rejected because jobs may remain unprocessed.
 
@@ -1810,7 +1814,7 @@ Rejected because it is inaccurate.
 |---|---|---|
 | Microservices | Rejected for MVP | Too much operational complexity |
 | Kafka | Rejected for MVP | BullMQ is sufficient at expected scale |
-| Kubernetes/GKE | Rejected for MVP | Cloud Run and simple worker hosting are enough |
+| Kubernetes/EKS | Rejected for MVP | ECS/Fargate is sufficient for the approved deployment |
 | WebSockets | Rejected for chat MVP | One-way fetch streaming is sufficient |
 | ML intent classifier | Deferred | Rule-based logic is easier to test and explain |
 | NER-based PII system | Deferred | Regex-based MVP is more realistic |
@@ -2021,7 +2025,7 @@ The ADRs align with:
 - MongoDB database design;
 - authenticated fetch-streaming API;
 - security threat model;
-- Cloud Run deployment architecture;
+- AWS ECS/Fargate deployment architecture;
 - testing release gates;
 - beginner-friendly README.
 

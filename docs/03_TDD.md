@@ -41,7 +41,7 @@ The goal is to let one developer implement the MVP without repeatedly redesignin
 - BullMQ workers for billing, analytics, anomaly, email, and health checks
 - Append-only audit logging
 - Basic admin metrics and filtered logs
-- Pino logs, Prometheus metrics, health endpoints, Docker, and Cloud Run
+- Pino logs, health endpoints, Docker, ECS/Fargate, and CloudWatch logs
 
 ### 3.2 Explicitly deferred
 
@@ -75,7 +75,7 @@ The goal is to let one developer implement the MVP without repeatedly redesignin
 | Logging | Pino | Structured JSON with redaction |
 | Metrics | prom-client | `/metrics` endpoint |
 | Containers | Docker + Compose | Local parity with deployment |
-| Deployment | GCP Cloud Run | Manual deploy for MVP |
+| Deployment | AWS ECS/Fargate | GitHub Actions with protected production promotion |
 
 ## 5. Backend Project Structure
 
@@ -1277,7 +1277,7 @@ interface EncryptionService {
 }
 ```
 
-The MVP uses one application master key from the environment. This is acceptable for the local/demo MVP only. GCP Secret Manager and per-organisation keys remain roadmap items.
+The MVP uses one application master key from the environment. This is acceptable for the local/demo MVP only. AWS Secrets Manager injection is required before encrypted storage is deployed; per-organisation keys remain roadmap items.
 
 ## 26.4 Persistence enforcement
 
@@ -1822,9 +1822,12 @@ Returns `200` only when:
 
 - MongoDB is connected.
 - Redis is connected.
-- At least one provider is configured and not known to be down.
 
 Returns `503` otherwise.
+
+Provider health is separate routing/operational state. It must not make the
+base API process unready because transient provider degradation is handled by
+the approved routing, retry, circuit-breaker, and fallback flow.
 
 ### 39.3 `/health/detailed`
 
@@ -2057,7 +2060,7 @@ node dist/worker.js
 
 The API and worker use the same image but different commands.
 
-## 45. Cloud Run MVP Deployment
+## 45. AWS ECS/Fargate MVP Deployment
 
 Recommended services:
 
@@ -2065,7 +2068,7 @@ Recommended services:
 2. `proxiai-worker`
 3. Frontend hosted separately or as a static build service
 
-Important limitation: Cloud Run is not ideal for permanently running BullMQ workers when configured to scale to zero. For the portfolio MVP, either keep one worker instance available or run the worker on a simple always-on environment. This operational decision must be tested before claiming production readiness.
+The API and BullMQ worker run as separate ECS services from the same backend image. The worker has no HTTP listener, uses an explicit desired-count deployment parameter, and must remain continuously available. Deployment readiness requires worker heartbeat and queue-processing smoke evidence.
 
 The API may use minimum instances `0` during development and demo. Increase to `1` only when cold-start latency matters.
 
@@ -2134,7 +2137,7 @@ Exit gate: end-to-end demo works in browser for employee and organisation admin.
 4. Health endpoints
 5. Docker multi-stage builds
 6. Docker Compose cleanup
-7. Cloud Run deployment test
+7. ECS/Fargate deployment test
 8. Final integration and E2E tests
 9. Documentation updates
 
@@ -2185,7 +2188,7 @@ The TDD implementation is complete when:
 5. One environment master key protects encrypted content.
 6. Prompt-cache implementation and response replay remain deferred to Phase 9 safe-storage/accounting prerequisites; the approved future contract is restricted to low-risk requests with zero detected spans.
 7. No full-text search over encrypted prompt content.
-8. Worker hosting on Cloud Run requires careful minimum-instance configuration.
+8. Worker desired count, task sizing, and autoscaling remain explicit deployment parameters.
 9. Provider cost tables may need manual updates.
 10. The design supports compliance evidence but does not make ProxiAI certified.
 

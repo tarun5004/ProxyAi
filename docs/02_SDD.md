@@ -45,7 +45,7 @@ The system design is intentionally limited to the already approved MVP.
   template approval
 - Append-only audit logging
 - Basic admin dashboard APIs
-- Structured logs, core metrics, Docker Compose, and Cloud Run deployment
+- Structured logs, core metrics, Docker Compose, and AWS ECS/Fargate deployment
 
 ### 3.2 Explicitly deferred
 
@@ -108,7 +108,7 @@ The user never calls an LLM provider directly through the product. Every request
 | Async processing | Billing, analytics, anomaly, email, and health workers |
 | Data layer | MongoDB repositories and Redis-backed state |
 | Provider integration | Groq, Gemini, and one additional provider adapter |
-| Operations | Pino logs, Prometheus metrics, health endpoints, Docker and Cloud Run |
+| Operations | Pino logs, health endpoints, Docker, ECS/Fargate, and CloudWatch logs |
 
 ### 6.2 Deployable units
 
@@ -1247,19 +1247,19 @@ Docker Compose
 - Persist MongoDB and Redis through named volumes.
 - Use hot reload only in development targets.
 
-## 15.2 Production MVP on GCP
+## 15.2 Production MVP on AWS
 
 ```text
 Browser
-  -> Frontend hosting
-  -> Cloud Run API service
-       -> MongoDB managed service
-       -> Managed Redis or approved Redis service
-       -> External LLM providers
-  -> Cloud Run Worker service
+  -> Route 53 / ACM / public ALB
+       -> ECS/Fargate frontend service
+       -> ECS/Fargate API service
+            -> MongoDB Atlas
+            -> managed Redis compatible with BullMQ
+            -> external LLM providers
+  -> ECS/Fargate worker service in private subnets
        -> Redis/BullMQ
-       -> MongoDB
-       -> Email provider
+       -> MongoDB Atlas
 ```
 
 ### Production container rules
@@ -1287,7 +1287,9 @@ Checks:
 
 - MongoDB connectivity
 - Redis connectivity
-- At least one configured provider is available or not known to be unavailable
+
+Provider health remains routing/operational state and is intentionally not a
+base API readiness dependency.
 
 ### `/health/detailed`
 
@@ -1365,7 +1367,7 @@ The process must fail startup when a required production configuration is missin
 - Health endpoints
 - Docker Compose
 - Multi-stage Dockerfile
-- Cloud Run deployment
+- AWS ECS/Fargate deployment
 - End-to-end tests
 - Security review
 - Documentation cleanup
@@ -1422,7 +1424,7 @@ The full testing strategy will be a separate document. Minimum system-design cov
 | Messaging | BullMQ job publication | Simpler than separate Pub/Sub plus queues |
 | Pagination | Cursor-based | Stable and index-friendly |
 | Content protection | AES-256-GCM | Authenticated encryption |
-| Deployment | Docker plus Cloud Run | Beginner-manageable and scalable enough for MVP |
+| Deployment | Docker plus AWS ECS/Fargate | Separate long-running API and worker services |
 
 ## 21. Known Limitations
 
@@ -1474,7 +1476,7 @@ These must be resolved before or during implementation without expanding feature
 | Anomaly alerts | Anomaly worker and Alert collection |
 | Admin dashboard | Admin APIs and frontend pages |
 | Observability | Pino, metrics, health endpoints |
-| Deployment | Docker Compose and Cloud Run |
+| Deployment | Docker Compose and AWS ECS/Fargate |
 
 ## 24. Definition of System-Design Completion
 

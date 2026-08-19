@@ -1147,24 +1147,20 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant CloudRun
+    participant ALB
     participant API
     participant MongoDB
     participant Redis
-    participant ProviderHealth
 
-    CloudRun->>API: GET /health/ready
+    ALB->>API: GET /health/ready
     API->>MongoDB: Check connection
     MongoDB-->>API: Connected or failed
     API->>Redis: PING
     Redis-->>API: Connected or failed
-    API->>ProviderHealth: Check at least one eligible provider
-    ProviderHealth-->>API: Healthy provider available?
-
     alt All required dependencies ready
-        API-->>CloudRun: 200 READY
+        API-->>ALB: 200 READY
     else Dependency unavailable
-        API-->>CloudRun: 503 NOT_READY
+        API-->>ALB: 503 NOT_READY
     end
 ```
 

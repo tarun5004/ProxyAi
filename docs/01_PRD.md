@@ -17,7 +17,7 @@
 
 ProxiAI is a multi-tenant AI gateway that sits between employees and external Large Language Model providers. Instead of employees directly sending prompts to different AI vendors, ProxiAI receives the prompt, checks it for sensitive information, applies organisation policy, selects an eligible provider, streams the response, and records usage and audit information.
 
-The MVP is intentionally limited for a beginner solo developer. It focuses on a working end-to-end flow rather than full enterprise scale. The first version will include authentication, organisation isolation, chat, three provider adapters, basic PII detection, policy decisions, simple intelligent routing, circuit breaker and fallback, Server-Sent Events streaming, Redis-based idempotency, MongoDB persistence, basic audit logs, background jobs, a small admin dashboard, Docker-based local setup, and a simple Cloud Run deployment path. Secure prompt-cache and response-replay contracts are documented, but their implementation is deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
+The MVP is intentionally limited for a beginner solo developer. It focuses on a working end-to-end flow rather than full enterprise scale. The first version includes authentication, organisation isolation, chat, provider abstraction, deterministic PII detection, policy decisions, routing resilience, Server-Sent Events streaming, Redis-based idempotency, MongoDB persistence, background jobs, Docker-based local setup, and an AWS ECS/Fargate deployment path. The Phase 8 admin dashboard remains planned after first deployment. Secure prompt-cache and response-replay contracts are documented, but their implementation is deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
 
 The MVP will not include advanced machine-learning classification, Kafka, SAML/SSO, multi-region deployment, sophisticated approval workflows, distributed circuit-breaker state, or seamless mid-stream provider splicing.
 
@@ -221,7 +221,7 @@ The MVP should keep this role minimal and should not create a full platform-mana
 | Audit | Append-only audit records for important actions |
 | Dashboard | Basic KPIs, logs, filters, cursor pagination, alerts |
 | Observability | Pino logs and core Prometheus metrics |
-| Deployment | Docker Compose and manual Cloud Run deployment |
+| Deployment | Docker Compose and AWS ECS/Fargate through GitHub Actions |
 
 ### 8.2 Not included in MVP
 
@@ -951,7 +951,7 @@ Deliverables:
 - Liveness and readiness endpoints.
 - Multi-stage Dockerfile.
 - Docker Compose local environment.
-- Manual GCP Cloud Run deployment instructions.
+- Parameterized AWS ECS/Fargate deployment instructions.
 - Final testing and README.
 
 Exit criteria:
@@ -974,7 +974,7 @@ Exit criteria:
 | Cost estimates are inaccurate | Medium | Label cost as estimated and keep pricing config centralised |
 | Secret leakage | High | Redaction, environment configuration, and no secrets in repository |
 | Cross-tenant bug | Critical | Central organisation middleware and tenant-isolation tests |
-| Cloud Run cold start | Low for MVP | Accept scale-to-zero for demo deployment |
+| ECS task cold start | Low for MVP | Keep explicit desired-count and rollback parameters |
 
 ## 19. Assumptions
 
@@ -984,7 +984,7 @@ Exit criteria:
 4. Three providers can be configured, but their exact names may depend on available free or trial access.
 5. Cost values are estimates based on configured provider pricing.
 6. The first deployment is a demo or portfolio deployment, not a regulated production environment.
-7. One Cloud Run region is sufficient for the MVP.
+7. One explicitly selected AWS region is sufficient for the MVP.
 8. Team-lead functionality is basic and can use request-log filtering rather than a separate complex module.
 
 ## 20. Open Questions

@@ -872,7 +872,7 @@ This helps prevent moving ciphertext between organisations or fields without det
 
 ### 22.4 Key handling
 
-- The master encryption key comes from environment configuration for MVP and later from GCP Secret Manager.
+- The master encryption key comes from environment configuration for MVP and from AWS Secrets Manager when encrypted storage is deployed.
 - The key is never stored in MongoDB.
 - `keyVersion` allows future rotation.
 - The MVP may use one application-level master key, but the design must not claim per-organisation cryptographic isolation.

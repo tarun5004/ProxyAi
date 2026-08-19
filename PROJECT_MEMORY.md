@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 7 — Background Jobs, Billing, and Alerts (Completed)
-- **Task:** P7-11 — Durable Enqueue Recovery
-- **Status:** Completed and verified on 2026-08-19; Phase 8 not started
+- **Phase:** Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
+- **Task:** P12-01 — AWS deployment contract alignment
+- **Status:** Documentation aligned; deployment implementation in progress; Phase 8 remains deferred
 
 ## Completed Tasks
 
@@ -261,7 +261,7 @@ npm run dev
 
 ## Documentation Gaps
 
-- `docs/07_DEPLOYMENT_ARCHITECTURE.md` is referenced by existing documents but is missing. It is not required for P1-02 and must not be recreated during this task.
+- The missing `docs/07_DEPLOYMENT_ARCHITECTURE.md` gap is resolved with the canonical AWS ECS/Fargate deployment contract.
 - The origin-variable and authentication token-TTL naming mismatches are resolved. Future encryption-key names still require reconciliation before their PHASE task.
 - The OpenAPI readiness example includes `providerAvailable`, while P1-06 explicitly requires only MongoDB and Redis readiness. P1-06 follows the active phase scope; provider readiness remains deferred until provider abstraction exists.
 - The tenant login contract is reconciled around organisation slug plus per-organisation email. Platform-level identity remains a separate future design and must not be represented as a tenant `SUPER_ADMIN` User.
@@ -785,6 +785,16 @@ npm run dev
 - **Completed commit:** `feat(async): add durable enqueue recovery`.
 - **Next task:** Phase 8 readiness audit only, after explicit approval.
 
+## Deployment Readiness Contract
+
+- **Platform:** AWS ECR + ECS/Fargate + ALB + Route 53 + ACM + Secrets Manager + CloudWatch, with MongoDB Atlas and a managed Redis service compatible with BullMQ.
+- **Services:** One frontend service, one API service, and one separate always-on BullMQ worker service. API and worker reuse the same backend image with different commands.
+- **Public origin:** One canonical origin per environment. ALB routes `/api/*` and `/health/*` to API and other paths to frontend; browser API calls use same-origin relative paths so one frontend image can be promoted unchanged.
+- **Secrets:** Runtime application secrets belong in AWS Secrets Manager. GitHub Actions uses AWS OIDC; no long-lived AWS key or application secret enters Git, image layers, build arguments, frontend bundles, or logs.
+- **Release:** Build SHA-tagged images once, deploy exact digests to staging, run smoke tests, require production approval, and promote the same digests. Rollback selects previously recorded task definitions/digests.
+- **Parameters:** Region, domains, hosted zone/certificate, networking, task sizes/counts, MongoDB networking, Redis product/settings, IAM identities, and smoke credentials must be provided explicitly and are not invented in source.
+- **Phase order:** Phase 12 deployment readiness is explicitly accelerated after Phase 7. Phase 8 Admin UI and later product phases remain planned and deferred, not cancelled.
+
 ## Previous Contract Task — P7-08
 
 - **Task:** P7-08 — Safe Alert Email Notification Contract
@@ -896,7 +906,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Phase 8 readiness audit only after explicit approval; do not start Phase 8 implementation automatically.
+- P12-02 — Implement same-origin immutable frontend deployment configuration; do not start Phase 8.
 
 ## Do Not Forget
 

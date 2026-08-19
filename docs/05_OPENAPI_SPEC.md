@@ -1542,8 +1542,7 @@ Public, but output is intentionally minimal.
   "status": "ready",
   "checks": {
     "mongo": "up",
-    "redis": "up",
-    "providerAvailable": true
+    "redis": "up"
   },
   "time": "2026-07-23T10:30:00.000Z"
 }
@@ -1556,8 +1555,7 @@ Public, but output is intentionally minimal.
   "status": "not_ready",
   "checks": {
     "mongo": "up",
-    "redis": "down",
-    "providerAvailable": true
+    "redis": "down"
   },
   "time": "2026-07-23T10:30:00.000Z"
 }

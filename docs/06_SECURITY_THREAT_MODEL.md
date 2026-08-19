@@ -54,7 +54,7 @@ It does not claim that ProxiAI is SOC 2, ISO 27001, PCI DSS, HIPAA, or any other
 - Prompt cache and idempotency keys
 - Request logs and append-only audit logs
 - Admin dashboard and CSV audit export
-- Docker and GCP Cloud Run deployment
+- Docker and AWS ECS/Fargate deployment
 - Pino logging and Prometheus metrics
 - Email notifications only after an approved provider, validated runtime
   configuration, trusted `ORG_ADMIN` recipient lookup, and allowlisted template
@@ -68,7 +68,7 @@ The following are not added to the MVP:
 - SSO or SAML
 - Customer-managed encryption keys
 - Hardware security modules
-- Full GCP Secret Manager integration if local encrypted storage is used for the first demo
+- Full AWS Secrets Manager integration before deployed encrypted storage is enabled
 - BYOK management UI or production BYOK workflow
 - Custom policy language
 - Approval workflow
@@ -93,7 +93,7 @@ The following are not added to the MVP:
 5. **Redis** — stores prompt-cache entries, idempotency state, rate-limit counters, provider-health state, and BullMQ data.
 6. **External LLM providers** — receive only prompts allowed by policy and return model output.
 7. **Email and payment providers** — receive only the minimum information required for approved workflows.
-8. **Cloud Run and container runtime** — host the API and worker processes.
+8. **ECS/Fargate and container runtime** — host separate frontend, API, and worker processes.
 9. **Operator/admin environment** — deploys the service and manages runtime secrets and configuration.
 
 ### 4.2 Security-sensitive request flow
@@ -719,7 +719,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | S, R |
 | Risk | Medium |
 | Scenario | Attacker spoofs IP used for audit or rate limiting. |
-| Prevention | Configure Express `trust proxy` specifically for Cloud Run/proxy environment; do not blindly trust arbitrary forwarding chains. |
+| Prevention | Configure Express `trust proxy` only for the approved ALB/proxy boundary; do not blindly trust arbitrary forwarding chains. |
 | Detection | Deployment tests and comparison with platform request logs. |
 
 ## 13. Authentication Security Design
@@ -1153,7 +1153,7 @@ persistence remains Phase 9.
 - Add `.dockerignore`.
 - Scan image before production deployment where practical.
 
-### 21.2 Cloud Run
+### 21.2 AWS ECS/Fargate
 
 - HTTPS endpoint only.
 - Least-privilege runtime service account.
@@ -1364,7 +1364,7 @@ A solo developer should use checklists and automated tests to compensate for lac
 
 - Multi-stage non-root image
 - Runtime secrets
-- Cloud Run service account review
+- ECS task-role and execution-role review
 - Database/Redis access controls
 - Secret and dependency scans
 - Release-gate checklist
@@ -1389,7 +1389,7 @@ These questions must be resolved before a public production launch:
 | ID | Question | MVP handling |
 |---|---|---|
 | OQ-SEC-001 | Which exact third provider is supported alongside Groq and Gemini? | Configure only reviewed provider adapters. |
-| OQ-SEC-002 | Where will the encryption master key be stored for the deployed demo? | Use Cloud Run secret injection or equivalent runtime secret. |
+| OQ-SEC-002 | Where will the encryption master key be stored for the deployed demo? | Use AWS Secrets Manager runtime injection. |
 | OQ-SEC-003 | Will access-token requests check current user/session state on every call? | Prefer active-user lookup or short-lived cached session state. |
 | OQ-SEC-004 | What are final prompt-size and concurrent-stream limits? | Choose conservative limits after local load testing. |
 | OQ-SEC-005 | Is Razorpay part of the five-week implementation or documentation-only? | Do not expose webhook until signature verification and idempotency tests pass. |

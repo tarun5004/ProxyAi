@@ -134,9 +134,9 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 7 — Background Jobs, Billing, and Alerts (Completed)
-Current Task: Phase 8 not started; awaiting explicit approval
-Current Status: P7-11 completed and all approved Phase 7 exit criteria verified
+Current Phase: Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
+Current Task: P12-01 — Align AWS ECS and CI/CD release contracts
+Current Status: Phase 8 product work explicitly deferred until after first live deployment
 Current Blocker: None
 Last Completed Task: P7-11 — Durable Enqueue Recovery
 Last Completed Commit: feat(async): add durable enqueue recovery
@@ -857,6 +857,19 @@ response, PII, credential, or secret is stored or logged.
 
 **Effort:** High
 
+Phase 12 is explicitly accelerated after Phase 7 for first-live-deployment
+readiness. Phases 8–11 remain planned and are not cancelled.
+
+- [x] P12-01 — Align AWS ECS/Fargate deployment and CI/CD contracts.
+- [ ] P12-02 — Make frontend configuration immutable across environments.
+- [ ] P12-03 — Separate API and BullMQ worker production entrypoints.
+- [ ] P12-04 — Add production frontend/backend Docker images.
+- [ ] P12-05 — Add a production-like local Compose stack.
+- [ ] P12-06 — Add an idempotent production index deployment command.
+- [ ] P12-07 — Add parameterized AWS infrastructure definitions.
+- [ ] P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback.
+- [ ] P12-09 — Verify staging/production-like release smoke and rollback.
+
 - [ ] Multi-stage backend Dockerfile.
 - [ ] Non-root runtime.
 - [ ] Production dependencies only.
@@ -1027,23 +1040,23 @@ Do not randomly change several files.
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
 | Phase 7 | Completed | Provider health and durable billing/analytics enqueue recovery verified; email delivery waived to Phase 8 |
-| Phase 8 | Not Started | |
+| Phase 8 | Deferred | Planned after first live deployment; not cancelled |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
-| Phase 12 | Not Started | |
+| Phase 12 | In Progress | Accelerated deployment-readiness work; P12-01 AWS contract aligned |
 | Phase 13 | Not Started | |
 
 ---
 
 # 26. Immediate Next Task
 
-## Phase 8 Readiness Audit — Awaiting Approval
+## P12-02 — Immutable Frontend Deployment Configuration
 
 **Effort:** Medium
 
-P7-11 and Phase 7 are complete. Do not begin Phase 8 implementation until an
-explicit Phase 8 readiness audit and task approval are provided.
+Use same-origin relative API paths through the ALB so the same frontend image
+digest can move from staging to production. Do not start Phase 8 product work.
 
 ---
 

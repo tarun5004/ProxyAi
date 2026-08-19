@@ -61,7 +61,7 @@ The approved MVP includes:
 - cursor-based pagination and filtering;
 - structured logs, core metrics, and health endpoints;
 - Docker-based local development;
-- a simple GCP deployment path.
+- a Docker-based AWS ECS/Fargate deployment path.
 
 ---
 
@@ -196,8 +196,8 @@ The API and worker may use the same backend image but run with different command
 | Email | Provider not selected | Safe `alert.created` contract approved; delivery deferred pending provider and configuration approval |
 | Payment | Razorpay | Optional subscription integration after core flow |
 | Containerization | Docker + Docker Compose | Local and production packaging |
-| Deployment | GCP Cloud Run for API | Managed HTTP runtime |
-| Secrets | Environment variables locally; GCP Secret Manager in deployment | Secret injection |
+| Deployment | AWS ECS/Fargate for frontend, API, and worker | Separate managed container services |
+| Secrets | Environment variables locally; AWS Secrets Manager in deployment | Runtime secret injection |
 
 ---
 
@@ -799,7 +799,7 @@ Deploy the built React application to a static hosting service. A containerized 
 
 ### API
 
-Deploy the backend API image to GCP Cloud Run.
+Deploy immutable frontend and backend images to Amazon ECR and ECS/Fargate.
 
 Recommended MVP characteristics:
 
@@ -807,15 +807,15 @@ Recommended MVP characteristics:
 - non-root container user;
 - production-only dependencies;
 - secrets injected at runtime;
-- Cloud Run liveness/readiness integration;
+- ALB/ECS liveness and readiness integration;
 - bounded maximum instances to control provider cost;
 - one region for the MVP.
 
 ### Worker
 
-A continuously polling BullMQ worker must run in an environment that remains active when no HTTP request is arriving. Do not assume an ordinary scale-to-zero Cloud Run service will continuously process Redis queues.
+A continuously polling BullMQ worker runs as a separate always-on ECS service and must not depend on API traffic.
 
-For the MVP, use one small always-running worker process, or use a Cloud Run configuration only after confirming minimum-instance and CPU behavior for background processing.
+Worker task CPU, memory, desired count, and autoscaling are explicit deployment parameters and must be verified through staging queue and heartbeat checks.
 
 See [`docs/07_DEPLOYMENT_ARCHITECTURE.md`](docs/07_DEPLOYMENT_ARCHITECTURE.md).
 
@@ -915,7 +915,7 @@ Do not start payment automation or advanced roadmap features before the core pro
 | [`docs/04_DATABASE_DESIGN.md`](docs/04_DATABASE_DESIGN.md) | MongoDB collections, indexes, retention, and Redis keys |
 | [`docs/05_OPENAPI_SPEC.md`](docs/05_OPENAPI_SPEC.md) | API contract, errors, streaming, and endpoint schemas |
 | [`docs/06_SECURITY_THREAT_MODEL.md`](docs/06_SECURITY_THREAT_MODEL.md) | Assets, trust boundaries, threats, mitigations, and security gates |
-| [`docs/07_DEPLOYMENT_ARCHITECTURE.md`](docs/07_DEPLOYMENT_ARCHITECTURE.md) | Environments, containers, Cloud Run, workers, rollback, and operations |
+| [`docs/07_DEPLOYMENT_ARCHITECTURE.md`](docs/07_DEPLOYMENT_ARCHITECTURE.md) | AWS environments, containers, ECS services, workers, rollback, and operations |
 | [`docs/08_TESTING_STRATEGY.md`](docs/08_TESTING_STRATEGY.md) | Unit, integration, security, E2E, performance, and release testing |
 | [`docs/09_README.md`](docs/09_README.md) | Project entry point and developer setup |
 
@@ -1090,7 +1090,7 @@ Commands, scripts, URLs, and environment variables are marked as expected or rec
 
 ### Deployment audit — PASS WITH DOCUMENTED LIMITATION
 
-The API is suitable for Cloud Run. The continuously polling BullMQ worker requires an always-active runtime or a carefully validated Cloud Run configuration.
+The API and continuously polling BullMQ worker deploy as separate ECS/Fargate services from the same backend image.
 
 ### Documentation consistency audit — PASS
 
