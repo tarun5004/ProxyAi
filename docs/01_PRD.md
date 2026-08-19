@@ -553,11 +553,25 @@ The MVP may use estimated provider cost rather than invoice-grade billing accura
 
 ### FR-ALERT-001 — Simple anomaly detection
 
-A background worker shall compare a request or daily usage value with the user's recent average.
+When `Organisation.featureFlags.anomalyDetection` is enabled, a background
+worker shall compare the user's current UTC-day known token total with the
+average from prior active days in the previous seven UTC days. An active
+baseline day is a day whose token usage is fully known. Unknown-usage days are
+excluded and are never treated as zero. At least three prior active days are
+required; otherwise no anomaly decision is made.
+
+Request-level, request-volume, blocked-request-rate, and provider-error anomaly
+detection are outside the MVP contract.
 
 ### FR-ALERT-002 — Create alert
 
-When usage exceeds the configured multiplier, an alert record shall be created.
+When current daily known tokens are greater than two times the approved
+seven-day active-day average, one tenant-scoped `HIGH`, `OPEN` anomaly alert
+shall be created for that organisation, user, and observed UTC day.
+
+Only one unresolved `{ orgId, userId, observedDay, ANOMALY }` alert may exist.
+Re-evaluation updates or resolves that same alert and must not create a
+duplicate. P7-07 does not enqueue email or notification work.
 
 ### FR-ALERT-003 — Resolve alert
 

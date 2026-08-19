@@ -1346,7 +1346,7 @@ security events only and does not create the MongoDB audit collection.
 |---|---|---|---|
 | `billing-queue` | `request.completed` | Chat finalizer | Billing worker |
 | `analytics-queue` | `request.completed`, `request.blocked` | Chat outcome finalizer | Analytics worker |
-| `anomaly-queue` | `usage.updated` | Analytics/billing | Anomaly worker |
+| `anomaly-queue` | `usage.updated` | Analytics worker only | Anomaly worker |
 | `email-queue` | `alert.created` | Alert service | Email worker |
 | `health-check-queue` | `provider.health_check` | Repeat scheduler | Health worker |
 
@@ -1523,19 +1523,38 @@ advanced analytics are outside this minimal worker task.
 MVP rule:
 
 ```text
-current daily user tokens > 2 × previous 7-day daily average
+current UTC-day user known tokens > 2 × previous 7-day active-day average
 ```
 
-Do not flag when there is insufficient baseline data. Recommended minimum: 3 previous active days.
+Baseline rules:
+
+- Use only prior days with fully known token usage.
+- Exclude unknown-usage days; never convert unknown usage to zero.
+- Require at least three prior active days in the previous seven UTC days.
+- If fewer than three qualifying days exist, produce no anomaly decision.
+- Evaluate only when the tenant's trusted
+  `Organisation.featureFlags.anomalyDetection` value is `true`.
+
+The anomaly severity is `HIGH`, and a newly created alert starts as `OPEN`.
+Request-level, request-volume, blocked-rate, and provider-error anomaly rules
+are not part of the MVP.
 
 ### 30.3 Alert deduplication
 
-Only one unresolved anomaly alert per user per day.
+Only one unresolved `{ orgId, userId, observedDay, ANOMALY }` alert may exist.
+Duplicate or retried `usage.updated` jobs must atomically update the existing
+same-day alert. Re-evaluation may update or resolve that record and must not
+create another alert.
 
 ### 30.4 Other Phase 7 job ownership
 
 - Analytics consumes `request.completed` and `request.blocked`, creates tenant-scoped daily aggregates, and treats absent usage/cost as unknown rather than zero.
-- Anomaly consumes `usage.updated`, evaluates only approved aggregate token data, and emits an `alert.created` reference without prompt or response content.
+- Analytics is the only `usage.updated` producer. The job contains trusted
+  tenant/user scope and a safe aggregate reference; it contains no prompt,
+  response, PII, secret, or email data.
+- Anomaly consumes `usage.updated`, evaluates only approved aggregate known
+  token data, and persists the safe tenant-scoped anomaly alert. P7-07 does not
+  enqueue `alert.created`, email, or notification work.
 - Email consumes `alert.created` with trusted IDs and an allowlisted template identifier. It loads recipient data through tenant-scoped storage; email addresses and rendered bodies are not queue payload fields. The delivery provider and credential configuration remain unresolved and must be approved before implementation.
 - Provider health consumes `provider.health_check`, is platform-scoped, and carries provider ID, request ID, schema version, and schedule timestamp only.
 

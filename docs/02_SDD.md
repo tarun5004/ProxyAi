@@ -693,7 +693,7 @@ The MVP may use direct BullMQ job publication instead of implementing two separa
 |---|---|---|
 | `billing-queue` | Request completed | Update monthly usage and cost rollup |
 | `analytics-queue` | Request completed or policy blocked | Update daily organisation and user aggregates |
-| `anomaly-queue` | Request completed | Compare usage with rolling average |
+| `anomaly-queue` | Analytics `usage.updated` | Compare scoped daily known usage with the approved rolling baseline |
 | `email-queue` | Alert created | Send notification email |
 | `health-check-queue` | Repeating schedule | Check provider availability and latency |
 | `retention-queue` | Daily schedule | Optional cleanup support; MongoDB TTL remains primary for custom expiry |
@@ -854,13 +854,29 @@ orgId + period + optional userId
 
 ### MVP rule
 
-Flag a request or daily total when usage is greater than twice the user's seven-day average, provided there is enough history.
+The TDD daily rule is canonical. When the tenant's `anomalyDetection` feature
+flag is enabled, compare the user's current UTC-day known token total with the
+average of prior active days in the previous seven UTC days. An active baseline
+day has fully known token usage; unknown-usage days are excluded rather than
+treated as zero. At least three prior active days are required.
+
+Create an anomaly only when:
+
+```text
+current daily known tokens > 2 × previous 7-day active-day average
+```
+
+No request-level, request-volume, blocked-rate, or provider-error anomaly rule
+is included in the MVP.
 
 ### Output
 
-- Create one alert record
-- Avoid duplicate unresolved alerts for the same user and day
-- Publish an email job
+- Create or update one tenant-scoped `HIGH` anomaly alert with initial status
+  `OPEN`.
+- Enforce one unresolved alert for `{ orgId, userId, observedDay, ANOMALY }`.
+- Re-evaluation updates or resolves the same record; it never creates a
+  duplicate.
+- Do not publish email or notification work in P7-07.
 
 No machine learning is used.
 

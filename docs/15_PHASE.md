@@ -136,10 +136,10 @@ Update this block at the end of every work session.
 ```text
 Current Phase: Phase 7 — Background Jobs, Billing, and Alerts
 Current Task: P7-07 — Simple Anomaly Worker
-Current Status: Awaiting planning approval; not started
+Current Status: Contract approved and documented; implementation not started
 Current Blocker: None
-Last Completed Task: P7-06 — Basic Analytics Worker
-Last Completed Commit: feat(analytics): add tenant-scoped async request analytics
+Last Completed Task: P7-07 — Daily Anomaly Detection Contract
+Last Completed Commit: docs(anomaly): define tenant-scoped daily anomaly detection contract
 ```
 
 ---
@@ -603,7 +603,8 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] Create monthly rollups.
 - [x] Prevent replay from double charging.
 - [x] P7-06 — Create a tenant-scoped idempotent basic analytics worker.
-- [ ] Create simple anomaly worker.
+- [x] P7-07 prerequisite — Define the tenant-scoped daily anomaly rule, feature gate, baseline, severity, and deduplication contract.
+- [ ] P7-07 — Create simple anomaly worker.
 - [ ] Create email worker with safe templates.
 - [x] Keep raw prompts out of job payloads.
 
@@ -640,6 +641,15 @@ outcome counters, provider/model request counts, known provider token totals,
 and an explicit unknown-usage request count; unknown usage is never converted
 to zero. Analytics does not mutate RequestLog or BillingRollup and is not a
 second budget-accounting source of truth.
+
+The approved P7-07 contract evaluates only the user's current UTC-day known
+token total against twice the previous seven-day active-day average. Baseline
+days must have fully known usage, unknown days are excluded rather than treated
+as zero, and at least three prior active days are required. Detection is gated
+by trusted `Organisation.featureFlags.anomalyDetection`, consumes only
+analytics `usage.updated`, and creates or updates one `HIGH`, initially `OPEN`,
+tenant-scoped alert per user and observed day. Request-level, volume,
+blocked-rate, provider-error, email, and notification behavior are excluded.
 
 ## Exit Criteria
 
@@ -961,10 +971,14 @@ Do not randomly change several files.
 
 Do only this next:
 
-1. Audit and resolve the approved anomaly signal, threshold, delivery, and idempotency contracts.
-2. Reuse the existing tenant-scoped analytics aggregates and BullMQ lifecycle.
-3. Do not implement email delivery, provider-health jobs, reporting APIs, pricing, or Phase 8 work.
-4. Do not start implementation until the P7-07 contract is approved.
+1. Implement only the approved daily known-token rule using analytics
+   `usage.updated` and the existing BullMQ lifecycle.
+2. Gate detection with trusted `Organisation.featureFlags.anomalyDetection` and
+   require three prior fully known active days.
+3. Atomically reuse the same tenant/user/day anomaly alert for duplicate,
+   retried, or re-evaluated jobs.
+4. Do not implement email delivery, provider-health jobs, reporting APIs,
+   pricing, request-level anomaly signals, or Phase 8 work.
 
 ---
 

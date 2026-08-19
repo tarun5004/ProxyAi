@@ -1023,6 +1023,23 @@ The prompt-cache HMAC input binds trusted `orgId`, exact approved `providerPromp
 - Failed jobs are visible in Bull Board only in controlled environments.
 - Bull Board must not be publicly exposed in production.
 
+### 19.4 Anomaly worker security contract
+
+- Analytics is the only producer of safe `usage.updated` anomaly jobs.
+- Every anomaly lookup and write uses trusted `orgId` and `userId`; client
+  input never supplies tenant scope.
+- The worker runs only when the current trusted organisation has
+  `featureFlags.anomalyDetection === true`.
+- The baseline uses only prior days with fully known token usage. Unknown usage
+  is excluded and never converted to zero.
+- Alert data contains only the observed UTC day, known aggregate token values,
+  baseline count/average/window, fixed multiplier, severity, and status. Raw
+  prompt, response, PII, provider payload, credential, and secret data are
+  prohibited.
+- Duplicate or retried jobs reuse the same unresolved
+  `{ orgId, userId, observedDay, ANOMALY }` alert. P7-07 does not enqueue email
+  or notification work.
+
 ## 20. Logging, Metrics, and Audit Security
 
 ### 20.1 Safe logging

@@ -1258,6 +1258,13 @@ Amounts are estimates derived from configured provider pricing. The API must not
 
 Lists organisation alerts.
 
+When anomaly alerts are implemented, the daily token anomaly is exposed as
+`type: "anomaly"`, `severity: "high"`, and `resolved: false` for internal
+status `OPEN`. Safe anomaly fields may include `observedDay`,
+`normalUsage`, `observedUsage`, and `baselineActiveDays`; they never contain
+prompt, response, PII, unknown token values, or secrets. The anomaly is scoped
+to the authenticated organisation.
+
 ### Permission
 
 `admin:view_logs`
@@ -1303,6 +1310,10 @@ Lists organisation alerts.
 ## 20.2 PATCH `/admin/alerts/{alertId}`
 
 Marks an alert resolved or reopens it.
+
+An anomaly update targets the existing tenant-scoped
+`{ orgId, userId, observedDay, ANOMALY }` record. Re-evaluation and future admin
+resolution reuse that record and do not create duplicate same-day alerts.
 
 ### Permission
 

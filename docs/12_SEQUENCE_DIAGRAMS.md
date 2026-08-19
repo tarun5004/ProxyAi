@@ -771,7 +771,6 @@ sequenceDiagram
     participant BillingWorker
     participant AnalyticsWorker
     participant AnomalyWorker
-    participant EmailWorker
 
     API->>BullMQ: Add billing job
     API->>BullMQ: Add analytics job
@@ -779,11 +778,10 @@ sequenceDiagram
 
     BullMQ-->>BillingWorker: Deliver billing job
     BullMQ-->>AnalyticsWorker: Deliver analytics job
-    BillingWorker->>BullMQ: Add safe usage.updated reference when applicable
+    AnalyticsWorker->>BullMQ: Add safe usage.updated reference
     BullMQ-->>AnomalyWorker: Deliver usage aggregate reference
     opt Alert created
-        AnomalyWorker->>BullMQ: Add safe alert.created reference
-        BullMQ-->>EmailWorker: Deliver notification reference
+        AnomalyWorker->>AnomalyWorker: Persist or update same-day alert
     end
 ```
 
@@ -840,27 +838,29 @@ sequenceDiagram
     participant BullMQ
     participant AnomalyWorker
     participant MongoDB
-    participant EmailQueue
 
-    BullMQ->>AnomalyWorker: Usage job
-    AnomalyWorker->>MongoDB: Read user rolling average
-    MongoDB-->>AnomalyWorker: Baseline usage
-    AnomalyWorker->>AnomalyWorker: Compare current usage with threshold
+    BullMQ->>AnomalyWorker: Safe analytics usage.updated reference
+    AnomalyWorker->>MongoDB: Read trusted org feature flag and scoped daily usage
+    MongoDB-->>AnomalyWorker: Current known tokens and prior seven-day baseline
+    AnomalyWorker->>AnomalyWorker: Exclude unknown days; require 3 active days; compare > 2x
 
     alt Usage is anomalous
-        AnomalyWorker->>MongoDB: Create unresolved alert
-        AnomalyWorker->>EmailQueue: Add notification job
+        AnomalyWorker->>MongoDB: Create/update HIGH OPEN same-day alert
     else Usage is normal
-        AnomalyWorker-->>BullMQ: Complete with no alert
+        AnomalyWorker->>MongoDB: Reuse/update/resolve same-day alert when applicable
     end
 ```
 
 ## Key Rules
 
 - Anomaly does not automatically prove misuse.
-- Alert records are tenant-scoped.
-- Duplicate jobs must not create duplicate active alerts.
-- Thresholds remain simple for MVP.
+- Detection requires trusted `Organisation.featureFlags.anomalyDetection`.
+- Alert records and aggregate queries are scoped by trusted `orgId` and
+  `userId`.
+- Duplicate jobs must not create duplicate
+  `{ orgId, userId, observedDay, ANOMALY }` alerts.
+- Unknown baseline usage is excluded, never converted to zero.
+- P7-07 does not enqueue email or notification work.
 
 ---
 

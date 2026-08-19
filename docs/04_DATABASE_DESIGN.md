@@ -690,8 +690,9 @@ interface AlertDocument {
   orgId: string;
   userId?: string;
   requestId?: string;
+  observedDay?: string;
   type: 'PII' | 'ANOMALY' | 'BUDGET_80' | 'BUDGET_EXCEEDED' | 'PROVIDER';
-  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  severity: 'INFO' | 'WARNING' | 'HIGH' | 'CRITICAL';
   title: string;
   message: string;
   metadata: Record<string, unknown>;
@@ -712,6 +713,13 @@ alertSchema.index({ alertId: 1 }, { unique: true });
 alertSchema.index({ orgId: 1, status: 1, createdAt: -1 });
 alertSchema.index({ orgId: 1, type: 1, createdAt: -1 });
 alertSchema.index({ orgId: 1, userId: 1, createdAt: -1 });
+alertSchema.index(
+  { orgId: 1, userId: 1, observedDay: 1, type: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { type: 'ANOMALY' }
+  }
+);
 ```
 
 ### 18.3 Rules
@@ -719,6 +727,15 @@ alertSchema.index({ orgId: 1, userId: 1, createdAt: -1 });
 - Alert metadata must not contain raw PII or prompt content.
 - Repeated budget alerts should be deduplicated for the same organisation and billing period.
 - Anomaly alerts may reference normal and observed token totals but not message content.
+- An anomaly alert uses trusted `orgId` and `userId`, `type: 'ANOMALY'`,
+  `severity: 'HIGH'`, the UTC `observedDay`, and initial `status: 'OPEN'`.
+- Safe anomaly metadata is limited to observed known tokens, baseline average,
+  baseline active-day count, the previous seven-day UTC window, and the fixed
+  multiplier `2`. Unknown usage, prompt/response content, PII, and secrets are
+  never stored in alert metadata.
+- The unique anomaly identity prevents duplicate same-day records.
+  Re-evaluation updates or resolves that same alert instead of inserting a
+  duplicate.
 
 ## 19. Provider Health Collection
 

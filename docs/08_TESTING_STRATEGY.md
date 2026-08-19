@@ -856,14 +856,19 @@ Expected controls:
 
 Verify:
 
-- correct seven-day or configured rolling average;
-- zero historical average handled safely;
-- current use below threshold creates no alert;
-- use above threshold creates one alert;
-- repeated event does not create duplicate active alert if deduplication is required;
-- resolved alert is updated only by authorised user;
-- anomaly email job is queued;
-- raw prompt content is absent from alert and email payload.
+- only analytics `usage.updated` triggers evaluation;
+- trusted `anomalyDetection` feature flag gates evaluation;
+- previous seven UTC days use only fully known active-day token totals;
+- unknown-usage days are excluded and never treated as zero;
+- fewer than three prior active days creates no anomaly decision;
+- current daily known tokens at or below twice the baseline create no alert;
+- current daily known tokens above twice the baseline create one `HIGH`, `OPEN`
+  alert;
+- duplicate, retried, and re-evaluated jobs do not create another
+  `{ orgId, userId, observedDay, ANOMALY }` alert;
+- tenant isolation is preserved;
+- raw prompt, response, PII, and secrets are absent from jobs and alert data;
+- no email or notification job is queued by P7-07.
 
 ---
 
