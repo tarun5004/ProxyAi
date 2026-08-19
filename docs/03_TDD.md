@@ -589,7 +589,7 @@ interface RequestLog {
   piiCategories: PiiCategory[];
   cacheHit: boolean;
   fallbackUsed: boolean;
-  status: 'completed' | 'blocked' | 'failed' | 'interrupted';
+  status: 'COMPLETED' | 'BLOCKED' | 'FAILED' | 'INTERRUPTED';
   errorCode?: string;
   createdAt: Date;
 }
@@ -1322,7 +1322,7 @@ security events only and does not create the MongoDB audit collection.
 | Queue | Job name | Producer | Consumer |
 |---|---|---|---|
 | `billing-queue` | `request.completed` | Chat finalizer | Billing worker |
-| `analytics-queue` | `request.completed` | Chat finalizer | Analytics worker |
+| `analytics-queue` | `request.completed`, `request.blocked` | Chat outcome finalizer | Analytics worker |
 | `anomaly-queue` | `usage.updated` | Analytics/billing | Anomaly worker |
 | `email-queue` | `alert.created` | Alert service | Email worker |
 | `health-check-queue` | `provider.health_check` | Repeat scheduler | Health worker |
@@ -1351,6 +1351,8 @@ interface RequestCompletedJob {
   requestId: string;
   orgId: string;
   userId: string;
+  status: 'COMPLETED' | 'FAILED' | 'INTERRUPTED';
+  policyAction: 'ALLOW' | 'ALLOW_WITH_MASK';
   providerId: ProviderId;
   model: string;
   usage?: {
@@ -1361,9 +1363,36 @@ interface RequestCompletedJob {
   estimatedCostMicros?: number;
   occurredAt: string;
 }
+
+interface RequestBlockedJob {
+  schemaVersion: 1;
+  jobType: 'request.blocked';
+  requestId: string;
+  orgId: string;
+  userId: string;
+  status: 'BLOCKED';
+  policyAction: 'BLOCK';
+  occurredAt: string;
+}
+
+type AnalyticsRequestOutcomeJob =
+  | RequestCompletedJob
+  | RequestBlockedJob;
 ```
 
-The usage object is all-or-nothing and contains only actual provider-reported values. Missing provider usage is a terminal data outcome for that event, not a reason for infinite retries. Pricing is not approved yet, so `estimatedCostMicros` is omitted; unknown cost is never represented as zero. Raw prompts, responses, PII values, secrets, headers, cookies, SDK objects, and free-form payload objects are forbidden.
+The usage object is all-or-nothing and contains only actual provider-reported values. Missing provider usage is a terminal data outcome for that event, not a reason for infinite retries. Pricing is not approved yet, so `estimatedCostMicros` is omitted; unknown cost is never represented as zero. `request.blocked` forbids provider, model, usage, and cost fields. Raw prompts, responses, PII values, secrets, headers, cookies, SDK objects, and free-form payload objects are forbidden.
+
+Outcome values are explicit and are never inferred from absent usage or other
+optional fields. `COMPLETED` means the provider stream reached its normal done
+event. `FAILED` means provider execution started but ended in a terminal
+operational failure. `INTERRUPTED` means the client disconnected or streaming
+ended without a normal done event. `BLOCKED` is emitted only after policy chose
+`BLOCK`, before provider selection or execution.
+
+The chat outcome finalizer appends the corresponding immutable RequestLog before
+publishing an outcome event. Billing consumes only `request.completed`.
+Analytics consumes both event types. Queue publication failure emits safe
+operational metadata and never changes the already determined client outcome.
 
 `requestId` is the canonical correlation ID. Existing request-derived jobs preserve it, and scheduled jobs generate a server UUID request ID. Phase 7 does not introduce `traceId`; future distributed tracing may add a separate mapping without replacing `requestId`.
 
@@ -1451,15 +1480,20 @@ Budget checks should read the current billing rollup plus any safe in-flight est
 
 ### 30.1 Analytics
 
-Store daily organisation and user aggregates needed by the dashboard:
+The minimal P7-06 projection stores UTC-daily organisation and user aggregates:
 
 - Request count
-- Total tokens
-- Estimated cost
-- Failure count
-- Fallback count
-- Cache-hit count
-- Average latency accumulation
+- Successful request count (`COMPLETED`)
+- Blocked request count (`BLOCKED`)
+- Failed request count (`FAILED`)
+- Interrupted request count (`INTERRUPTED`)
+- Masked request count (`ALLOW_WITH_MASK`)
+- Provider/model request count for `request.completed` only
+- Known input/output/total token usage and known-usage request count
+
+Unknown usage remains unknown and does not contribute synthetic zero tokens.
+Pricing, user-facing reports, fallback/cache analytics, latency percentiles, and
+advanced analytics are outside this minimal worker task.
 
 ### 30.2 Anomaly rule
 
@@ -1477,7 +1511,7 @@ Only one unresolved anomaly alert per user per day.
 
 ### 30.4 Other Phase 7 job ownership
 
-- Analytics consumes `request.completed`, creates tenant-scoped daily aggregates, and treats absent usage/cost as unknown rather than zero.
+- Analytics consumes `request.completed` and `request.blocked`, creates tenant-scoped daily aggregates, and treats absent usage/cost as unknown rather than zero.
 - Anomaly consumes `usage.updated`, evaluates only approved aggregate token data, and emits an `alert.created` reference without prompt or response content.
 - Email consumes `alert.created` with trusted IDs and an allowlisted template identifier. It loads recipient data through tenant-scoped storage; email addresses and rendered bodies are not queue payload fields. The delivery provider and credential configuration remain unresolved and must be approved before implementation.
 - Provider health consumes `provider.health_check`, is platform-scoped, and carries provider ID, request ID, schema version, and schedule timestamp only.

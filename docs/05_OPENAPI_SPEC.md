@@ -923,6 +923,22 @@ data: {"code":"PROVIDER_UNAVAILABLE","message":"The response was interrupted bec
 
 The server closes the stream after a terminal `done` or `error` event.
 
+### Internal request outcome events
+
+These are backend BullMQ events, not additional public SSE event names. A
+successful `done` maps to `request.completed` with `status: COMPLETED`. A
+provider-path terminal failure maps to `status: FAILED`. Client disconnect or
+stream termination without a normal done event maps to `status: INTERRUPTED`.
+Each completed/provider-path event carries the evaluated `policyAction` as
+`ALLOW` or `ALLOW_WITH_MASK` plus safe provider/model identifiers. Missing
+usage does not determine status.
+
+A policy block maps to the analytics-only `request.blocked` event with
+`status: BLOCKED` and `policyAction: BLOCK`. It carries no provider, model,
+usage, cost, prompt, response, detected value, or secret. The public behavior
+remains the JSON `403 POLICY_BLOCKED` response before SSE headers and before any
+provider call.
+
 ### SSE heartbeat
 
 During long waits, the server may send comments every 15 seconds:

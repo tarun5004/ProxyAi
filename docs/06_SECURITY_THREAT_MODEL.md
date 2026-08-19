@@ -999,6 +999,14 @@ The prompt-cache HMAC input binds trusted `orgId`, exact approved `providerPromp
 - Each processor validates payload schema.
 - `requestId` is the canonical correlation ID; Phase 7 does not add `traceId`.
 - Billing uses a separate tenant-scoped async ledger and never mutates append-only `RequestLog` records.
+- Request outcome payloads always carry an explicit allowlisted `status` and
+  `policyAction`; workers never infer outcomes from absent usage or provider
+  fields.
+- `request.blocked` is analytics-only, contains `BLOCKED` plus `BLOCK`, and
+  forbids provider, model, usage, cost, prompt, response, PII, and secret fields.
+- `request.completed` permits only `COMPLETED`, `FAILED`, or `INTERRUPTED` with
+  `ALLOW` or `ALLOW_WITH_MASK`; provider/model identifiers are required and
+  optional usage remains actual-provider data only.
 - Usage and cost remain optional; unknown values are omitted and never synthesized as zero.
 - Each side effect has an idempotency key, and retry count is bounded to approved transient failures.
 - Invalid payloads, unknown usage, and unavailable pricing are terminal outcomes rather than retry loops.

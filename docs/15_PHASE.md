@@ -580,6 +580,7 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] P7-02 — Create BullMQ connection, typed payloads, validated billing queue producer, and reusable worker lifecycle foundation.
 - [x] P7-03 — Append the authoritative RequestLog before publishing one safe `request.completed` billing job.
 - [x] P7-04 — Process billing jobs through a durable tenant-scoped idempotency ledger and deterministic rollup reconciliation.
+- [x] P7-06 prerequisite — Define explicit safe `request.completed` and `request.blocked` outcome event contracts.
 - [x] Propagate canonical request ID across jobs and workers; map a separate trace ID only after a future approved tracing migration.
 - [x] Add bounded retries and backoff.
 - [x] Add worker entrypoint and graceful shutdown.
@@ -609,6 +610,13 @@ the worker's existing BullMQ Redis connection. A heartbeat is stale after 120
 seconds. The internal status exposes only fixed worker identity/type, running
 and healthy flags, and safe heartbeat/job timestamps. Failed probes are logged
 with safe operational metadata and do not block chat traffic.
+
+Before P7-06 implementation, the canonical event contract was corrected so
+workers never infer outcomes. Provider-path `request.completed` events carry
+explicit `COMPLETED`, `FAILED`, or `INTERRUPTED` status plus `ALLOW` or
+`ALLOW_WITH_MASK`. Policy blocks emit analytics-only `request.blocked` with
+`BLOCKED` plus `BLOCK` and no provider/model/usage fields. Both event paths
+append immutable RequestLog metadata before queue publication.
 
 ## Exit Criteria
 
@@ -929,11 +937,14 @@ Do not randomly change several files.
 
 Do only this next:
 
-1. Audit the approved analytics projection and idempotency contract.
-2. Reuse the existing BullMQ job foundation and safe payload rules.
-3. Keep RequestLog append-only and every tenant query scoped by trusted `orgId`.
-4. Do not add anomaly, email, or provider-health workers.
-5. Do not start P7-06 without approval.
+1. Implement the approved discriminated request outcome job schemas.
+2. Publish `request.completed` and `request.blocked` to the analytics queue only
+   after the immutable RequestLog append.
+3. Build the minimal tenant-scoped UTC-daily analytics projection with a
+   separate idempotency ledger.
+4. Reuse the existing BullMQ lifecycle and worker heartbeat.
+5. Do not add reporting APIs, anomaly, email, or provider-health workers.
+6. Do not start production implementation without approval.
 
 ---
 

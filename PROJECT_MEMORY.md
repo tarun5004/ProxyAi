@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-05 — Worker Heartbeat
-- **Status:** Completed; awaiting approval before P7-06
+- **Task:** P7-06 prerequisite — Request Outcome Event Contract
+- **Status:** Contract completed; production analytics implementation not started
 
 ## Completed Tasks
 
@@ -338,6 +338,8 @@ npm run dev
 - Budget status reads the current `Organisation.monthlyTokenBudget` and uses the approved boundary `usedTokens >= monthlyTokenBudget`; therefore a zero-token budget is exhausted even when persisted usage is zero.
 - The synchronous reconciliation is intentionally minimal. Full idempotent workers, replay protection, user/provider rollups, pricing, invoices, alerts, and generalized billing infrastructure remain Phase 7 work.
 - Phase 7 queue payloads use `requestId` as the canonical correlation ID and contain only allowlisted identifiers, optional complete provider-reported usage, optional approved cost, job type, schema version, and timestamp.
+- Phase 7 request outcome events use an explicit discriminated contract. `request.completed` carries `COMPLETED`, `FAILED`, or `INTERRUPTED` with `ALLOW` or `ALLOW_WITH_MASK`; analytics-only `request.blocked` carries `BLOCKED` with `BLOCK` and forbids provider/model/usage/cost fields.
+- RequestLog append happens before request outcome publication. Workers never infer status from missing usage and never mutate the append-only record.
 - Unknown provider usage is terminal for that event and remains unknown; unavailable pricing omits cost. Neither value is synthesized as zero.
 - Async billing idempotency uses a separate tenant-scoped `{ orgId, requestId, jobType }` ledger with `PROCESSING` and `COMPLETED` states. Append-only `RequestLog` records are never mutated by workers.
 - The current organisation-month `{ usedTokens, sourceRequestCount }` rollup remains the authoritative budget projection and is deterministically recomputed from `RequestLog`. Richer user/provider/cost rollups are separate future reporting projections.
@@ -675,6 +677,18 @@ npm run dev
 
 ## Latest Task
 
+- **Task:** P7-06 prerequisite — Request Outcome Event Contract
+- **Status:** Documentation contract completed on 2026-08-19; no production analytics code added
+- **Files changed:** `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Completed/provider contract:** `request.completed` requires explicit `COMPLETED`, `FAILED`, or `INTERRUPTED` plus `ALLOW` or `ALLOW_WITH_MASK`, trusted scope, provider/model, and only optional actual usage.
+- **Blocked contract:** Policy `BLOCK` emits analytics-only `request.blocked` with explicit `BLOCKED` plus `BLOCK`; provider/model/usage/cost and all prompt/response/PII/secret fields are forbidden.
+- **Persistence ordering:** The immutable RequestLog is appended before either event publication attempt. Queue failure is operationally visible but workers never mutate RequestLog or infer missing outcomes.
+- **Public API:** No new SSE event was added. Existing `done`, `error`, and pre-stream JSON `403 POLICY_BLOCKED` behavior remains canonical.
+- **Recommended commit:** `docs(analytics): define request outcome event contract`.
+- **Next task:** Re-audit and then implement P7-06 only after approval.
+
+## Previous Task
+
 - **Task:** P7-05 — Worker Heartbeat
 - **Status:** Completed on 2026-08-19
 - **Files changed:** `backend/src/shared/async/worker-heartbeat.ts`, `backend/src/shared/async/bullmq.ts`, `backend/src/features/billing/billing.worker.ts`, `backend/tests/worker-heartbeat.test.mjs`, `docs/03_TDD.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -687,7 +701,7 @@ npm run dev
 - **Recommended commit:** `feat(async): add billing worker heartbeat`.
 - **Next task:** P7-06 — Basic Analytics Worker. Do not start without approval.
 
-## Previous Task
+## Prior Task
 
 - **Task:** P7-04 — Idempotent Billing Worker
 - **Status:** Completed on 2026-08-19
@@ -701,7 +715,7 @@ npm run dev
 - **Recommended commit:** `feat(billing): add idempotent async billing worker`.
 - **Next task:** P7-05 — Worker Heartbeat. Do not start without approval.
 
-## Prior Task
+## Earlier Task
 
 - **Task:** P7-03 — Request-Completed Billing Producer Integration
 - **Status:** Completed on 2026-08-19
@@ -722,7 +736,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for approval before P7-06 — Basic Analytics Worker. Keep anomaly alerts, email, provider-health work, richer billing projections, prompt cache, response replay, and durable crash recovery out of that task.
+- Re-run the P7-06 readiness audit against the approved outcome-event contract, then wait for implementation approval. Keep reporting APIs, anomaly alerts, email, provider-health work, prompt cache, response replay, and durable crash recovery out of P7-06.
 
 ## Do Not Forget
 

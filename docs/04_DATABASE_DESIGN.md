@@ -481,6 +481,19 @@ interface RequestLogDocument {
 
 Token fields are all present together or all absent. Provider-reported usage that is unavailable remains unknown. Estimated cost is absent until an approved pricing configuration exists; neither usage nor cost may be synthesized as zero.
 
+The canonical Phase 7 outcome mapping is explicit:
+
+- `request.completed` maps to RequestLog status `COMPLETED`, `FAILED`, or
+  `INTERRUPTED` with policy action `ALLOW` or `ALLOW_WITH_MASK`; provider and
+  model are required.
+- `request.blocked` maps to status `BLOCKED` and policy action `BLOCK`;
+  provider, model, usage, and cost are absent because provider execution is
+  prohibited.
+
+The RequestLog is appended before event publication. Analytics and billing
+workers may read it using trusted `{ orgId, requestId }`, but never update or
+delete it. Missing optional usage never determines or changes request status.
+
 ### 15.2 Data restrictions
 
 Do not store:
@@ -1137,7 +1150,10 @@ The MVP does not promise formal Recovery Point Objective or Recovery Time Object
 
 - Use monthly billing rollups for dashboards and budget checks.
 - Avoid repeated full scans of request logs.
-- Add daily analytics rollups only after the MVP dashboard proves it is necessary.
+- Phase 7 may add the approved minimal tenant-scoped UTC-daily analytics
+  projection before reporting APIs. Dashboard-specific denormalization and
+  richer reporting projections remain deferred until measured query needs
+  justify them.
 
 ## 32. Database Error Handling
 

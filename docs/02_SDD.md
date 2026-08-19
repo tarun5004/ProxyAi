@@ -577,7 +577,9 @@ The chat orchestration service coordinates the synchronous request path.
 2. Acquire idempotency state.
 3. Run PII pipeline.
 4. Evaluate policy.
-5. Return block response without routing when blocked.
+5. When blocked, append one safe `BLOCKED` RequestLog, publish the
+   analytics-only `request.blocked` event, and return the block response
+   without routing.
 6. Determine effective prompt.
 7. Check eligible prompt cache when the approved secure-storage and accounting prerequisites exist.
 8. Build routing decision.
@@ -586,7 +588,8 @@ The chat orchestration service coordinates the synchronous request path.
 11. Finalize only actual usage details returned by the provider.
 12. Persist the authoritative append-only `RequestLog` record.
 13. Mark idempotency result completed.
-14. Publish the safe `request.completed` job/event.
+14. Publish the safe `request.completed` job/event with explicit outcome
+    status and policy action.
 15. Apply retention writer.
 
 The API waits for the authoritative request record and queue publication attempt, but it does not wait for billing, analytics, anomaly, email, or provider-health workers. Queue publication failure must be surfaced operationally without inventing usage or reversing an already delivered provider response.
@@ -689,7 +692,7 @@ The MVP may use direct BullMQ job publication instead of implementing two separa
 | Queue | Trigger | Responsibility |
 |---|---|---|
 | `billing-queue` | Request completed | Update monthly usage and cost rollup |
-| `analytics-queue` | Request completed | Update daily organisation and user aggregates |
+| `analytics-queue` | Request completed or policy blocked | Update daily organisation and user aggregates |
 | `anomaly-queue` | Request completed | Compare usage with rolling average |
 | `email-queue` | Alert created | Send notification email |
 | `health-check-queue` | Repeating schedule | Check provider availability and latency |
@@ -704,6 +707,8 @@ The MVP may use direct BullMQ job publication instead of implementing two separa
 - orgId when tenant-owned
 - userId when the job requires user scope
 - providerId and model when request-derived
+- explicit canonical outcome status
+- explicit canonical policy action
 - optional complete token-usage object
 - optional estimatedCostMicros
 - occurredAt
@@ -712,6 +717,20 @@ The MVP may use direct BullMQ job publication instead of implementing two separa
 `requestId` is the canonical correlation ID across API logs, queue jobs, and workers. No separate `traceId` is introduced in Phase 7. If distributed tracing is added later, its trace identifier is mapped alongside `requestId` and does not replace it.
 
 Queue payloads are constructed field-by-field and never contain raw prompts, masked prompts, provider responses, detected PII values, email addresses, credentials, cookies, tokens, encryption keys, or arbitrary objects.
+
+The request outcome event contract is a strict discriminated union:
+
+- `request.completed` carries `status` as `COMPLETED`, `FAILED`, or
+  `INTERRUPTED`; `policyAction` is `ALLOW` or `ALLOW_WITH_MASK`; and the
+  selected provider and model are required.
+- `request.blocked` carries `status: BLOCKED` and `policyAction: BLOCK`.
+  Provider, model, usage, and cost fields are forbidden because no provider
+  execution occurs.
+
+The append-only RequestLog is written before either event publication attempt.
+Workers never infer an outcome from missing fields and never mutate RequestLog.
+Queue failure is surfaced with safe operational metadata and does not change
+the already determined HTTP/SSE outcome.
 
 ### Job rules
 
