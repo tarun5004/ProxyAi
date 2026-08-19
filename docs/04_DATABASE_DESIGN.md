@@ -657,6 +657,12 @@ A BullMQ job ID should be derived from job type plus `requestId`, for example `b
 
 The ledger stores tenant scope, request ID, job type, `PROCESSING` or `COMPLETED` state, safe timestamps, and a bounded safe outcome. It never stores prompts, responses, PII values, secrets, token/cookie/header data, or arbitrary payloads. `RequestLog` remains append-only and must never receive `billingAppliedAt` or any worker mutation.
 
+The implemented MVP collection is `billing_job_ledgers`. Its only declared
+index is the unique compound guard `{ orgId: 1, requestId: 1, jobType: 1 }`;
+the bounded outcome allowlist is `APPLIED`, `USAGE_UNAVAILABLE`, and
+`COST_UNAVAILABLE`. Current token-only reconciliation does not invent a cost
+outcome when pricing is absent.
+
 ## 18. Alert Collection
 
 ### 18.1 Purpose

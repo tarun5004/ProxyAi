@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-03 — Request-Completed Billing Producer Integration
-- **Status:** Completed; awaiting approval before P7-04
+- **Task:** P7-04 — Idempotent Billing Worker
+- **Status:** Completed; awaiting approval before P7-05
 
 ## Completed Tasks
 
@@ -67,6 +67,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-01 — Safe async job and billing processing contract resolved on 2026-08-19; no BullMQ code added
 - P7-02 — BullMQ queue, typed job validation, producer helper, and reusable worker lifecycle foundation completed on 2026-08-19
 - P7-03 — Request-completed billing producer integration completed on 2026-08-19
+- P7-04 — Idempotent async billing worker completed on 2026-08-19
 
 ## Important Decisions
 
@@ -348,6 +349,11 @@ npm run dev
 - Completed chat accounting now persists the append-only RequestLog before publishing exactly one validated `request.completed` billing job.
 - Billing jobs carry canonical `requestId`, trusted tenant identifiers, provider/model, and only complete known usage; pricing remains unavailable, so `estimatedCostMicros` is omitted.
 - Queue publication failure after RequestLog persistence emits safe operational metadata, leaves the authoritative record unchanged for later recovery, and does not reverse the completed provider response.
+- Billing worker idempotency uses durable MongoDB `PROCESSING` and `COMPLETED` ledger states with a unique trusted `{ orgId, requestId, jobType }` scope.
+- Duplicate completed or concurrent processing jobs skip billing side effects. Transient failures release the processing claim for BullMQ's bounded retry; retry attempts may safely rerun deterministic reconciliation.
+- BillingRollup is recomputed from tenant-scoped append-only RequestLog records and written with `$set`; RequestLog is never mutated and unknown usage completes as `USAGE_UNAVAILABLE` without a zero rollup.
+- The billing worker starts only after both MongoDB and Redis are connected and is closed through the existing managed BullMQ shutdown boundary.
+- Chat finalization no longer performs duplicate synchronous rollup reconciliation after queue publication; the worker owns asynchronous reconciliation, while every later budget check still derives authoritative status directly from RequestLog.
 - P7-02 adds no billing, analytics, anomaly, email, or provider-health business worker and does not change the chat request path.
 - `POST /api/v1/chat/stream` requires current authentication plus `chat:send`, strictly validates the body, and verifies Conversation ownership with trusted `orgId`, `userId`, and `conversationId` before any Redis or provider work.
 - P5-06 processing order is ownership, minimal tenant/user idempotency, both plan-selected Redis rate limits, authoritative persisted budget status, PII/classification/risk, policy, then provider routing and streaming.
@@ -668,26 +674,27 @@ npm run dev
 
 ## Latest Task
 
-- **Task:** P7-03 — Request-Completed Billing Producer Integration
+- **Task:** P7-04 — Idempotent Billing Worker
 - **Status:** Completed on 2026-08-19
-- **Files changed:** `backend/src/features/chat/chat.service.ts`, `backend/tests/chat.stream.test.mjs`, `backend/tests/chat-billing-producer.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Ordering:** Chat finalization appends the authoritative RequestLog first, then enqueues one validated billing job, then preserves the existing synchronous budget reconciliation until P7-04 exists.
-- **Usage/cost:** Complete provider usage is forwarded only when known. Unknown usage and unavailable pricing remain omitted rather than becoming synthetic zero values.
-- **Failure behavior:** Enqueue failure emits safe operational metadata, does not mutate RequestLog, does not fail an already completed provider response, and leaves persisted accounting available for future recovery.
-- **Focused tests:** Three new tests prove append-before-enqueue ordering, one safe job with known usage, unknown usage omission, exact safe payload shape, and enqueue-failure preservation. Existing chat/billing tests also pass.
-- **Verification:** Focused chat/billing checks passed 7/7 and the final complete backend suite passed 171/171. One earlier BullMQ retry timing run was transient; its isolated rerun passed 4/4. Typecheck, build, diff-check, and production payload/log scans passed.
-- **Recommended commit:** `feat(async): enqueue completed request billing jobs`.
-- **Next task:** P7-04 — Idempotent Billing Worker. Do not start without approval.
+- **Files changed:** `backend/src/features/billing/billing.types.ts`, `backend/src/features/billing/billing-job-ledger.model.ts`, `backend/src/features/billing/billing.repository.ts`, `backend/src/features/billing/billing.service.ts`, `backend/src/features/billing/billing.worker.ts`, `backend/src/server.ts`, `backend/tests/billing.worker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Ledger:** A strict MongoDB ledger atomically guards trusted `{ orgId, requestId, jobType }` work with `PROCESSING` and `COMPLETED` states plus safe `APPLIED` or `USAGE_UNAVAILABLE` outcomes.
+- **Reconciliation:** The worker loads RequestLog through `{ orgId, requestId }`, never mutates it, aggregates the authoritative UTC month, and writes deterministic BillingRollup totals with `$set`; chat no longer waits for this rollup work.
+- **Retry/failure:** Concurrent and completed duplicates skip effects. Transient failures release the claim for BullMQ's bounded retry; malformed/missing authoritative data remains terminal and failed jobs retain safe metadata only.
+- **Lifecycle:** Billing worker startup waits for MongoDB and Redis, uses the existing managed BullMQ worker connection, and closes through the shared graceful-shutdown boundary.
+- **Focused tests:** Four real-Mongo tests prove sequential duplicate safety, concurrent duplicate safety, transient retry recovery, and unknown-usage terminal behavior without synthetic accounting.
+- **Verification:** Focused worker/BullMQ/chat tests passed 15/15 and billing integration passed 4/4. The full suite reached 174/175 because the pre-existing BullMQ retry timing assertion intermittently observed two of three attempts; its isolated rerun passed 4/4. Typecheck, build, diff-check, RequestLog mutation scan, console scan, and sensitive payload/log scans passed.
+- **Recommended commit:** `feat(billing): add idempotent async billing worker`.
+- **Next task:** P7-05 — Worker Heartbeat. Do not start without approval.
 
 ## Previous Task
 
-- **Task:** P7-02 — BullMQ Foundation
+- **Task:** P7-03 — Request-Completed Billing Producer Integration
 - **Status:** Completed on 2026-08-19
-- **Files changed:** `backend/package.json`, `backend/package-lock.json`, `backend/src/shared/lib/redis.ts`, `backend/src/shared/async/job-contract.ts`, `backend/src/shared/async/bullmq.ts`, `backend/src/features/billing/billing.queue.ts`, `backend/src/server.ts`, `backend/tests/async-job-foundation.test.mjs`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Foundation:** Added BullMQ v6, validated request-completed jobs, a lazy billing queue, fail-fast producer, and managed worker lifecycle boundary.
-- **Verification:** Four focused real-Redis tests and the complete 168-test backend suite passed with typecheck, build, diff-check, leak scans, and local queue startup.
-- **Recommended commit:** `feat(async): add BullMQ job foundation`.
-- **Next task:** P7-03 — Request-Completed Billing Producer Integration.
+- **Files changed:** `backend/src/features/chat/chat.service.ts`, `backend/tests/chat.stream.test.mjs`, `backend/tests/chat-billing-producer.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Ordering:** Chat finalization appends RequestLog before publishing one safe validated billing job and keeps synchronous budget reconciliation until the worker exists.
+- **Verification:** Focused checks passed 7/7 and the complete backend suite passed 171/171 with typecheck, build, diff-check, and leak scans.
+- **Recommended commit:** `feat(async): enqueue completed request billing jobs`.
+- **Next task:** P7-04 — Idempotent Billing Worker.
 
 ## Latest Verified Defect Fix
 
@@ -700,7 +707,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for approval before P7-04 — Idempotent Billing Worker. Keep analytics, anomaly alerts, email, provider-health work, richer billing projections, prompt cache, response replay, and durable crash recovery out of that task.
+- Wait for approval before P7-05 — Worker Heartbeat. Keep analytics, anomaly alerts, email, provider-health work, richer billing projections, prompt cache, response replay, and durable crash recovery out of that task.
 
 ## Do Not Forget
 

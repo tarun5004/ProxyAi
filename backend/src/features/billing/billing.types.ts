@@ -40,5 +40,36 @@ export interface PeriodUsageAggregate {
     readonly knownUsageCount: number;
 }
 
+export const BILLING_JOB_LEDGER_STATES = [
+    "PROCESSING",
+    "COMPLETED",
+] as const;
+export type BillingJobLedgerState =
+    (typeof BILLING_JOB_LEDGER_STATES)[number];
+
+export const BILLING_JOB_OUTCOMES = [
+    "APPLIED",
+    "USAGE_UNAVAILABLE",
+    "COST_UNAVAILABLE",
+] as const;
+export type BillingJobOutcome = (typeof BILLING_JOB_OUTCOMES)[number];
+
+export interface BillingJobLedgerRecord {
+    orgId: string;
+    requestId: string;
+    jobType: "request.completed";
+    state: BillingJobLedgerState;
+    processingStartedAt: Date;
+    completedAt?: Date;
+    outcome?: BillingJobOutcome;
+}
+
+export interface AuthoritativeRequestUsage {
+    readonly createdAt: Date;
+    readonly inputTokens?: number;
+    readonly outputTokens?: number;
+    readonly totalTokens?: number;
+}
+
 export type RequestUsageDocument = HydratedDocument<RequestUsageRecord>;
 export type BillingRollupDocument = HydratedDocument<BillingRollup>;

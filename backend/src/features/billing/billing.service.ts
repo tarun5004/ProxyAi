@@ -5,6 +5,7 @@ import {
     type BillingRepository,
 } from "./billing.repository.js";
 import type {
+    BillingJobOutcome,
     NewRequestUsageRecord,
     RequestUsageDocument,
 } from "./billing.types.js";
@@ -81,6 +82,33 @@ export function getUtcBillingPeriod(date: Date): string {
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
 
     return `${year}-${month}`;
+}
+
+export async function reconcileAuthoritativeTokenRollup(
+    orgId: string,
+    occurredAt: Date,
+    repository: BillingRepository = billingRepository,
+): Promise<BillingJobOutcome> {
+    const period = getUtcBillingPeriod(occurredAt);
+    const { start, end } = getUtcBillingPeriodBounds(occurredAt);
+    const aggregate = await repository.aggregatePeriodUsage(
+        orgId,
+        start,
+        end,
+    );
+
+    if (aggregate.knownUsageCount !== aggregate.sourceRequestCount) {
+        return "USAGE_UNAVAILABLE";
+    }
+
+    await repository.upsertRollup({
+        orgId,
+        period,
+        usedTokens: aggregate.usedTokens,
+        sourceRequestCount: aggregate.sourceRequestCount,
+    });
+
+    return "APPLIED";
 }
 
 function getUtcBillingPeriodBounds(date: Date): {

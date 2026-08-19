@@ -19,7 +19,6 @@ function createRuntime({ enqueueError } = {}) {
     const order = [];
     const requestLogs = [];
     const billingJobs = [];
-    let reconciliations = 0;
     let completed = 0;
     const prepared = {
         requestId: randomUUID(),
@@ -49,11 +48,6 @@ function createRuntime({ enqueueError } = {}) {
             billingJobs.push(structuredClone(input));
             return input;
         },
-        async reconcileBudget() {
-            order.push("budget-rollup");
-            reconciliations += 1;
-            return {};
-        },
     };
 
     return {
@@ -62,9 +56,6 @@ function createRuntime({ enqueueError } = {}) {
         order,
         requestLogs,
         billingJobs,
-        get reconciliations() {
-            return reconciliations;
-        },
         get completed() {
             return completed;
         },
@@ -88,7 +79,6 @@ test("completed request persists usage before one safe billing job", async () =>
     assert.deepEqual(runtime.order, [
         "request-log",
         "billing-job",
-        "budget-rollup",
     ]);
     assert.equal(runtime.billingJobs.length, 1);
     assert.deepEqual(runtime.billingJobs[0]?.usage, usage);
@@ -124,7 +114,6 @@ test("unknown provider usage stays omitted", async () => {
     assert.equal(runtime.billingJobs.length, 1);
     assert.equal("usage" in runtime.billingJobs[0], false);
     assert.equal("estimatedCostMicros" in runtime.billingJobs[0], false);
-    assert.equal(runtime.reconciliations, 0);
 });
 
 test("enqueue failure preserves authoritative RequestLog and completion", async () => {
@@ -146,6 +135,5 @@ test("enqueue failure preserves authoritative RequestLog and completion", async 
     assert.equal(runtime.requestLogs.length, 1);
     assert.deepEqual(runtime.requestLogs[0]?.usage, usage);
     assert.equal(runtime.billingJobs.length, 0);
-    assert.equal(runtime.reconciliations, 1);
     assert.equal(runtime.completed, 1);
 });

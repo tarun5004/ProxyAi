@@ -79,9 +79,6 @@ export interface ChatPipelineDependencies {
     readonly streamProvider: typeof streamWithOrderedFallback;
     readonly appendUsage: typeof appendRequestUsage;
     readonly enqueueBillingJob: typeof enqueueRequestCompletedJob;
-    readonly reconcileBudget: (
-        orgId: string,
-    ) => Promise<Readonly<BudgetStatus>>;
     readonly emitPolicyEvent: typeof emitPolicyDecisionEvent;
 }
 
@@ -111,7 +108,6 @@ export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
     streamProvider: streamWithOrderedFallback,
     appendUsage: appendRequestUsage,
     enqueueBillingJob: enqueueRequestCompletedJob,
-    reconcileBudget: readAuthoritativeBudgetStatus,
     emitPolicyEvent: emitPolicyDecisionEvent,
 };
 
@@ -378,9 +374,6 @@ async function recordUsageAndComplete(
             );
         }
 
-        if (usage !== undefined) {
-            await dependencies.reconcileBudget(input.orgId);
-        }
     } finally {
         await input.reservation.markCompleted();
     }

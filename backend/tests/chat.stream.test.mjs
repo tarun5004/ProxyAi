@@ -157,10 +157,6 @@ function createRuntime({
             billingJobs.push(input);
             return input;
         },
-        async reconcileBudget() {
-            order.push("reconcile-budget");
-            return availableBudget();
-        },
         emitPolicyEvent(input) {
             const event = createPolicyDecisionEvent(input);
             policyEvents.push(event);
@@ -309,7 +305,7 @@ test("ALLOW streams output and records known provider usage", async () => {
         outputTokens: 8,
         totalTokens: 20,
     });
-    assert.equal(runtime.order.includes("reconcile-budget"), true);
+    assert.equal(runtime.order.includes("reconcile-budget"), false);
     assert.deepEqual(
         runtime.reservationEvents,
         ["provider-started", "completed"],

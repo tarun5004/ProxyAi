@@ -1,6 +1,10 @@
 import { OrganisationModel } from "../organisations/organisation.model.js";
+import { BillingJobLedgerModel } from "./billing-job-ledger.model.js";
 import { BillingRollupModel } from "./billing-rollup.model.js";
 import type {
+    AuthoritativeRequestUsage,
+    BillingJobLedgerState,
+    BillingJobOutcome,
     BillingRollupDocument,
     NewRequestUsageRecord,
     PeriodUsageAggregate,
@@ -36,6 +40,28 @@ export interface BillingRepository {
         usedTokens: number;
         sourceRequestCount: number;
     }): Promise<BillingRollupDocument>;
+    findRequestUsage(
+        orgId: string,
+        requestId: string,
+    ): Promise<AuthoritativeRequestUsage | null>;
+    acquireJobProcessing(input: {
+        orgId: string;
+        requestId: string;
+        jobType: "request.completed";
+        processingStartedAt: Date;
+    }): Promise<"ACQUIRED" | BillingJobLedgerState>;
+    completeJobProcessing(input: {
+        orgId: string;
+        requestId: string;
+        jobType: "request.completed";
+        completedAt: Date;
+        outcome: BillingJobOutcome;
+    }): Promise<void>;
+    releaseJobProcessing(input: {
+        orgId: string;
+        requestId: string;
+        jobType: "request.completed";
+    }): Promise<void>;
 }
 
 export const billingRepository: BillingRepository = {
@@ -140,4 +166,89 @@ export const billingRepository: BillingRepository = {
             },
         ).orFail();
     },
+    async findRequestUsage(orgId, requestId) {
+        return RequestLogModel.findOne({
+            orgId,
+            requestId,
+        })
+            .select({
+                _id: 0,
+                createdAt: 1,
+                inputTokens: 1,
+                outputTokens: 1,
+                totalTokens: 1,
+            })
+            .lean<AuthoritativeRequestUsage>()
+            .exec();
+    },
+    async acquireJobProcessing(input) {
+        try {
+            await BillingJobLedgerModel.create({
+                ...input,
+                state: "PROCESSING",
+            });
+
+            return "ACQUIRED";
+        } catch (error: unknown) {
+            if (!isDuplicateKeyError(error)) {
+                throw error;
+            }
+
+            const existing = await BillingJobLedgerModel.findOne({
+                orgId: input.orgId,
+                requestId: input.requestId,
+                jobType: input.jobType,
+            })
+                .select({
+                    _id: 0,
+                    state: 1,
+                })
+                .lean<{ readonly state: BillingJobLedgerState }>()
+                .exec();
+
+            if (existing === null) {
+                throw error;
+            }
+
+            return existing.state;
+        }
+    },
+    async completeJobProcessing(input) {
+        const completed = await BillingJobLedgerModel.findOneAndUpdate(
+            {
+                orgId: input.orgId,
+                requestId: input.requestId,
+                jobType: input.jobType,
+                state: "PROCESSING",
+            },
+            {
+                $set: {
+                    state: "COMPLETED",
+                    completedAt: input.completedAt,
+                    outcome: input.outcome,
+                },
+            },
+            {
+                returnDocument: "after",
+                runValidators: true,
+            },
+        ).exec();
+
+        if (completed === null) {
+            throw new Error("Billing job processing claim was lost.");
+        }
+    },
+    async releaseJobProcessing(input) {
+        await BillingJobLedgerModel.deleteOne({
+            ...input,
+            state: "PROCESSING",
+        }).exec();
+    },
 };
+
+function isDuplicateKeyError(error: unknown): error is { readonly code: 11000 } {
+    return typeof error === "object"
+        && error !== null
+        && "code" in error
+        && error.code === 11000;
+}

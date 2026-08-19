@@ -1,6 +1,7 @@
 import { app } from "./app.js";
 import { env } from "./config/env.js";
 import { connectBillingQueue } from "./features/billing/billing.queue.js";
+import { startBillingWorker } from "./features/billing/billing.worker.js";
 import { disconnectBullMq } from "./shared/async/bullmq.js";
 import { logger } from "./shared/lib/logger.js";
 import { connectMongo, disconnectMongo } from "./shared/lib/mongo.js";
@@ -105,9 +106,14 @@ process.once("SIGTERM", () => {
     void shutdown("SIGTERM");
 });
 
-void connectMongo().catch(() => undefined);
-void connectRedis()
-    .then(connectBillingQueue)
+const mongoConnection = connectMongo();
+const redisConnection = connectRedis();
+
+void Promise.all([mongoConnection, redisConnection])
+    .then(async () => {
+        await connectBillingQueue();
+        await startBillingWorker();
+    })
     .catch(() => {
         logger.error(
             {
