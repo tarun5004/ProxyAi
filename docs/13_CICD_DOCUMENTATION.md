@@ -31,12 +31,13 @@ The approved workflow layout is:
 ```text
 .github/workflows/
 ├── ci.yml
-└── deploy.yml
+├── deploy.yml
+└── rollback.yml
 ```
 
-`ci.yml` runs for pull requests and pushes. `deploy.yml` runs on `main` after
-validation and may also support an explicitly approved manual promotion or
-rollback input.
+`ci.yml` runs for pull requests and pushes. `deploy.yml` is triggered only by
+a successful `CI` workflow run for `main`. `rollback.yml` is an explicit
+environment-protected manual workflow.
 
 ## 4. Pull-Request Validation
 
@@ -103,16 +104,17 @@ silently advance the other environment.
 Non-secret repository/environment variables include:
 
 - `AWS_REGION`;
-- `AWS_ACCOUNT_ID`;
-- ECR repository names;
-- ECS cluster, service, and task-family names;
-- ALB/public application URLs;
-- smoke-test configuration that contains no credentials;
-- index task/subnet/security-group identifiers.
+- `AWS_DEPLOY_ROLE_ARN`;
+- `FRONTEND_ECR_REPOSITORY` and `BACKEND_ECR_REPOSITORY` full URIs;
+- `FRONTEND_ECR_REPOSITORY_NAME` and `BACKEND_ECR_REPOSITORY_NAME`;
+- per-environment `ECS_CLUSTER`, service names, and task-family names;
+- per-environment `APP_ORIGIN`, `WORKER_LOG_GROUP`, and `SMOKE_ORG_SLUG`;
+- `PRIVATE_SUBNET_IDS` as a comma-separated list and
+  `TASK_SECURITY_GROUP_ID` for the one-off index task.
 
-Protected secrets include only values that cannot remain in AWS Secrets
-Manager, such as staging smoke-account credentials when required. Application
-runtime secrets are referenced by ECS task definitions from Secrets Manager.
+Protected GitHub Environment secrets are `SMOKE_EMAIL` and `SMOKE_PASSWORD`.
+Application runtime secrets remain referenced by ECS task definitions from
+Secrets Manager and are never copied into GitHub.
 
 GitHub OIDC configuration requires an approved AWS role ARN and trust policy;
 no long-lived AWS access key is stored in GitHub.
@@ -255,3 +257,22 @@ must expose these as parameters and must not invent production values.
 CI/CD is release-ready when PR validation, deterministic images, scans, ECR
 push, staging deployment, index step, smoke tests, protected same-digest
 production promotion, production smoke, and rollback verification all pass.
+
+## 20. Implemented Release Files
+
+- `deploy/scripts/prepare-task-definition.sh` replaces only the approved
+  container image with an immutable digest.
+- `deploy/scripts/run-index-task.sh` runs and verifies the create-only index
+  command in private Fargate networking.
+- `deploy/scripts/deploy-services.sh` records previous revisions, registers all
+  three task definitions, runs indexes, deploys, and waits for ECS stability.
+- `deploy/scripts/smoke.sh` checks frontend/API health, login, refresh,
+  `/auth/me`, Conversation create/list/read, real ALLOW SSE, MASK, and BLOCK.
+- `deploy/scripts/verify-worker-events.sh` correlates the safe request ID with
+  successful billing/analytics worker events and an applied rollup outcome.
+- `deploy/scripts/rollback-services.sh` deliberately restores all three
+  provided task-definition revisions and waits for stability.
+
+Static workflow and shell validation is required before merge. Actual AWS
+OIDC, ECR, ECS, Secrets Manager, Atlas, Redis, smoke-account, production
+approval, and rollback execution remain P12-09 environment gates.

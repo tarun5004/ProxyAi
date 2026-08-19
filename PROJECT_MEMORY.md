@@ -906,6 +906,20 @@ npm run dev
 
 ## Latest Deployment Task
 
+- **Task:** P12-08 — GitHub Actions Validation, Deployment, Smoke, and Rollback
+- **Status:** Implementation completed on 2026-08-19; live AWS execution remains P12-09
+- **CI:** Pull requests and main run secret scan, deterministic installs, production dependency audits, frontend/backend lint, typecheck, tests, builds, and both Docker builds with no paid provider calls.
+- **Release:** A successful main CI run builds each image once with the release SHA OCI label, scans high/critical findings, pushes immutable SHA tags, resolves digests, and passes those exact digests through staging and protected production.
+- **Deployment:** Scripts render current task definitions, record previous revisions, register new digest revisions, run the private one-off index task, update frontend/API/worker services, wait for stability, and preserve rollback artifacts.
+- **Smoke:** Release automation checks health, auth/login/refresh/me, Conversation create/list/read, real Groq ALLOW SSE, MASK/BLOCK behavior, and correlated billing/analytics worker completion with applied accounting.
+- **Rollback:** Manual staging/production workflow requires explicit prior frontend/API/worker revisions, waits for stability, and reruns smoke without touching data, queues, secrets, or images.
+- **Lint/toolchain:** Added real backend TypeScript ESLint. Backend TypeScript was aligned from unsupported `7.0.2` to parser-compatible `6.0.3`; three stale type imports were removed with no runtime behavior change.
+- **Files changed:** `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, `.github/workflows/rollback.yml`, `deploy/scripts/*.sh`, backend lint/package files, three stale-import files, frontend/backend Docker labels, `docs/13_CICD_DOCUMENTATION.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Verification:** Backend lint/typecheck/build passed; backend and frontend production dependency audits reported zero vulnerabilities; actionlint and ShellCheck passed in read-only network-disabled validator containers. Full tests and final image builds are recorded by the P12-09 readiness run.
+- **Pending environment gates:** AWS OIDC/role, region/domain/network values, secret population, Atlas/managed Redis connectivity, GitHub Environment approval identities, smoke accounts, actual ECR/ECS rollout, CloudWatch evidence, and rollback execution.
+
+## Previous Deployment Task
+
 - **Task:** P12-07 — Parameterized AWS Infrastructure Definitions
 - **Status:** Completed on 2026-08-19
 - **Registry/foundation:** `deploy/aws/registry.yml` defines exactly two shared immutable scan-on-push ECR repositories so staging and production use identical digests. `foundation.yml` defines each environment's ECS cluster, retained Secrets Manager containers, least-privilege roles, CloudWatch logs, ALB routing, health checks, security groups, and Route 53/ACM integration.
@@ -916,7 +930,7 @@ npm run dev
 - **Verification:** Both YAML templates parsed locally with CloudFormation intrinsic-tag support (23 foundation resources and 6 service resources); diff-check passed. AWS service validation could not run because no local AWS credentials are configured, so first staging bootstrap must run `aws cloudformation validate-template` before create/update.
 - **Security:** ECS tasks run in private subnets without public IPs; only ALB security-group traffic reaches ports 3000/8080; secret values are runtime-injected and absent from task plaintext configuration.
 
-## Previous Deployment Task
+## Earlier Deployment Task
 
 - **Task:** P12-06 — Idempotent Production Index Deployment
 - **Status:** Completed on 2026-08-19
@@ -926,7 +940,7 @@ npm run dev
 - **Verification:** Focused test passed 1/1; build passed; the command completed twice against dedicated `proxiai_index_deployment_audit`, creating declared indexes for all 13 models both times without conflict.
 - **Safety:** Logs contain fixed model names and safe events only. MongoDB URIs and credentials are never logged. Future document/data migrations remain a separately approved concern.
 
-## Earlier Deployment Task
+## Earlier AWS Task
 
 - **Task:** P12-05 — Production-Like Local Compose Stack
 - **Status:** Completed on 2026-08-19
@@ -937,7 +951,7 @@ npm run dev
 - **Verification:** Compose configuration validation passed. Real stack verification reported frontend, API, worker, Redis, and gateway healthy; `/`, `/healthz`, `/health/live`, and `/health/ready` returned `200`; readiness reported MongoDB and Redis `up`; nine expected API/worker startup events were observed.
 - **Operational note:** Port `3001` was already occupied during audit, so the verified stack used `PROXIAI_HTTP_PORT=3301`. Containers were stopped cleanly after verification; the Redis named volume was preserved.
 
-## Earlier Compose Task
+## Earlier Database Task
 
 - **Task:** P12-04 — Production Frontend and Backend Docker Images
 - **Status:** Completed on 2026-08-19
@@ -972,7 +986,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback; do not start Phase 8.
+- P12-09 — Run local final gates, then provision/verify staging AWS rollout and rollback; do not start Phase 8.
 
 ## Do Not Forget
 

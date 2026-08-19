@@ -47,7 +47,6 @@ import {
 import { productionProviderCandidates } from
     "../providers/provider-runtime.registry.js";
 import type {
-    CompletionRequest,
     ProviderId,
     StreamChunk,
     TokenUsage,

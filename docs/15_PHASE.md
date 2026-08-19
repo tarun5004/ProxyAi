@@ -867,7 +867,7 @@ readiness. Phases 8–11 remain planned and are not cancelled.
 - [x] P12-05 — Add a production-like local Compose stack.
 - [x] P12-06 — Add an idempotent production index deployment command.
 - [x] P12-07 — Add parameterized AWS infrastructure definitions.
-- [ ] P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback.
+- [x] P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback.
 - [ ] P12-09 — Verify staging/production-like release smoke and rollback.
 
 - [x] Multi-stage backend Dockerfile.
@@ -1044,20 +1044,21 @@ Do not randomly change several files.
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
-| Phase 12 | In Progress | P12-01 through P12-07 complete; parameterized AWS foundation and service templates added |
+| Phase 12 | In Progress | P12-01 through P12-08 implementation complete; live AWS rollout/rollback gates remain P12-09 |
 | Phase 13 | Not Started | |
 
 ---
 
 # 26. Immediate Next Task
 
-## P12-08 — GitHub Actions Release Pipeline
+## P12-09 — Staging and Production-Like Release Verification
 
 **Effort:** Medium
 
-Add pull-request validation, immutable image build/scan/push, staging rollout,
-index task, smoke verification, manual production approval, same-digest
-promotion, and rollback automation. Do not start Phase 8 product work.
+Provision approved environment parameters/secrets, run the complete CI/CD
+workflow against staging, verify authenticated application/worker/accounting
+smoke, promote the same digests after approval, and execute rollback proof.
+Do not start Phase 8 product work.
 
 ---
 

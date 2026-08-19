@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Audited historical README placeholder; no live credential"
+commits = ["d27fa2089d9dcb0176b1bf96a023f4442fadb7ee"]

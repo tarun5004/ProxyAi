@@ -1,0 +1,48 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+        required: true
+      frontend_task_definition:
+        description: Previous frontend task definition ARN/revision
+        required: true
+      api_task_definition:
+        description: Previous API task definition ARN/revision
+        required: true
+      worker_task_definition:
+        description: Previous worker task definition ARN/revision
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      FRONTEND_SERVICE: ${{ vars.FRONTEND_SERVICE }}
+      API_SERVICE: ${{ vars.API_SERVICE }}
+      WORKER_SERVICE: ${{ vars.WORKER_SERVICE }}
+      FRONTEND_TASK_DEFINITION: ${{ inputs.frontend_task_definition }}
+      API_TASK_DEFINITION: ${{ inputs.api_task_definition }}
+      WORKER_TASK_DEFINITION: ${{ inputs.worker_task_definition }}
+      APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+      SMOKE_ORG_SLUG: ${{ vars.SMOKE_ORG_SLUG }}
+      SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+      SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - run: deploy/scripts/rollback-services.sh
+      - run: deploy/scripts/smoke.sh

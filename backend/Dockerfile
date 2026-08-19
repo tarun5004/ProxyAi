@@ -21,9 +21,11 @@ RUN npm ci --omit=dev \
 
 FROM node:22.20.0-bookworm-slim AS runtime
 WORKDIR /app
+ARG COMMIT_SHA=unknown
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV RUNTIME_ROLE=api
+LABEL org.opencontainers.image.revision="${COMMIT_SHA}"
 
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 --gid nodejs proxiai

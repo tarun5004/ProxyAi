@@ -1,7 +1,6 @@
 import { Types } from "mongoose";
 
 import {
-    REQUEST_BLOCKED_JOB_TYPE,
     REQUEST_COMPLETED_JOB_TYPE,
 } from "../../shared/async/job-contract.js";
 import { AnalyticsJobLedgerModel } from

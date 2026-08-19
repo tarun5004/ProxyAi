@@ -12,7 +12,6 @@ import type {
     AnalyticsDailyAggregateDocument,
     AnalyticsJobLedgerRecord,
     AnalyticsJobLedgerState,
-    ProviderModelRequestCount,
 } from "./analytics.types.js";
 
 interface AnalyticsSummaryRow {
