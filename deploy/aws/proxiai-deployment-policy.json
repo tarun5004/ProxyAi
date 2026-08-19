@@ -1,0 +1,136 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadDeploymentState",
+      "Effect": "Allow",
+      "Action": [
+        "application-autoscaling:Describe*",
+        "cloudformation:Describe*",
+        "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:List*",
+        "cloudformation:ValidateTemplate",
+        "ec2:Describe*",
+        "ecr:Describe*",
+        "ecr:GetLifecyclePolicy",
+        "ecr:GetRepositoryPolicy",
+        "ecr:ListImages",
+        "ecs:Describe*",
+        "ecs:List*",
+        "elasticloadbalancing:Describe*",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:ListSecrets"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrAuthorization",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ProxiAiEcrImages",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:DescribeImageScanFindings",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:PutImageScanningConfiguration",
+        "ecr:StartImageScan",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": [
+        "arn:aws:ecr:ap-south-1:851725401338:repository/proxiai/frontend",
+        "arn:aws:ecr:ap-south-1:851725401338:repository/proxiai/backend"
+      ]
+    },
+    {
+      "Sid": "RegisterProxiAiTasks",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:DescribeTaskDefinition",
+        "ecs:RegisterTaskDefinition"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DeployProxiAiServices",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:CreateService",
+        "ecs:DescribeServices",
+        "ecs:DescribeTasks",
+        "ecs:ListTasks",
+        "ecs:RunTask",
+        "ecs:UpdateService"
+      ],
+      "Resource": [
+        "arn:aws:ecs:ap-south-1:851725401338:service/proxiai-production/*",
+        "arn:aws:ecs:ap-south-1:851725401338:task-definition/proxiai-*"
+      ]
+    },
+    {
+      "Sid": "DeployProxiAiStacks",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateChangeSet",
+        "cloudformation:CreateStack",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:DescribeStacks",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:GetTemplate",
+        "cloudformation:ListChangeSets",
+        "cloudformation:UpdateStack"
+      ],
+      "Resource": "arn:aws:cloudformation:ap-south-1:851725401338:stack/proxiai-*/*"
+    },
+    {
+      "Sid": "WriteProxiAiLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:PutRetentionPolicy"
+      ],
+      "Resource": "arn:aws:logs:ap-south-1:851725401338:log-group:/ecs/proxiai/*"
+    },
+    {
+      "Sid": "ReadProductionSecretOnly",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "arn:aws:secretsmanager:ap-south-1:851725401338:secret:proxiai/production-*"
+    },
+    {
+      "Sid": "PassOnlyProxiAiEcsRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::851725401338:role/proxiai-ecs-execution-role",
+        "arn:aws:iam::851725401338:role/proxiai-ecs-task-role"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ecs-tasks.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
