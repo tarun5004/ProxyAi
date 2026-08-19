@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-import { publicEnvironment } from "@/lib/env/public-env";
+import { createApiPath } from "@/lib/api/api-path";
 import { ApiError } from "@/lib/errors/api-error";
 
 export async function requestJson<TSchema extends z.ZodType>(input: {
@@ -24,7 +24,7 @@ export async function requestJson<TSchema extends z.ZodType>(input: {
     }
 
     const response = await fetch(
-        `${publicEnvironment.NEXT_PUBLIC_API_BASE_URL}${input.path}`,
+        createApiPath(input.path),
         {
             method: input.method ?? "GET",
             headers,

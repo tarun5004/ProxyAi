@@ -861,7 +861,7 @@ Phase 12 is explicitly accelerated after Phase 7 for first-live-deployment
 readiness. Phases 8–11 remain planned and are not cancelled.
 
 - [x] P12-01 — Align AWS ECS/Fargate deployment and CI/CD contracts.
-- [ ] P12-02 — Make frontend configuration immutable across environments.
+- [x] P12-02 — Make frontend configuration immutable across environments.
 - [ ] P12-03 — Separate API and BullMQ worker production entrypoints.
 - [ ] P12-04 — Add production frontend/backend Docker images.
 - [ ] P12-05 — Add a production-like local Compose stack.
@@ -1044,19 +1044,20 @@ Do not randomly change several files.
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
-| Phase 12 | In Progress | Accelerated deployment-readiness work; P12-01 AWS contract aligned |
+| Phase 12 | In Progress | P12-01 AWS contract aligned; P12-02 immutable frontend configuration complete |
 | Phase 13 | Not Started | |
 
 ---
 
 # 26. Immediate Next Task
 
-## P12-02 — Immutable Frontend Deployment Configuration
+## P12-03 — Separate API and Worker Production Entrypoints
 
 **Effort:** Medium
 
-Use same-origin relative API paths through the ALB so the same frontend image
-digest can move from staging to production. Do not start Phase 8 product work.
+Run the Express API and BullMQ consumers as independently deployable ECS
+services while reusing the existing connection and worker lifecycle modules.
+Do not start Phase 8 product work.
 
 ---
 

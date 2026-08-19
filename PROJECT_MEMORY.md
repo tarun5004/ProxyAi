@@ -904,9 +904,19 @@ npm run dev
 - **Verification:** Login and refresh preflights returned `204`; login, refresh, and authenticated `/api/v1/auth/me` requests returned `200` with `Access-Control-Allow-Origin: http://localhost:3001` and credentials enabled.
 - **Security:** No authentication logic, frontend behavior, wildcard origin, alias, or multi-origin production fallback was added.
 
+## Latest Deployment Task
+
+- **Task:** P12-02 — Immutable Frontend Deployment Configuration
+- **Status:** Completed on 2026-08-19
+- **Files changed:** `frontend/.env.example`, `frontend/next.config.ts`, `frontend/src/lib/api/api-path.ts`, `frontend/src/lib/api/api-client.ts`, `frontend/src/features/chat/chat.api.ts`, `frontend/src/features/marketing/landing-page.test.tsx`, removed `frontend/src/lib/env/public-env.ts`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Contract:** Browser API calls now use same-origin `/api/v1` paths. Local development uses a server-side-only `BACKEND_INTERNAL_ORIGIN` rewrite, while production routing remains the ALB responsibility.
+- **Immutable release:** `NEXT_PUBLIC_API_BASE_URL` was removed, so one standalone frontend image digest can be promoted between environments without rebuilding public configuration into the browser bundle.
+- **Verification:** Frontend tests passed 9/9 using a deterministic single-worker run with an environment-only timeout; typecheck, lint, production build, and diff-check passed. The normal 5-second test timeout remains slow-machine sensitive and was not changed in source.
+- **Security:** No backend secret or internal origin is exposed to browser code. Production has no hidden local proxy fallback.
+
 ## Recommended Next Task
 
-- P12-02 — Implement same-origin immutable frontend deployment configuration; do not start Phase 8.
+- P12-03 — Separate API and BullMQ worker production entrypoints; do not start Phase 8.
 
 ## Do Not Forget
 

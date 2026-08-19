@@ -1,4 +1,4 @@
-import { publicEnvironment } from "@/lib/env/public-env";
+import { createApiPath } from "@/lib/api/api-path";
 import { ApiError } from "@/lib/errors/api-error";
 import { readSseStream } from "@/lib/streaming/sse-parser";
 
@@ -11,7 +11,7 @@ export async function* streamChat(input: {
     signal: AbortSignal;
 }): AsyncGenerator<ChatEvent> {
     const response = await fetch(
-        `${publicEnvironment.NEXT_PUBLIC_API_BASE_URL}/chat/stream`,
+        createApiPath("/chat/stream"),
         {
             method: "POST",
             credentials: "include",

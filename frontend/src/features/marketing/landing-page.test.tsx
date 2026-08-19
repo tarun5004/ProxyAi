@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import HomePage from "@/app/page";
 import { LandingHeader } from "@/features/marketing/components/landing-header";
@@ -25,13 +25,11 @@ describe("public landing experience", () => {
     });
 
     it("preserves the existing login route composition", async () => {
-        vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:8080");
         const [{ default: LoginPage }, { LoginScreen }] = await Promise.all([
             import("@/app/(auth)/login/page"),
             import("@/features/auth/login-screen"),
         ]);
 
         expect(LoginPage().type).toBe(LoginScreen);
-        vi.unstubAllEnvs();
     });
 });
