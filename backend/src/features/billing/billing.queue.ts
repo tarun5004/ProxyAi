@@ -69,6 +69,6 @@ export async function enqueueRequestCompletedJob(
     }
 }
 
-function createBillingJobId(requestId: string): string {
+export function createBillingJobId(requestId: string): string {
     return `billing-request-completed-${requestId}`;
 }

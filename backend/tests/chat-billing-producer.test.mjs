@@ -57,6 +57,7 @@ function createRuntime({ enqueueError } = {}) {
             analyticsJobs.push(structuredClone(input));
             return input;
         },
+        async recordEnqueueFailure() {},
     };
 
     return {

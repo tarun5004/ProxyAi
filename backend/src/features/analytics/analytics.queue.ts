@@ -70,7 +70,7 @@ export async function enqueueAnalyticsRequestOutcomeJob(
     }
 }
 
-function createAnalyticsJobId(
+export function createAnalyticsJobId(
     jobType: AnalyticsRequestOutcomeJob["jobType"],
     requestId: string,
 ): string {

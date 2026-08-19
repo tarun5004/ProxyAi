@@ -134,12 +134,12 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 7 — Background Jobs, Billing, and Alerts
-Current Task: P7-11 — Failed Enqueue Recovery
-Current Status: P7-10 provider-health worker completed; P7-11 not started
+Current Phase: Phase 7 — Background Jobs, Billing, and Alerts (Completed)
+Current Task: Phase 8 not started; awaiting explicit approval
+Current Status: P7-11 completed and all approved Phase 7 exit criteria verified
 Current Blocker: None
-Last Completed Task: P7-10 — Provider Health Worker
-Last Completed Commit: feat(provider): add scheduled provider health worker
+Last Completed Task: P7-11 — Durable Enqueue Recovery
+Last Completed Commit: feat(async): add durable enqueue recovery
 ```
 
 ---
@@ -609,7 +609,7 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] P7-09 — Resolve provider-health, failed-enqueue recovery, failure-visibility, email-waiver, and Phase 7 exit contracts.
 - [x] Approve a Phase 7 email implementation waiver; move delivery to Phase 8 after provider, configuration, sender, error mapping, and template approval.
 - [x] P7-10 — Implement the scheduled Redis provider-health worker and conservative routing health gate.
-- [ ] P7-11 — Implement tenant-scoped bounded failed-enqueue recovery.
+- [x] P7-11 — Implement tenant-scoped bounded failed-enqueue recovery.
 - [x] Keep raw prompts out of job payloads.
 
 P7-03 keeps the current synchronous budget reconciliation until the billing
@@ -709,6 +709,16 @@ BullMQ's failed set and safe logs are the Phase 7 visibility source; Bull Board
 is deferred to optional controlled Phase 10 tooling. Alert listing/resolution
 and email delivery remain Phase 8 responsibilities.
 
+P7-11 implements that contract through the strict `async_enqueue_recovery`
+MongoDB ledger with `PENDING`, `ENQUEUED`, `COMPLETED`, and `FAILED` states.
+Immediate billing/analytics publication failures create durable tenant-scoped
+records, while the startup and idempotently scheduled 60-second scan also
+reconstructs missing records from append-only RequestLog data. Atomic claims,
+deterministic BullMQ job IDs, and the existing billing/analytics ledgers guard
+concurrent and repeated scans from duplicate effects. Publication retries stop
+after three attempts, terminal failed jobs remain visible, and no raw prompt,
+response, PII, credential, or secret is stored or logged.
+
 ## Exit Criteria
 
 - [x] Chat response does not wait for workers.
@@ -719,8 +729,8 @@ and email delivery remain Phase 8 responsibilities.
 - [x] Basic analytics jobs are tenant-scoped and idempotent.
 - [x] Daily token anomalies are feature-gated, tenant/user scoped, and atomically deduplicated.
 - [x] Provider-health jobs refresh safe Redis state every 60 seconds with a 120-second TTL, and routing applies only the approved conservative gate.
-- [ ] Missed billing/analytics enqueues are recovered through the bounded tenant-scoped ledger/backfill contract without duplicate effects.
-- [ ] P7-10 and P7-11 focused tests, typecheck, build, lifecycle checks, and sensitive-data scans pass.
+- [x] Missed billing/analytics enqueues are recovered through the bounded tenant-scoped ledger/backfill contract without duplicate effects.
+- [x] P7-10 and P7-11 focused tests, typecheck, build, lifecycle checks, and sensitive-data scans pass.
 
 ---
 
@@ -1016,7 +1026,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-10 provider health completed; P7-11 failed-enqueue recovery remains; email delivery waived to Phase 8 |
+| Phase 7 | Completed | Provider health and durable billing/analytics enqueue recovery verified; email delivery waived to Phase 8 |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -1028,19 +1038,12 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-11 — Failed Enqueue Recovery
+## Phase 8 Readiness Audit — Awaiting Approval
 
 **Effort:** Medium
 
-Do only this next:
-
-1. Implement the approved safe `async_enqueue_recovery` coordination ledger.
-2. Run the bounded recovery scan at worker startup and every 60 seconds using
-   trusted tenant scope for every RequestLog query.
-3. Re-enqueue only missing deterministic billing/analytics jobs and rely on
-   existing worker ledgers to prevent duplicate effects.
-4. Stop automatic recovery after three failed publication attempts or a
-   terminal BullMQ failed job. Do not mutate RequestLog or add Phase 8 work.
+P7-11 and Phase 7 are complete. Do not begin Phase 8 implementation until an
+explicit Phase 8 readiness audit and task approval are provided.
 
 ---
 

@@ -16,6 +16,12 @@ import {
 } from "./features/providers/provider-health.queue.js";
 import { startProviderHealthWorker } from
     "./features/providers/provider-health.worker.js";
+import {
+    connectEnqueueRecoveryQueue,
+    scheduleEnqueueRecoveryScans,
+} from "./features/recovery/enqueue-recovery.queue.js";
+import { startEnqueueRecoveryWorker } from
+    "./features/recovery/enqueue-recovery.worker.js";
 import { disconnectBullMq } from "./shared/async/bullmq.js";
 import { logger } from "./shared/lib/logger.js";
 import { connectMongo, disconnectMongo } from "./shared/lib/mongo.js";
@@ -130,13 +136,18 @@ void Promise.all([mongoConnection, redisConnection])
             connectAnalyticsQueue(),
             connectAnomalyQueue(),
             connectProviderHealthQueue(),
+            connectEnqueueRecoveryQueue(),
         ]);
-        await scheduleProviderHealthChecks();
+        await Promise.all([
+            scheduleProviderHealthChecks(),
+            scheduleEnqueueRecoveryScans(),
+        ]);
         await Promise.all([
             startBillingWorker(),
             startAnalyticsWorker(),
             startAnomalyWorker(),
             startProviderHealthWorker(),
+            startEnqueueRecoveryWorker(),
         ]);
     })
     .catch(() => {

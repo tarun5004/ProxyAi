@@ -165,6 +165,7 @@ function createRuntime({
             analyticsJobs.push(input);
             return input;
         },
+        async recordEnqueueFailure() {},
         emitPolicyEvent(input) {
             const event = createPolicyDecisionEvent(input);
             policyEvents.push(event);

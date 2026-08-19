@@ -11,6 +11,8 @@ export const REQUEST_BLOCKED_JOB_TYPE = "request.blocked" as const;
 export const USAGE_UPDATED_JOB_TYPE = "usage.updated" as const;
 export const PROVIDER_HEALTH_CHECK_JOB_TYPE =
     "provider.health_check" as const;
+export const ASYNC_ENQUEUE_RECOVERY_SCAN_JOB_TYPE =
+    "async.enqueue_recovery_scan" as const;
 export const REQUEST_COMPLETED_STATUSES = [
     "COMPLETED",
     "FAILED",
@@ -105,6 +107,13 @@ const providerHealthCheckJobSchema = z.strictObject({
     occurredAt: z.string().datetime(),
 });
 
+const asyncEnqueueRecoveryScanJobSchema = z.strictObject({
+    schemaVersion: z.literal(ASYNC_JOB_SCHEMA_VERSION),
+    jobType: z.literal(ASYNC_ENQUEUE_RECOVERY_SCAN_JOB_TYPE),
+    requestId: uuidV4Schema,
+    occurredAt: z.string().datetime(),
+});
+
 export type RequestCompletedJob = Readonly<
     z.infer<typeof requestCompletedJobSchema>
 >;
@@ -119,6 +128,9 @@ export type UsageUpdatedJob = Readonly<
 >;
 export type ProviderHealthCheckJob = Readonly<
     z.infer<typeof providerHealthCheckJobSchema>
+>;
+export type AsyncEnqueueRecoveryScanJob = Readonly<
+    z.infer<typeof asyncEnqueueRecoveryScanJobSchema>
 >;
 export type RequestCompletedStatus =
     (typeof REQUEST_COMPLETED_STATUSES)[number];
@@ -184,6 +196,18 @@ export function parseProviderHealthCheckJob(
     input: unknown,
 ): ProviderHealthCheckJob {
     const result = providerHealthCheckJobSchema.safeParse(input);
+
+    if (!result.success) {
+        throw new InvalidAsyncJobPayloadError();
+    }
+
+    return Object.freeze(result.data);
+}
+
+export function parseAsyncEnqueueRecoveryScanJob(
+    input: unknown,
+): AsyncEnqueueRecoveryScanJob {
+    const result = asyncEnqueueRecoveryScanJobSchema.safeParse(input);
 
     if (!result.success) {
         throw new InvalidAsyncJobPayloadError();

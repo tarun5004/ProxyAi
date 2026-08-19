@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-11 — Failed Enqueue Recovery
-- **Status:** P7-10 completed and verified; P7-11 not started
+- **Phase:** Phase 7 — Background Jobs, Billing, and Alerts (Completed)
+- **Task:** P7-11 — Durable Enqueue Recovery
+- **Status:** Completed and verified on 2026-08-19; Phase 8 not started
 
 ## Completed Tasks
 
@@ -78,6 +78,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-08 — Safe alert email notification contract resolved on 2026-08-19; no worker or provider code added
 - P7-09 — Phase 7 closure contract resolved on 2026-08-19; no production code added
 - P7-10 — Scheduled Redis provider-health worker and conservative routing gate completed on 2026-08-19
+- P7-11 — Durable tenant-scoped billing/analytics enqueue recovery completed on 2026-08-19
+- Phase 7 — Background jobs, billing, analytics, anomaly detection, provider health, and bounded enqueue recovery completed on 2026-08-19; email delivery remains explicitly waived to Phase 8
 
 ## Important Decisions
 
@@ -769,17 +771,19 @@ npm run dev
 
 ## Latest Task
 
-- **Task:** P7-10 — Provider Health Worker
-- **Status:** Completed and verified on 2026-08-19; Phase 7 remains open
-- **Files changed:** `backend/src/features/chat/chat.service.ts`, `backend/src/features/providers/provider.types.ts`, `backend/src/features/providers/provider-runtime.registry.ts`, `backend/src/features/providers/provider-health.store.ts`, `backend/src/features/providers/provider-health.queue.ts`, `backend/src/features/providers/provider-health.worker.ts`, `backend/src/shared/async/job-contract.ts`, `backend/src/server.ts`, `backend/tests/chat.stream.test.mjs`, `backend/tests/provider-health.worker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Implementation:** One Groq-only BullMQ scheduler runs every 60 seconds, the managed worker calls the shared adapter health contract, and Redis stores only safe `HEALTHY`, `UNHEALTHY`, or `UNKNOWN` state plus `checkedAt` for 120 seconds.
-- **Routing:** Chat reads the Redis health overlay after policy. Only `UNHEALTHY` is rejected; `UNKNOWN`, including degraded, missing, malformed, expired, or Redis-error state, preserves existing capability/circuit/retry/fallback behavior.
-- **Lifecycle:** Queue, scheduler, worker, and Redis resources reuse the existing BullMQ lifecycle. Scheduler upsert and module singletons prevent duplicate schedules/workers; shared shutdown closes them.
-- **Focused tests:** Four tests prove HEALTHY+TTL, UNHEALTHY/degraded mapping, missing-key UNKNOWN behavior, and routing skip semantics.
-- **Verification:** Focused tests passed `4/4`; full backend suite passed `191/191`; `npm run typecheck`, `npm run build`, and `git diff --check` passed. Focused source/log scans found no provider response, raw error, prompt, credential, API key, cookie, token, or SDK payload logging.
-- **Scope:** No Mongo provider-health history, Bull Board, new routing score, fallback redesign, email, P7-11 recovery, or Phase 8 work was added.
-- **Recommended commit:** `feat(provider): add scheduled provider health worker`.
-- **Next task:** P7-11 — Implement only the approved bounded tenant-scoped failed-enqueue recovery.
+- **Task:** P7-11 — Durable Enqueue Recovery
+- **Status:** Completed and verified on 2026-08-19; Phase 7 completed and Phase 8 not started
+- **Files changed:** `backend/src/features/analytics/analytics.queue.ts`, `backend/src/features/billing/billing.queue.ts`, `backend/src/features/chat/chat.service.ts`, `backend/src/features/recovery/enqueue-recovery.types.ts`, `backend/src/features/recovery/enqueue-recovery.model.ts`, `backend/src/features/recovery/enqueue-recovery.repository.ts`, `backend/src/features/recovery/enqueue-recovery.service.ts`, `backend/src/features/recovery/enqueue-recovery.queue.ts`, `backend/src/features/recovery/enqueue-recovery.worker.ts`, `backend/src/server.ts`, `backend/src/shared/async/job-contract.ts`, `backend/tests/chat-billing-producer.test.mjs`, `backend/tests/chat.stream.test.mjs`, `backend/tests/enqueue-recovery.worker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Durable state:** The strict MongoDB `async_enqueue_recovery` ledger stores only trusted `{ orgId, requestId, queueName, jobType }`, `PENDING`/`ENQUEUED`/`COMPLETED`/`FAILED`, bounded attempts, safe timestamps, and an allowlisted error category. RequestLog remains append-only.
+- **Recovery flow:** Billing and analytics enqueue failures create immediate durable records. A startup scan plus one idempotently upserted 60-second BullMQ schedule enumerates trusted organisations, reads RequestLog with `orgId`, reconstructs only approved billing/analytics jobs, and re-enqueues deterministic job IDs.
+- **Duplicate safety:** Atomic due-record claims close concurrent scan races. Existing billing/analytics ledgers remain the final exactly-once side-effect guard; completed ledgers close recovery without another enqueue.
+- **Failure behavior:** Publication retries reuse the approved exponential backoff and stop after three attempts. Terminal BullMQ failures and exhausted recovery remain `FAILED` and visible through MongoDB, BullMQ's failed set, and safe structured events.
+- **Focused tests:** Four real-Mongo tests prove durable failure recording, concurrent deterministic single enqueue, completed-ledger duplicate prevention, and terminal failure after three attempts.
+- **Verification:** Focused tests passed `4/4`; chat/billing/analytics/recovery regressions passed `19/19`; the full backend suite passed `195/195`; `npm run typecheck`, `npm run build`, `git diff --check`, lifecycle review, RequestLog mutation scan, and sensitive-source/log scans passed.
+- **Security/scope:** Recovery stores and logs no prompt, response, PII, password, cookie, authorization header, API key, provider payload, or secret. It covers only existing billing and analytics producers; no email, arbitrary job replay, Bull Board, public admin UI, or Phase 8 work was added.
+- **Remaining risks:** `FAILED` recovery records require controlled future operational handling; Bull Board/manual replay remains Phase 10. The bounded 100-record tenant scan may drain a large historical backlog over multiple intervals by design.
+- **Completed commit:** `feat(async): add durable enqueue recovery`.
+- **Next task:** Phase 8 readiness audit only, after explicit approval.
 
 ## Previous Contract Task — P7-08
 
@@ -892,7 +896,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P7-11 — Implement the approved bounded tenant-scoped failed-enqueue recovery. Do not start Phase 8.
+- Phase 8 readiness audit only after explicit approval; do not start Phase 8 implementation automatically.
 
 ## Do Not Forget
 

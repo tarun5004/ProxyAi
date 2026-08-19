@@ -52,6 +52,10 @@ import type {
     StreamChunk,
     TokenUsage,
 } from "../providers/provider.types.js";
+import type { EnqueueRecoveryScope } from
+    "../recovery/enqueue-recovery.repository.js";
+import { recordFailedEnqueue } from
+    "../recovery/enqueue-recovery.service.js";
 import {
     chatControlService,
     type ChatControlService,
@@ -86,6 +90,7 @@ export interface ChatPipelineDependencies {
     readonly enqueueBillingJob: typeof enqueueRequestCompletedJob;
     readonly enqueueAnalyticsJob:
         typeof enqueueAnalyticsRequestOutcomeJob;
+    readonly recordEnqueueFailure: typeof recordFailedEnqueue;
     readonly emitPolicyEvent: typeof emitPolicyDecisionEvent;
 }
 
@@ -117,6 +122,7 @@ export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
     appendUsage: appendRequestUsage,
     enqueueBillingJob: enqueueRequestCompletedJob,
     enqueueAnalyticsJob: enqueueAnalyticsRequestOutcomeJob,
+    recordEnqueueFailure: recordFailedEnqueue,
     emitPolicyEvent: emitPolicyDecisionEvent,
 };
 
@@ -215,6 +221,15 @@ export async function prepareChatStream(
                         userId: input.auth.userId,
                     },
                     "Analytics job enqueue failed after RequestLog persistence",
+                );
+                await recordRecoveryFailureSafely(
+                    {
+                        orgId: input.auth.orgId,
+                        requestId: input.requestId,
+                        queueName: "analytics-queue",
+                        jobType: REQUEST_BLOCKED_JOB_TYPE,
+                    },
+                    dependencies,
                 );
             }
 
@@ -472,6 +487,15 @@ async function recordUsageAndComplete(
                 },
                 "Billing job enqueue failed after authoritative usage persistence",
             );
+            await recordRecoveryFailureSafely(
+                {
+                    orgId: input.orgId,
+                    requestId: input.requestId,
+                    queueName: "billing-queue",
+                    jobType: REQUEST_COMPLETED_JOB_TYPE,
+                },
+                dependencies,
+            );
         }
 
         try {
@@ -503,10 +527,40 @@ async function recordUsageAndComplete(
                 },
                 "Analytics job enqueue failed after RequestLog persistence",
             );
+            await recordRecoveryFailureSafely(
+                {
+                    orgId: input.orgId,
+                    requestId: input.requestId,
+                    queueName: "analytics-queue",
+                    jobType: REQUEST_COMPLETED_JOB_TYPE,
+                },
+                dependencies,
+            );
         }
 
     } finally {
         await input.reservation.markCompleted();
+    }
+}
+
+async function recordRecoveryFailureSafely(
+    scope: EnqueueRecoveryScope,
+    dependencies: ChatPipelineDependencies,
+): Promise<void> {
+    try {
+        await dependencies.recordEnqueueFailure(scope);
+    } catch {
+        logger.error(
+            {
+                errorCode: "ENQUEUE_RECOVERY_RECORD_FAILED",
+                event: "async.enqueue_recovery.record_failed",
+                jobType: scope.jobType,
+                orgId: scope.orgId,
+                queue: scope.queueName,
+                requestId: scope.requestId,
+            },
+            "Durable enqueue recovery record failed",
+        );
     }
 }
 
