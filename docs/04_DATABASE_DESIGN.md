@@ -1073,22 +1073,22 @@ If local MongoDB runs as standalone and transactions are unavailable, implement 
 
 ## 27. Schema Evolution and Migrations
 
-### 27.1 Migration tool
+### 27.1 Current index deployment
 
-Use a simple TypeScript migration runner, such as `migrate-mongo`, or a small internal script folder:
+The MVP uses `npm run deploy:indexes` as an explicit one-off deployment task.
+It loads every approved Mongoose model and calls create-only index operations.
+API and worker production connections disable automatic index creation.
 
-```text
-backend/src/migrations/
-  001-create-core-indexes.ts
-  002-add-request-billing-applied.ts
-  003-add-message-expiry-index.ts
-```
+Future document-shape migrations or data backfills require a separately
+approved ordered migration runner; they must not be hidden inside API or
+worker startup.
 
 ### 27.2 Migration rules
 
-- Migrations are ordered and immutable after release.
-- Each migration has `up` and, where safe, `down` logic.
-- Index creation is performed by migrations, not only through automatic Mongoose sync.
+- Future data migrations are ordered and immutable after release.
+- Each future migration has `up` and, where safe, `down` logic.
+- Index creation is performed by the explicit deployment command, not automatic Mongoose sync.
+- The index command may create declared indexes but never drops or renames an index.
 - Production startup must not silently drop or rebuild indexes.
 - Backfills operate in batches and are resumable.
 - Destructive changes require backup verification first.
@@ -1223,7 +1223,7 @@ The MVP does not promise formal Recovery Point Objective or Recovery Time Object
 - Audit model rejects update/delete operations
 - Billing worker retry does not double-count
 - Cursor pagination has no duplicate rows
-- Required indexes exist after migration
+- Required indexes exist after the deployment command
 
 ### 33.3 Security tests
 
@@ -1281,7 +1281,7 @@ For MVP-sized test data:
 
 ### Step 6 — Hardening
 
-- All indexes through migrations
+- All declared indexes through the explicit deployment command
 - Cross-tenant integration tests
 - Backup/restore check
 - Query-plan verification
@@ -1293,7 +1293,7 @@ The database design is implemented for MVP when:
 
 - All approved collections exist with validation.
 - Every tenant-owned collection includes `orgId`.
-- Core indexes are created through migrations.
+- Core indexes are created through the explicit deployment command.
 - Authentication tokens are hashed and rotate safely.
 - Prompt and response content is never stored in plaintext.
 - Metadata-only mode stores no content.

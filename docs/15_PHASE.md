@@ -865,7 +865,7 @@ readiness. Phases 8–11 remain planned and are not cancelled.
 - [x] P12-03 — Separate API and BullMQ worker production entrypoints.
 - [x] P12-04 — Add production frontend/backend Docker images.
 - [x] P12-05 — Add a production-like local Compose stack.
-- [ ] P12-06 — Add an idempotent production index deployment command.
+- [x] P12-06 — Add an idempotent production index deployment command.
 - [ ] P12-07 — Add parameterized AWS infrastructure definitions.
 - [ ] P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback.
 - [ ] P12-09 — Verify staging/production-like release smoke and rollback.
@@ -879,7 +879,7 @@ readiness. Phases 8–11 remain planned and are not cancelled.
 - [ ] Push SHA-tagged image.
 - [ ] Deploy staging API.
 - [ ] Deploy always-on worker.
-- [ ] Run migrations.
+- [x] Run create-only index deployment in a dedicated verification database.
 - [ ] Run staging smoke tests.
 - [ ] Promote same tested image to production.
 - [ ] Manual production approval.
@@ -1044,20 +1044,20 @@ Do not randomly change several files.
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
-| Phase 12 | In Progress | P12-01 through P12-05 complete; production-like local gateway/API/worker/Redis stack verified |
+| Phase 12 | In Progress | P12-01 through P12-06 complete; production auto-indexing disabled and create-only deployment verified |
 | Phase 13 | Not Started | |
 
 ---
 
 # 26. Immediate Next Task
 
-## P12-06 — Idempotent Production Index Deployment
+## P12-07 — Parameterized AWS Infrastructure
 
 **Effort:** Medium
 
-Add a safe one-off command that creates every schema-declared MongoDB index
-without dropping data or undeclared indexes. Do not start Phase 8 product
-work.
+Add parameterized AWS infrastructure definitions for ECR, ECS/Fargate, ALB,
+Route 53, ACM integration, Secrets Manager, CloudWatch, and private task
+networking. Do not start Phase 8 product work.
 
 ---
 

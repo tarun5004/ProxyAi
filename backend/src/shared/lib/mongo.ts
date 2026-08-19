@@ -58,6 +58,7 @@ async function connect(): Promise<void> {
 
     try {
         await mongoose.connect(runtimeEnv.MONGO_URI, {
+            autoIndex: runtimeEnv.NODE_ENV !== "production",
             serverSelectionTimeoutMS: MONGO_SERVER_SELECTION_TIMEOUT_MS,
         });
 
