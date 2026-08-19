@@ -513,7 +513,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | T, R |
 | Risk | High |
 | Scenario | At-least-once delivery causes billing to be deducted twice or duplicate alerts. |
-| Prevention | Stable event ID; unique processing ledger or atomic upsert; deterministic monthly rollup key; workers designed as idempotent. |
+| Prevention | Stable `{ orgId, requestId, jobType }` processing ledger; append-only `RequestLog`; deterministic source-derived monthly rollup; bounded retries; workers designed as idempotent. |
 | Detection | Duplicate-event integration tests and reconciliation metrics. |
 
 ### TM-017 — NoSQL injection or query operator injection
@@ -997,8 +997,12 @@ The prompt-cache HMAC input binds trusted `orgId`, exact approved `providerPromp
 
 - Jobs carry IDs and safe metadata, not prompt content.
 - Each processor validates payload schema.
-- Each side effect has an idempotency key.
-- Retry count is bounded.
+- `requestId` is the canonical correlation ID; Phase 7 does not add `traceId`.
+- Billing uses a separate tenant-scoped async ledger and never mutates append-only `RequestLog` records.
+- Usage and cost remain optional; unknown values are omitted and never synthesized as zero.
+- Each side effect has an idempotency key, and retry count is bounded to approved transient failures.
+- Invalid payloads, unknown usage, and unavailable pricing are terminal outcomes rather than retry loops.
+- Exhausted jobs remain visible in BullMQ's failed set, which is the MVP dead-letter mechanism.
 - Failed jobs are visible in Bull Board only in controlled environments.
 - Bull Board must not be publicly exposed in production.
 

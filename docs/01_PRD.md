@@ -533,7 +533,7 @@ Retention mode shall determine the persistence payload before the database write
 
 ### FR-BILL-001 — Usage event
 
-Every completed non-cached provider request shall produce token and cost information.
+Every completed non-cached provider request shall produce a safe usage event. Token usage is included only when the provider returns a complete actual usage set. Estimated cost is included only when an approved pricing configuration exists. Unknown usage or cost remains unknown and must never be synthesized or written as zero.
 
 ### FR-BILL-002 — Monthly rollup
 

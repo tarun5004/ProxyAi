@@ -580,10 +580,10 @@ interface RequestLog {
   routingReason?: 'manual' | 'auto' | 'fallback' | 'cache';
   intent?: Intent;
   policyAction: 'ALLOW' | 'ALLOW_WITH_MASK' | 'BLOCK';
-  tokensIn: number;
-  tokensOut: number;
-  totalTokens: number;
-  estimatedCostUsd: number;
+  tokensIn?: number;
+  tokensOut?: number;
+  totalTokens?: number;
+  estimatedCostMicros?: number;
   latencyMs: number;
   piiRiskScore: number;
   piiCategories: PiiCategory[];
@@ -1346,22 +1346,46 @@ Queue payloads contain identifiers and safe metadata only. They must not include
 
 ```ts
 interface RequestCompletedJob {
-  requestLogId: string;
+  schemaVersion: 1;
+  jobType: 'request.completed';
+  requestId: string;
   orgId: string;
   userId: string;
-  providerId: ProviderId | 'cache';
-  totalTokens: number;
-  estimatedCostUsd: number;
-  latencyMs: number;
+  providerId: ProviderId;
+  model: string;
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+  estimatedCostMicros?: number;
   occurredAt: string;
 }
 ```
 
+The usage object is all-or-nothing and contains only actual provider-reported values. Missing provider usage is a terminal data outcome for that event, not a reason for infinite retries. Pricing is not approved yet, so `estimatedCostMicros` is omitted; unknown cost is never represented as zero. Raw prompts, responses, PII values, secrets, headers, cookies, SDK objects, and free-form payload objects are forbidden.
+
+`requestId` is the canonical correlation ID. Existing request-derived jobs preserve it, and scheduled jobs generate a server UUID request ID. Phase 7 does not introduce `traceId`; future distributed tracing may add a separate mapping without replacing `requestId`.
+
 ### 28.4 Idempotent workers
 
-Every worker must tolerate duplicate delivery. Use a unique natural key or upsert operation.
+Every worker must tolerate duplicate delivery. Billing processing uses a separate tenant-scoped async ledger keyed uniquely by `{ orgId, requestId, jobType }`; it never mutates the append-only `RequestLog`.
 
-Examples:
+```ts
+interface AsyncJobLedgerRecord {
+  orgId: string;
+  requestId: string;
+  jobType: string;
+  state: 'PROCESSING' | 'COMPLETED';
+  processingStartedAt: Date;
+  completedAt?: Date;
+  outcome?: 'APPLIED' | 'USAGE_UNAVAILABLE' | 'COST_UNAVAILABLE';
+}
+```
+
+The ledger stores only safe identifiers, state, outcome, and timestamps. The worker loads the authoritative request using `{ orgId, requestId }`. The current minimal billing rollup is recomputed deterministically from `RequestLog` and written with `$set`, so retries cannot double-add usage. Duplicate `COMPLETED` work is a no-op. A retried `PROCESSING` job may rerun deterministic reconciliation; it must not apply incremental side effects without a separate atomic contribution contract.
+
+Other idempotency keys remain:
 
 - Billing upsert key: `orgId + period + userId`
 - Daily analytics key: `orgId + date`
@@ -1375,17 +1399,9 @@ Use UTC month in `YYYY-MM` format.
 
 ### 29.2 Update
 
-Atomic upsert:
+The implemented authoritative MVP rollup remains one organisation-month record containing `usedTokens` and `sourceRequestCount`. The billing worker deterministically aggregates trusted `{ orgId, period }` `RequestLog` records and upserts those totals with `$set`. Missing usage does not add zero tokens; it leaves accounting unavailable and is recorded as terminal `USAGE_UNAVAILABLE` in the async ledger.
 
-```ts
-$inc: {
-  totalTokens: job.totalTokens,
-  totalCostUsd: job.estimatedCostUsd,
-  requestCount: 1,
-  [`byProvider.${job.providerId}.tokens`]: job.totalTokens,
-  [`byProvider.${job.providerId}.costUsd`]: job.estimatedCostUsd,
-}
-```
+Richer user/provider/cost reporting rollups are separate Phase 7 projections. They must not replace or weaken the current authoritative budget source until their schemas, idempotent contribution rules, and pricing configuration are approved.
 
 ### 29.3 Budget status
 
@@ -1400,6 +1416,14 @@ interface BudgetStatus {
 ```
 
 Budget checks should read the current billing rollup plus any safe in-flight estimate where practical. For the MVP, a small race near the exact budget boundary is accepted and documented; strict reservation-based accounting is deferred.
+
+### 29.4 Retry and failure contract
+
+- Retry up to three attempts with exponential backoff starting at 1,000 ms for transient MongoDB, Redis/BullMQ, or worker-availability failures.
+- Do not retry schema/version errors, missing trusted scope, unsupported job types, unknown provider usage, or unavailable pricing.
+- Retain exhausted jobs in BullMQ's failed set. This failed set is the MVP dead-letter mechanism; no second DLQ queue is introduced.
+- Emit only safe failure metadata such as queue, job type, request ID, provider ID, attempt count, and normalized error category.
+- A failed async job never changes the already delivered chat response. Durable `RequestLog` data remains available for later reconciliation.
 
 ## 30. Analytics and Anomaly Workers
 
@@ -1428,6 +1452,13 @@ Do not flag when there is insufficient baseline data. Recommended minimum: 3 pre
 ### 30.3 Alert deduplication
 
 Only one unresolved anomaly alert per user per day.
+
+### 30.4 Other Phase 7 job ownership
+
+- Analytics consumes `request.completed`, creates tenant-scoped daily aggregates, and treats absent usage/cost as unknown rather than zero.
+- Anomaly consumes `usage.updated`, evaluates only approved aggregate token data, and emits an `alert.created` reference without prompt or response content.
+- Email consumes `alert.created` with trusted IDs and an allowlisted template identifier. It loads recipient data through tenant-scoped storage; email addresses and rendered bodies are not queue payload fields. The delivery provider and credential configuration remain unresolved and must be approved before implementation.
+- Provider health consumes `provider.health_check`, is platform-scoped, and carries provider ID, request ID, schema version, and schedule timestamp only.
 
 ## 31. Provider Health Worker
 
@@ -1578,8 +1609,8 @@ const logger = pino({
 
 ### 37.2 Required context
 
-- `requestId`
-- `traceId` when available
+- `requestId` as the canonical correlation ID
+- Future distributed trace ID only after an approved tracing migration
 - `orgId`
 - `userId`
 - Route

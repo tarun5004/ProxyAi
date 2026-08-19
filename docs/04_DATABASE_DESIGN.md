@@ -467,10 +467,10 @@ interface RequestLogDocument {
   fallbackCount: number;
   cacheHit: boolean;
   circuitStateAtSelection?: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  estimatedCostMicros: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  estimatedCostMicros?: number;
   latencyMs?: number;
   timeToFirstTokenMs?: number;
   errorCode?: string;
@@ -478,6 +478,8 @@ interface RequestLogDocument {
   completedAt?: Date;
 }
 ```
+
+Token fields are all present together or all absent. Provider-reported usage that is unavailable remains unknown. Estimated cost is absent until an approved pricing configuration exists; neither usage nor cost may be synthesized as zero.
 
 ### 15.2 Data restrictions
 
@@ -624,6 +626,8 @@ interface BillingRollupDocument {
 }
 ```
 
+This richer document is a future reporting projection. The currently implemented authoritative budget rollup is intentionally minimal: `{ orgId, period, usedTokens, sourceRequestCount, updatedAt }`. It is derived from append-only `RequestLog` records and remains the budget source of truth until richer rollups are separately implemented and verified.
+
 ### 17.2 Record granularity
 
 The MVP may keep:
@@ -641,52 +645,17 @@ billingRollupSchema.index(
 billingRollupSchema.index({ orgId: 1, period: -1 });
 ```
 
-### 17.4 Atomic updates
+### 17.4 Deterministic authoritative update
 
-Billing workers use `$inc` and upsert so duplicate reads do not overwrite totals.
+The current billing worker contract aggregates all trusted `RequestLog` records for `{ orgId, period }` and upserts `usedTokens` plus `sourceRequestCount` with `$set`. Reprocessing the same request therefore recomputes the same authoritative totals instead of incrementing them twice. Unknown usage never contributes a synthetic zero and keeps authoritative budget accounting unavailable.
 
-```ts
-await BillingRollup.updateOne(
-  { orgId, period, userId: null },
-  {
-    $inc: {
-      totalInputTokens: inputTokens,
-      totalOutputTokens: outputTokens,
-      totalTokens,
-      requestCount: 1,
-      completedRequestCount: status === 'COMPLETED' ? 1 : 0,
-      estimatedCostMicros,
-      [`byProvider.${provider}.totalTokens`]: totalTokens,
-      [`byProvider.${provider}.requestCount`]: 1,
-      [`byProvider.${provider}.estimatedCostMicros`]: estimatedCostMicros,
-    },
-    $set: { updatedAt: new Date() },
-  },
-  { upsert: true },
-);
-```
+Future user/provider/cost projections may use incremental contributions only after a separate atomic contribution or processing-ledger contract is implemented. They are not part of the current minimal budget rollup.
 
 ### 17.5 Idempotent billing rule
 
-A BullMQ job ID should be derived from `requestId`, for example `billing:${requestId}`. The worker must also verify that a request has not already been applied if retry conditions make duplicate execution possible.
+A BullMQ job ID should be derived from job type plus `requestId`, for example `billing:request.completed:${requestId}`. BullMQ deduplication is only the first guard; the durable guard is a separate async job ledger with a unique `{ orgId, requestId, jobType }` index.
 
-For the simple MVP, add a small processed marker to `RequestLog`:
-
-```ts
-billingAppliedAt?: Date;
-```
-
-The worker atomically claims the request using:
-
-```ts
-RequestLog.findOneAndUpdate(
-  { requestId, billingAppliedAt: { $exists: false } },
-  { $set: { billingAppliedAt: new Date() } },
-  { new: true },
-);
-```
-
-If no document is returned, the rollup has already been processed.
+The ledger stores tenant scope, request ID, job type, `PROCESSING` or `COMPLETED` state, safe timestamps, and a bounded safe outcome. It never stores prompts, responses, PII values, secrets, token/cookie/header data, or arbitrary payloads. `RequestLog` remains append-only and must never receive `billingAppliedAt` or any worker mutation.
 
 ## 18. Alert Collection
 

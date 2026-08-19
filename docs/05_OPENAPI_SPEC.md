@@ -1195,7 +1195,7 @@ Returns pre-aggregated billing and token usage.
 }
 ```
 
-Amounts are estimates derived from configured provider pricing. The API must not present them as provider-issued invoices.
+Amounts are estimates derived from configured provider pricing. The API must not present them as provider-issued invoices. No pricing snapshot is currently approved, so Phase 7 jobs omit cost instead of reporting zero. Before the Phase 8 billing API is implemented, its nullable/omission response schema must be finalized against the approved pricing configuration.
 
 # 20. Admin Alerts APIs
 

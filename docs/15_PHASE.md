@@ -576,8 +576,9 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 
 **Effort:** High
 
-- [ ] Create BullMQ connection and typed payloads.
-- [ ] Propagate trace ID.
+- [x] P7-01 — Resolve safe async job, usage, correlation, billing-idempotency, rollup, retry, and failure contracts.
+- [ ] P7-02 — Create BullMQ connection and typed payloads.
+- [ ] Propagate canonical request ID across jobs and workers; map a separate trace ID only after a future approved tracing migration.
 - [ ] Add bounded retries and backoff.
 - [ ] Add worker entrypoint and graceful shutdown.
 - [ ] Add worker heartbeat.
@@ -890,7 +891,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | Not Started | |
+| Phase 7 | In Progress | P7-01 async job contract resolved; BullMQ implementation not started |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -902,16 +903,18 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-01 — BullMQ Connection and Typed Payloads
+## P7-02 — BullMQ Connection and Typed Payloads
 
 **Effort:** Small
 
 Do only this next:
 
-1. Read Phase 7 queue, billing, security, and worker contracts.
-2. Design only the shared BullMQ connection and typed safe payload boundary.
-3. Keep raw prompts, responses, PII values, credentials, and secrets out of jobs.
-4. Do not start P7-01 without approval.
+1. Reuse the approved P7-01 async job contract.
+2. Implement only shared BullMQ connections and the typed safe payload boundary.
+3. Keep usage and cost optional; never synthesize unknown values.
+4. Keep raw prompts, responses, PII values, credentials, and secrets out of jobs.
+5. Do not add producers or workers until separately approved.
+6. Do not start P7-02 without approval.
 
 ---
 

@@ -336,9 +336,10 @@ sequenceDiagram
     CircuitBreaker-->>API: Stream chunks
     API-->>Browser: SSE token events
     Browser-->>User: Display response progressively
-    API->>MongoDB: Persist according to retention mode
+    API->>MongoDB: Append authoritative RequestLog usage metadata
+    API->>MongoDB: Persist content according to retention mode
     API->>Redis: Mark idempotency completed
-    API->>BullMQ: Add request-completed jobs
+    API->>BullMQ: Add safe request.completed jobs
     API-->>Browser: SSE done event
 ```
 
@@ -774,16 +775,16 @@ sequenceDiagram
 
     API->>BullMQ: Add billing job
     API->>BullMQ: Add analytics job
-    API->>BullMQ: Add anomaly job
-    opt Notification required
-        API->>BullMQ: Add email job
-    end
     API-->>API: Return without waiting for workers
 
     BullMQ-->>BillingWorker: Deliver billing job
     BullMQ-->>AnalyticsWorker: Deliver analytics job
-    BullMQ-->>AnomalyWorker: Deliver anomaly job
-    BullMQ-->>EmailWorker: Deliver notification job
+    BillingWorker->>BullMQ: Add safe usage.updated reference when applicable
+    BullMQ-->>AnomalyWorker: Deliver usage aggregate reference
+    opt Alert created
+        AnomalyWorker->>BullMQ: Add safe alert.created reference
+        BullMQ-->>EmailWorker: Deliver notification reference
+    end
 ```
 
 ## Key Rules
@@ -806,16 +807,16 @@ sequenceDiagram
     participant Redis
 
     BullMQ->>BillingWorker: request-completed billing job
-    BillingWorker->>MongoDB: Check event processing key
+    BillingWorker->>MongoDB: Claim tenant-scoped async ledger
 
     alt Already processed
         MongoDB-->>BillingWorker: Duplicate
         BillingWorker-->>BullMQ: Complete without double charge
     else New event
-        MongoDB-->>BillingWorker: Not processed
-        BillingWorker->>MongoDB: Increment monthly rollup
-        BillingWorker->>MongoDB: Record event processing key
-        BillingWorker->>Redis: Refresh budget cache if used
+        MongoDB-->>BillingWorker: PROCESSING ledger state
+        BillingWorker->>MongoDB: Load RequestLog by orgId + requestId
+        BillingWorker->>MongoDB: Deterministically reconcile minimal monthly rollup
+        BillingWorker->>MongoDB: Mark ledger COMPLETED with safe outcome
         BillingWorker-->>BullMQ: Complete
     end
 ```
@@ -823,7 +824,9 @@ sequenceDiagram
 ## Key Rules
 
 - At-least-once delivery must not create duplicate billing.
-- Cost uses normalized provider usage.
+- RequestLog remains append-only; worker state lives in a separate ledger.
+- Unknown usage remains unknown and does not become zero.
+- Cost is optional and omitted until approved pricing exists.
 - Monthly rollup is scoped by `orgId` and period.
 - Billing does not require raw prompt content.
 
@@ -1498,9 +1501,10 @@ sequenceDiagram
             API-->>Browser: Token events
         end
 
-        API->>MongoDB: Persist by retention mode
+        API->>MongoDB: Append authoritative RequestLog metadata
+        API->>MongoDB: Persist content by retention mode
         API->>Redis: Complete idempotency record
-        API->>BullMQ: Enqueue async jobs
+        API->>BullMQ: Enqueue safe request.completed jobs
         API-->>Browser: Done event
         BullMQ-->>Workers: Process billing, analytics, anomaly
     end

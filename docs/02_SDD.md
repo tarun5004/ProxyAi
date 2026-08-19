@@ -88,7 +88,7 @@ The user never calls an LLM provider directly through the product. Every request
 1. **Policy before provider:** no provider call occurs before PII and policy checks finish.
 2. **Tenant isolation by default:** every tenant-owned query includes `orgId` from trusted authentication context.
 3. **Provider independence:** business code depends on `ProviderAdapter`, not provider SDKs.
-4. **Thin synchronous path:** billing, analytics, anomaly checks, and emails run asynchronously.
+4. **Thin synchronous path:** authoritative append-only `RequestLog` persistence may remain synchronous, but billing rollup reconciliation, analytics, anomaly checks, and emails run asynchronously and never delay an already completed provider response.
 5. **Explainable decisions:** routing and policy results include a reason suitable for logs and the admin UI.
 6. **Safe failure:** blocked prompts, missing tenant context, and invalid authentication fail closed.
 7. **Simple MVP operations:** one API service, one worker service, MongoDB, and Redis.
@@ -583,10 +583,13 @@ The chat orchestration service coordinates the synchronous request path.
 8. Build routing decision.
 9. Call providers in fallback order.
 10. Stream chunks to the client.
-11. Finalize usage details.
-12. Mark idempotency result completed.
-13. Publish `request.completed` job/event.
-14. Apply retention writer.
+11. Finalize only actual usage details returned by the provider.
+12. Persist the authoritative append-only `RequestLog` record.
+13. Mark idempotency result completed.
+14. Publish the safe `request.completed` job/event.
+15. Apply retention writer.
+
+The API waits for the authoritative request record and queue publication attempt, but it does not wait for billing, analytics, anomaly, email, or provider-health workers. Queue publication failure must be surfaced operationally without inventing usage or reversing an already delivered provider response.
 
 ### Critical boundary
 
@@ -695,21 +698,28 @@ The MVP may use direct BullMQ job publication instead of implementing two separa
 ### Common job fields
 
 ```text
-- eventId
-- eventType
-- occurredAt
-- requestId
-- traceId
-- orgId
-- payload
 - schemaVersion
+- jobType
+- requestId
+- orgId when tenant-owned
+- userId when the job requires user scope
+- providerId and model when request-derived
+- optional complete token-usage object
+- optional estimatedCostMicros
+- occurredAt
 ```
+
+`requestId` is the canonical correlation ID across API logs, queue jobs, and workers. No separate `traceId` is introduced in Phase 7. If distributed tracing is added later, its trace identifier is mapped alongside `requestId` and does not replace it.
+
+Queue payloads are constructed field-by-field and never contain raw prompts, masked prompts, provider responses, detected PII values, email addresses, credentials, cookies, tokens, encryption keys, or arbitrary objects.
 
 ### Job rules
 
 - Jobs must be idempotent.
 - Retry three times with exponential backoff.
-- Failed jobs remain visible in BullMQ/Bull Board.
+- Only transient dependency and availability failures are retryable. Invalid schemas, missing trusted identifiers, unsupported versions, and genuinely unavailable provider usage or pricing are terminal data outcomes.
+- After bounded retries, jobs remain in BullMQ's failed set as the MVP dead-letter/failure-visibility mechanism.
+- Bull Board is optional development tooling only and must never be exposed publicly.
 - Email failure must not reverse billing or request completion.
 
 ## 8.17 Retention Component

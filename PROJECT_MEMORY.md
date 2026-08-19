@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 6 — Redis Cache and Idempotency
-- **Task:** P6-05 — Phase 6 Closure and Deferred Gates
-- **Status:** Phase 6 completed; awaiting approval before P7-01
+- **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
+- **Task:** P7-01 — Async Job Contract Resolution
+- **Status:** Contract completed; awaiting approval before P7-02 implementation
 
 ## Completed Tasks
 
@@ -64,6 +64,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P6-04 — Idempotency failure/recovery hardening completed on 2026-08-19
 - P6-05 — Phase 6 closure and deferred cache/recovery gates recorded on 2026-08-19
 - Phase 6 — Redis idempotency implementation and secure cache contract completed on 2026-08-19; cache/replay/recovery implementation remains deferred
+- P7-01 — Safe async job and billing processing contract resolved on 2026-08-19; no BullMQ code added
 
 ## Important Decisions
 
@@ -332,6 +333,12 @@ npm run dev
 - Any persisted provider-usage record with unavailable token usage makes budget accounting operationally unavailable and fails closed with `BUDGET_ACCOUNTING_UNAVAILABLE`; it never becomes `exceeded: false`.
 - Budget status reads the current `Organisation.monthlyTokenBudget` and uses the approved boundary `usedTokens >= monthlyTokenBudget`; therefore a zero-token budget is exhausted even when persisted usage is zero.
 - The synchronous reconciliation is intentionally minimal. Full idempotent workers, replay protection, user/provider rollups, pricing, invoices, alerts, and generalized billing infrastructure remain Phase 7 work.
+- Phase 7 queue payloads use `requestId` as the canonical correlation ID and contain only allowlisted identifiers, optional complete provider-reported usage, optional approved cost, job type, schema version, and timestamp.
+- Unknown provider usage is terminal for that event and remains unknown; unavailable pricing omits cost. Neither value is synthesized as zero.
+- Async billing idempotency uses a separate tenant-scoped `{ orgId, requestId, jobType }` ledger with `PROCESSING` and `COMPLETED` states. Append-only `RequestLog` records are never mutated by workers.
+- The current organisation-month `{ usedTokens, sourceRequestCount }` rollup remains the authoritative budget projection and is deterministically recomputed from `RequestLog`. Richer user/provider/cost rollups are separate future reporting projections.
+- Phase 7 retries are bounded to three exponential-backoff attempts for transient dependency failures. Invalid payloads, missing trusted scope, unknown usage, and unavailable pricing are terminal; exhausted jobs remain in BullMQ's failed set as the MVP dead-letter mechanism.
+- Email jobs will carry trusted IDs and allowlisted template identifiers only. The email delivery provider and credential configuration remain unresolved and must be approved before email-worker implementation.
 - `POST /api/v1/chat/stream` requires current authentication plus `chat:send`, strictly validates the body, and verifies Conversation ownership with trusted `orgId`, `userId`, and `conversationId` before any Redis or provider work.
 - P5-06 processing order is ownership, minimal tenant/user idempotency, both plan-selected Redis rate limits, authoritative persisted budget status, PII/classification/risk, policy, then provider routing and streaming.
 - Chat idempotency and rate-limit Redis keys use domain-separated HMAC-SHA-256 digests of trusted identifiers. No prompt, email, raw identifier, token, or secret enters a key or log.
@@ -370,7 +377,7 @@ npm run dev
 - **Accepted limitation:** A process crash after provider execution may have started can be followed by `PROCESSING` expiry and a later duplicate paid call. Phase 6 does not claim zero duplicate paid calls as fully proven and adds no unsafe automatic reconciliation.
 - **Verification:** Documentation consistency scans and `git diff --check` passed; no production code changed.
 - **Commit:** `docs(progress): close Phase 6 with deferred cache and recovery gates`.
-- **Next:** P7-01 — BullMQ Connection and Typed Payloads. Do not start without approval.
+- **Next at closure:** Phase 7 planning, later superseded by the completed P7-01 async job contract resolution.
 
 - **Task:** P6-04 — Idempotency Failure/Recovery Hardening
 - **Status:** Completed
@@ -649,6 +656,18 @@ npm run dev
 - **Scope check:** No admin features, business routes, logout, password reset, durable audit, tests, or P2-08 implementation was added.
 - **Recommended completed commits:** `feat(auth): add permission and scope authorization`, `docs(progress): record P2-07 completion`.
 
+## Latest Task
+
+- **Task:** P7-01 — Async Job Contract Resolution
+- **Status:** Completed on 2026-08-19; documentation only
+- **Files changed:** `docs/01_PRD.md`, `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/09_README.md`, `docs/12_SEQUENCE_DIAGRAMS.md`, `docs/14_OBSERVABILITY_DOCUMENTATION.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`
+- **Contract:** Safe typed `request.completed` payloads use `requestId`, trusted tenant identifiers, provider/model identity, optional complete usage, optional integer-micro cost, and timestamp only.
+- **Idempotency:** A separate async ledger replaces the stale `billingAppliedAt` mutation design; deterministic minimal rollup reconciliation prevents duplicate token increments.
+- **Async boundary:** Chat persists authoritative `RequestLog` data and attempts queue publication but never waits for billing, analytics, anomaly, email, or provider-health workers.
+- **Deferred:** BullMQ code, producers, workers, richer reporting rollups, pricing configuration, and email provider selection were not implemented.
+- **Recommended commit:** `docs(async): define safe Phase 7 job contracts`.
+- **Next task:** P7-02 — BullMQ Connection and Typed Payloads. Do not start without approval.
+
 ## Latest Verified Defect Fix
 
 - **Task:** Local development CORS origin alignment
@@ -660,7 +679,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Wait for approval before P7-01 — BullMQ Connection and Typed Payloads. Keep prompt cache, response replay, and durable crash recovery deferred to Phase 9 prerequisites.
+- Wait for approval before P7-02 — BullMQ Connection and Typed Payloads. Keep producers, workers, richer billing projections, prompt cache, response replay, and durable crash recovery out of this task.
 
 ## Do Not Forget
 

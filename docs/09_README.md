@@ -743,7 +743,7 @@ A detailed dependency endpoint may exist for administrators, but it must not exp
 Use Pino structured logs with:
 
 - `requestId`;
-- `traceId` where available;
+- future distributed trace ID only after an approved tracing migration;
 - `orgId` and `userId` only where access rules permit;
 - provider ID;
 - status;

@@ -64,7 +64,7 @@ The MVP does not require:
 1. Never log raw prompts or responses.
 2. Never log passwords, tokens, cookies, API keys, or encryption keys.
 3. Every request must have a `requestId`.
-4. Every async workflow must propagate a `traceId` or correlation ID.
+4. Every Phase 7 async workflow must propagate the existing `requestId` as its canonical correlation ID.
 5. Logs, metrics, and health checks must answer different operational questions.
 6. Metrics must avoid high-cardinality labels.
 7. Alerts should be actionable and limited.
@@ -161,8 +161,7 @@ Every application log should use consistent fields.
 | `environment` | local, staging, production |
 | `version` | Release version |
 | `commitSha` | Deployment commit |
-| `requestId` | HTTP request correlation |
-| `traceId` | Cross-process correlation |
+| `requestId` | HTTP and cross-process correlation |
 | `orgIdHash` | Optional privacy-safe org reference |
 | `userIdHash` | Optional privacy-safe user reference |
 | `route` | Normalized route |
@@ -214,7 +213,7 @@ export function requestIdMiddleware(req, res, next) {
 
 # 9. Trace ID Flow
 
-A trace ID identifies one complete business flow.
+A request ID identifies one complete business flow in the Phase 7 MVP.
 
 Example:
 
@@ -227,9 +226,9 @@ User chat request
 → email job
 ```
 
-All these operations should share the same `traceId`.
+All these operations share the same `requestId`.
 
-For MVP, the trace ID can be generated manually and added to:
+For the MVP, the existing request ID is propagated to:
 
 - request context;
 - provider-call logs;
@@ -237,7 +236,7 @@ For MVP, the trace ID can be generated manually and added to:
 - BullMQ job payload metadata;
 - worker child loggers.
 
-Full OpenTelemetry context propagation is roadmap-only.
+Full OpenTelemetry context propagation is roadmap-only. A future distributed trace ID may be mapped alongside `requestId` after an approved tracing migration; it does not replace the request ID.
 
 ---
 
@@ -497,7 +496,7 @@ const jobLog = logger.child({
   service: 'worker',
   queue: job.queueName,
   jobId: job.id,
-  traceId: job.data.traceId
+  requestId: job.data.requestId
 });
 ```
 
@@ -799,7 +798,7 @@ Suggested dependency values:
 Do not use these as Prometheus labels:
 
 - `requestId`;
-- `traceId`;
+- future distributed trace ID;
 - `userId`;
 - `orgId`;
 - email;
