@@ -1,7 +1,7 @@
 import { Redis } from "ioredis";
 import type { RedisOptions } from "ioredis";
 
-import { env } from "../../config/env.js";
+import { runtimeEnv } from "../../config/runtime-env.js";
 import { logger } from "./logger.js";
 
 export const REDIS_MAX_RECONNECT_ATTEMPTS = 5;
@@ -18,7 +18,7 @@ export function getRedisReconnectDelay(attempt: number): number | null {
 export function createRedisClient(
     overrides: RedisOptions = {},
 ): Redis {
-    return new Redis(env.REDIS_URL, {
+    return new Redis(runtimeEnv.REDIS_URL, {
         enableOfflineQueue: false,
         enableReadyCheck: true,
         lazyConnect: true,

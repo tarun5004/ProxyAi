@@ -906,6 +906,17 @@ npm run dev
 
 ## Latest Deployment Task
 
+- **Task:** P12-03 — Separate API and BullMQ Worker Production Entrypoints
+- **Status:** Completed on 2026-08-19
+- **Runtime split:** `dist/server.js` now starts only HTTP plus billing/analytics producers. `dist/worker.js` owns all BullMQ schedulers and billing, analytics, anomaly, provider-health, and enqueue-recovery consumers.
+- **Configuration:** Shared MongoDB, Redis, logger, and Groq configuration is validated through `runtimeEnv`; API-only CORS, auth, rate-limit, and idempotency settings remain required only by `env`.
+- **Startup/shutdown:** Both runtimes connect required dependencies before reporting started, fail startup explicitly, and reuse one ordered BullMQ/Redis/Mongo graceful-shutdown boundary.
+- **Files changed:** `backend/package.json`, `backend/src/config/env.ts`, `backend/src/config/runtime-env.ts`, provider runtime files, shared Mongo/Redis/logger modules, `backend/src/shared/async/runtime.ts`, `backend/src/shared/runtime/infrastructure.ts`, `backend/src/server.ts`, `backend/src/worker.ts`, `backend/tests/auth-config.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Verification:** Focused environment tests passed 6/6; full backend suite passed 196/196; typecheck, build, and diff-check passed.
+- **Security:** Worker no longer requires API JWT/CORS/rate-limit secrets. No secret values are logged, and queue consumers cannot accidentally start inside API tasks.
+
+## Previous Deployment Task
+
 - **Task:** P12-02 — Immutable Frontend Deployment Configuration
 - **Status:** Completed on 2026-08-19
 - **Files changed:** `frontend/.env.example`, `frontend/next.config.ts`, `frontend/src/lib/api/api-path.ts`, `frontend/src/lib/api/api-client.ts`, `frontend/src/features/chat/chat.api.ts`, `frontend/src/features/marketing/landing-page.test.tsx`, removed `frontend/src/lib/env/public-env.ts`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -916,7 +927,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P12-03 — Separate API and BullMQ worker production entrypoints; do not start Phase 8.
+- P12-04 — Add production frontend/backend Docker images; do not start Phase 8.
 
 ## Do Not Forget
 

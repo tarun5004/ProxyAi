@@ -1,4 +1,4 @@
-import { env } from "../../config/env.js";
+import { runtimeEnv } from "../../config/runtime-env.js";
 import type { ProviderAdapter } from "./provider-adapter.js";
 import type { ProviderFallbackCandidate } from "./provider-fallback.js";
 import { createGroqProviderAdapter } from "./groq-provider.adapter.js";
@@ -14,7 +14,7 @@ const adapters = new Map<EnabledProductionProviderId, ProviderAdapter>([
 export const productionProviderCandidates = Object.freeze([
     Object.freeze({
         adapter: getEnabledProductionProviderAdapter("groq"),
-        model: env.GROQ_MODEL,
+        model: runtimeEnv.GROQ_MODEL,
     }),
 ] satisfies readonly ProviderFallbackCandidate[]);
 

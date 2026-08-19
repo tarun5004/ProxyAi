@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-import { env } from "../../config/env.js";
+import { runtimeEnv } from "../../config/runtime-env.js";
 import { logger } from "./logger.js";
 
 export const MONGO_SERVER_SELECTION_TIMEOUT_MS = 5_000;
@@ -57,7 +57,7 @@ async function connect(): Promise<void> {
     );
 
     try {
-        await mongoose.connect(env.MONGO_URI, {
+        await mongoose.connect(runtimeEnv.MONGO_URI, {
             serverSelectionTimeoutMS: MONGO_SERVER_SELECTION_TIMEOUT_MS,
         });
 

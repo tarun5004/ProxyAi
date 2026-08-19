@@ -50,6 +50,47 @@ test("authentication settings are parsed through the typed environment boundary"
     });
 });
 
+test("worker runtime settings do not require API-only environment values", () => {
+    const workerEnvironment = {
+        ...validEnvironment,
+    };
+
+    delete workerEnvironment.FRONTEND_ORIGIN;
+    delete workerEnvironment.JWT_ACCESS_SECRET;
+    delete workerEnvironment.AUTH_RATE_LIMIT_SECRET;
+    delete workerEnvironment.ACCESS_TOKEN_TTL_MINUTES;
+    delete workerEnvironment.REFRESH_TOKEN_TTL_DAYS;
+    delete workerEnvironment.CHAT_RATE_LIMIT_FREE_USER_RPM;
+    delete workerEnvironment.CHAT_RATE_LIMIT_FREE_ORG_RPM;
+    delete workerEnvironment.CHAT_RATE_LIMIT_PRO_USER_RPM;
+    delete workerEnvironment.CHAT_RATE_LIMIT_PRO_ORG_RPM;
+    delete workerEnvironment.CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM;
+    delete workerEnvironment.CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM;
+    delete workerEnvironment.IDEMPOTENCY_PROCESSING_TTL_SECONDS;
+    delete workerEnvironment.IDEMPOTENCY_COMPLETED_TTL_SECONDS;
+
+    const result = spawnSync(
+        process.execPath,
+        [
+            "--input-type=module",
+            "--eval",
+            `
+                const { runtimeEnv } =
+                    await import("./dist/config/runtime-env.js");
+                process.stdout.write(runtimeEnv.GROQ_MODEL);
+            `,
+        ],
+        {
+            cwd: process.cwd(),
+            encoding: "utf8",
+            env: workerEnvironment,
+        },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, workerEnvironment.GROQ_MODEL);
+});
+
 test("JWT secret must contain at least 32 decoded random bytes", () => {
     const rejectedSecret = Buffer.alloc(31, 7).toString("base64url");
     const result = importEnvironment({

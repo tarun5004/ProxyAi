@@ -1,12 +1,12 @@
 import pino from "pino";
 
-import { env } from "../../config/env.js";
+import { runtimeEnv } from "../../config/runtime-env.js";
 
 export const logger = pino({
-    level: env.LOG_LEVEL,
+    level: runtimeEnv.LOG_LEVEL,
     base: {
         service: "proxiai-api",
-        environment: env.NODE_ENV,
+        environment: runtimeEnv.NODE_ENV,
     },
     redact: {
         paths: [

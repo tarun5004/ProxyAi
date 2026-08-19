@@ -1,33 +1,28 @@
+import type { Server } from "node:http";
+
 import { app } from "./app.js";
 import { env } from "./config/env.js";
-import { connectAnalyticsQueue } from
-    "./features/analytics/analytics.queue.js";
-import { startAnalyticsWorker } from
-    "./features/analytics/analytics.worker.js";
-import { connectAnomalyQueue } from
-    "./features/anomaly/anomaly.queue.js";
-import { startAnomalyWorker } from
-    "./features/anomaly/anomaly.worker.js";
-import { connectBillingQueue } from "./features/billing/billing.queue.js";
-import { startBillingWorker } from "./features/billing/billing.worker.js";
-import {
-    connectProviderHealthQueue,
-    scheduleProviderHealthChecks,
-} from "./features/providers/provider-health.queue.js";
-import { startProviderHealthWorker } from
-    "./features/providers/provider-health.worker.js";
-import {
-    connectEnqueueRecoveryQueue,
-    scheduleEnqueueRecoveryScans,
-} from "./features/recovery/enqueue-recovery.queue.js";
-import { startEnqueueRecoveryWorker } from
-    "./features/recovery/enqueue-recovery.worker.js";
-import { disconnectBullMq } from "./shared/async/bullmq.js";
+import { connectApiAsyncInfrastructure } from
+    "./shared/async/runtime.js";
 import { logger } from "./shared/lib/logger.js";
-import { connectMongo, disconnectMongo } from "./shared/lib/mongo.js";
-import { connectRedis, disconnectRedis } from "./shared/lib/redis.js";
+import { connectMongo } from "./shared/lib/mongo.js";
+import { connectRedis } from "./shared/lib/redis.js";
+import { disconnectInfrastructure } from
+    "./shared/runtime/infrastructure.js";
 
-const server = app.listen(env.PORT, () => {
+let server: Server | undefined;
+let shutdownStarted = false;
+
+async function startApi(): Promise<void> {
+    await Promise.all([connectMongo(), connectRedis()]);
+    await connectApiAsyncInfrastructure();
+
+    if (shutdownStarted) {
+        return;
+    }
+
+    server = await listen();
+
     logger.info(
         {
             event: "app.started",
@@ -35,87 +30,79 @@ const server = app.listen(env.PORT, () => {
         },
         "ProxiAI API started",
     );
-});
+}
 
-let shutdownStarted = false;
-
-async function shutdown(signal: NodeJS.Signals): Promise<void> {
+async function shutdown(
+    reason: NodeJS.Signals | "STARTUP_FAILURE",
+): Promise<void> {
     if (shutdownStarted) {
         return;
     }
 
     shutdownStarted = true;
-
     logger.info(
         {
             event: "app.shutdown.started",
-            signal,
+            reason,
         },
         "Application shutdown started",
     );
 
-    server.close(async (error) => {
-        if (error) {
-            process.exitCode = 1;
+    const httpClosed = await closeHttpServer();
+    const infrastructureClosed = await disconnectInfrastructure();
 
-            logger.error(
-                {
-                    errorCode: "HTTP_SERVER_CLOSE_FAILED",
-                    event: "app.shutdown.failed",
-                },
-                "HTTP server failed to close",
-            );
-        }
+    if (!httpClosed || !infrastructureClosed) {
+        process.exitCode = 1;
+    }
 
-        try {
-            await disconnectBullMq();
-        } catch {
-            process.exitCode = 1;
+    logger.info(
+        {
+            event: "app.shutdown.completed",
+        },
+        "Application shutdown completed",
+    );
+}
 
-            logger.error(
-                {
-                    errorCode: "BULLMQ_DISCONNECT_FAILED",
-                    event: "queue.disconnect.failed",
-                },
-                "BullMQ disconnect failed",
-            );
-        }
+function listen(): Promise<Server> {
+    return new Promise((resolve, reject) => {
+        const listeningServer = app.listen(env.PORT, () => {
+            listeningServer.off("error", reject);
+            resolve(listeningServer);
+        });
 
-        try {
-            await disconnectRedis();
-        } catch {
-            process.exitCode = 1;
-
-            logger.error(
-                {
-                    errorCode: "REDIS_DISCONNECT_FAILED",
-                    event: "redis.disconnect.failed",
-                },
-                "Redis disconnect failed",
-            );
-        }
-
-        try {
-            await disconnectMongo();
-        } catch {
-            process.exitCode = 1;
-
-            logger.error(
-                {
-                    errorCode: "MONGODB_DISCONNECT_FAILED",
-                    event: "mongodb.disconnect.failed",
-                },
-                "MongoDB disconnect failed",
-            );
-        }
-
-        logger.info(
-            {
-                event: "app.shutdown.completed",
-            },
-            "Application shutdown completed",
-        );
+        listeningServer.once("error", reject);
     });
+}
+
+async function closeHttpServer(): Promise<boolean> {
+    if (server === undefined) {
+        return true;
+    }
+
+    try {
+        await new Promise<void>((resolve, reject) => {
+            server?.close((error) => {
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                resolve();
+            });
+        });
+
+        return true;
+    } catch {
+        logger.error(
+            {
+                errorCode: "HTTP_SERVER_CLOSE_FAILED",
+                event: "app.shutdown.failed",
+            },
+            "HTTP server failed to close",
+        );
+
+        return false;
+    }
 }
 
 process.once("SIGINT", () => {
@@ -126,36 +113,14 @@ process.once("SIGTERM", () => {
     void shutdown("SIGTERM");
 });
 
-const mongoConnection = connectMongo();
-const redisConnection = connectRedis();
-
-void Promise.all([mongoConnection, redisConnection])
-    .then(async () => {
-        await Promise.all([
-            connectBillingQueue(),
-            connectAnalyticsQueue(),
-            connectAnomalyQueue(),
-            connectProviderHealthQueue(),
-            connectEnqueueRecoveryQueue(),
-        ]);
-        await Promise.all([
-            scheduleProviderHealthChecks(),
-            scheduleEnqueueRecoveryScans(),
-        ]);
-        await Promise.all([
-            startBillingWorker(),
-            startAnalyticsWorker(),
-            startAnomalyWorker(),
-            startProviderHealthWorker(),
-            startEnqueueRecoveryWorker(),
-        ]);
-    })
-    .catch(() => {
-        logger.error(
-            {
-                errorCode: "ASYNC_INFRASTRUCTURE_START_FAILED",
-                event: "queue.startup.failed",
-            },
-            "Async infrastructure startup failed",
-        );
-    });
+void startApi().catch(async () => {
+    process.exitCode = 1;
+    logger.error(
+        {
+            errorCode: "API_START_FAILED",
+            event: "app.startup.failed",
+        },
+        "ProxiAI API startup failed",
+    );
+    await shutdown("STARTUP_FAILURE");
+});

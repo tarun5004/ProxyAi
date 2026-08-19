@@ -1,4 +1,4 @@
-import { env } from "../../config/env.js";
+import { runtimeEnv } from "../../config/runtime-env.js";
 import type {
     ProviderCapabilities,
     ProviderError,
@@ -186,7 +186,7 @@ export function createProviderCapabilityRegistry(
 }
 
 export const providerCapabilityRegistry =
-    createProviderCapabilityRegistry(env.GROQ_MODEL);
+    createProviderCapabilityRegistry(runtimeEnv.GROQ_MODEL);
 
 export function getProviderCapabilities(
     providerId: ProviderId,

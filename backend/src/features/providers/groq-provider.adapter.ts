@@ -15,7 +15,7 @@ import type {
 } from "groq-sdk/resources/chat/completions.js";
 import type { CompletionUsage } from "groq-sdk/resources/completions.js";
 
-import { env } from "../../config/env.js";
+import { runtimeEnv } from "../../config/runtime-env.js";
 import type { ProviderAdapter } from "./provider-adapter.js";
 import {
     GROQ_PROVIDER_ID,
@@ -323,9 +323,9 @@ export class GroqProviderAdapter implements ProviderAdapter {
 
 export function createGroqProviderAdapter(): GroqProviderAdapter {
     return new GroqProviderAdapter({
-        apiKey: env.GROQ_API_KEY,
-        model: env.GROQ_MODEL,
-        requestTimeoutMs: env.PROVIDER_REQUEST_TIMEOUT_MS,
+        apiKey: runtimeEnv.GROQ_API_KEY,
+        model: runtimeEnv.GROQ_MODEL,
+        requestTimeoutMs: runtimeEnv.PROVIDER_REQUEST_TIMEOUT_MS,
     });
 }
 
