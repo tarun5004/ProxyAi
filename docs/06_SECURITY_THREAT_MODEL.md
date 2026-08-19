@@ -56,7 +56,10 @@ It does not claim that ProxiAI is SOC 2, ISO 27001, PCI DSS, HIPAA, or any other
 - Admin dashboard and CSV audit export
 - Docker and GCP Cloud Run deployment
 - Pino logging and Prometheus metrics
-- Resend notifications and Razorpay integration only where already approved by the MVP documents
+- Email notifications only after an approved provider, validated runtime
+  configuration, trusted `ORG_ADMIN` recipient lookup, and allowlisted template
+  contract exist; Razorpay integration only where already approved by the MVP
+  documents
 
 ### 3.2 Explicitly deferred
 

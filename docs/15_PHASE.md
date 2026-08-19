@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 7 — Background Jobs, Billing, and Alerts
-Current Task: P7-08 — Email Worker Contract Audit
-Current Status: P7-07 completed and verified; P7-08 not started
-Current Blocker: None
-Last Completed Task: P7-07 — Tenant-Scoped Daily Token Anomaly Worker
-Last Completed Commit: feat(anomaly): add tenant-scoped daily token anomaly worker
+Current Task: P7-08 — Email Worker Implementation
+Current Status: Contract resolved; implementation not started
+Current Blocker: Email provider, validated configuration, sender, provider-specific error mapping, allowlisted template values, and rendered template content are not approved
+Last Completed Task: P7-08 — Safe Alert Email Notification Contract
+Last Completed Commit: docs(email): define safe alert notification contract
 ```
 
 ---
@@ -605,7 +605,8 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] P7-06 — Create a tenant-scoped idempotent basic analytics worker.
 - [x] P7-07 prerequisite — Define the tenant-scoped daily anomaly rule, feature gate, baseline, severity, and deduplication contract.
 - [x] P7-07 — Create tenant-scoped daily token anomaly worker.
-- [ ] Create email worker with safe templates.
+- [x] P7-08 — Define the safe `alert.created` email notification contract.
+- [ ] Create email worker with safe templates — deferred until provider, configuration, sender, provider-error mapping, template IDs, and template content are approved.
 - [x] Keep raw prompts out of job payloads.
 
 P7-03 keeps the current synchronous budget reconciliation until the billing
@@ -662,6 +663,17 @@ arithmetic. A deterministic opaque job ID and an atomic unique tenant/user/day
 Alert upsert prevent duplicate unresolved anomalies without a separate ledger.
 Detected alerts contain only approved aggregate metadata and emit a safe
 structured event; no email or notification job is created.
+
+P7-08 permits only `alert.created` email events. The email job carries trusted
+IDs and an allowlisted template identifier; it never carries recipient email,
+rendered content, prompts, responses, PII, or secrets. Recipients are
+`ORG_ADMIN` users loaded from tenant-scoped storage using trusted `orgId`, and
+client input cannot select recipients. Delivery is idempotent by
+`{ orgId, alertId, templateId }` and uses the existing three-attempt bounded
+retry/failed-set contract. Reminders, escalations, and resolution emails are
+deferred. Email implementation remains blocked because no provider, runtime
+configuration, sender, provider-specific error mapping, template allowlist, or
+rendered template content is approved.
 
 ## Exit Criteria
 
@@ -966,7 +978,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-01 through P7-07 complete; email worker remains |
+| Phase 7 | In Progress | P7-01 through P7-07 and the P7-08 email contract are complete; email and provider-health worker implementation remain |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -978,18 +990,19 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-08 — Email Worker Contract Audit
+## P7-08 — Email Worker Implementation Blocker Resolution
 
 **Effort:** Medium
 
 Do only this next:
 
-1. Resolve the approved email event, template, recipient, provider,
-   configuration, retry, and tenant-scope contracts before implementation.
-2. Do not choose an email provider, credentials, recipient source, or template
-   content without approved documentation.
-3. Do not implement email delivery, provider-health jobs, reporting APIs,
-   pricing, or Phase 8 work during the audit.
+1. Approve the email provider, validated environment configuration, sender
+   identity, timeout and provider-error mapping, exact template allowlist, and
+   rendered template content before implementation.
+2. Preserve the approved `alert.created`-only, trusted-`ORG_ADMIN`, safe-payload,
+   and `{ orgId, alertId, templateId }` idempotency contract.
+3. Do not implement email delivery or start P7-09 until the blocker is resolved
+   through approved documentation.
 
 ---
 

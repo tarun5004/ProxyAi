@@ -193,7 +193,7 @@ The API and worker may use the same backend image but run with different command
 | Logging | Pino | Structured and redacted application logs |
 | Metrics | Prometheus | Core API, provider, cache, and queue metrics |
 | Dashboard | Grafana | Operational visualisation |
-| Email | Resend | MVP email notifications |
+| Email | Provider not selected | Safe `alert.created` contract approved; delivery deferred pending provider and configuration approval |
 | Payment | Razorpay | Optional subscription integration after core flow |
 | Containerization | Docker + Docker Compose | Local and production packaging |
 | Deployment | GCP Cloud Run for API | Managed HTTP runtime |
@@ -496,11 +496,13 @@ GROQ_API_KEY=
 GEMINI_API_KEY=
 THIRD_PROVIDER_API_KEY=
 
-RESEND_API_KEY=
-EMAIL_FROM=
-
 LOG_LEVEL=debug
 ```
+
+Email-provider variables are intentionally omitted. Do not add an API key,
+sender identity, timeout, or provider-specific configuration until the email
+provider and template content are explicitly approved and added to validated
+backend environment configuration.
 
 Generate each authentication secret independently:
 

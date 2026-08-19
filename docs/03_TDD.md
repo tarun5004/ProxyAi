@@ -191,11 +191,14 @@ APP_ENCRYPTION_KEY
 GROQ_API_KEY
 GEMINI_API_KEY
 THIRD_PROVIDER_API_KEY
-RESEND_API_KEY
-EMAIL_FROM
 FRONTEND_ORIGIN
 LOG_LEVEL
 ```
+
+Email-provider environment variables are intentionally absent. P7-08 approves
+the safe notification contract but does not select a delivery provider,
+credential name, sender identity, timeout, or rendered template content. Those
+values must be documented and validated before email delivery is implemented.
 
 ### 7.2 Validation
 
@@ -1555,7 +1558,23 @@ create another alert.
 - Anomaly consumes `usage.updated`, evaluates only approved aggregate known
   token data, and persists the safe tenant-scoped anomaly alert. P7-07 does not
   enqueue `alert.created`, email, or notification work.
-- Email consumes `alert.created` with trusted IDs and an allowlisted template identifier. It loads recipient data through tenant-scoped storage; email addresses and rendered bodies are not queue payload fields. The delivery provider and credential configuration remain unresolved and must be approved before implementation.
+- Email consumes `alert.created` only. The strict job contains schema version,
+  job type, canonical request ID, trusted `orgId`, alert ID, one allowlisted
+  template ID, optional trusted subject `userId` when required, and
+  `occurredAt`. It never contains a recipient email, rendered subject/body,
+  prompt, response, detected PII value, credential, secret, or arbitrary
+  content.
+- Recipients are current tenant `ORG_ADMIN` users resolved only through trusted
+  `orgId` storage queries. Client input cannot supply or override a recipient.
+- Delivery idempotency uses `{ orgId, alertId, templateId }`, so duplicate or
+  retried jobs cannot send the same intended notification twice.
+- Email uses the existing bounded three-attempt exponential-backoff policy.
+  Exhausted jobs remain in BullMQ's failed set with safe operational metadata.
+- Email is created only for `alert.created`. Reminders, escalations, and alert
+  resolution emails are deferred. The provider, credentials, sender,
+  provider-specific timeout/error mapping, allowlisted template values, and
+  rendered template content remain unresolved and must be approved before
+  implementation.
 - Provider health consumes `provider.health_check`, is platform-scoped, and carries provider ID, request ID, schema version, and schedule timestamp only.
 
 ## 31. Provider Health Worker

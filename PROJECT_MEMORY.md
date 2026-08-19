@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-08 — Email Worker Contract Audit
-- **Status:** P7-07 completed and verified; P7-08 not started
+- **Task:** P7-08 — Email Worker Implementation
+- **Status:** Contract resolved; implementation blocked on provider, configuration, sender, provider-error mapping, template IDs, and template content approval
 
 ## Completed Tasks
 
@@ -75,6 +75,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-06 — Tenant-scoped async request analytics completed on 2026-08-19
 - P7-07 prerequisite — Tenant-scoped daily anomaly contract resolved on 2026-08-19; no worker code added
 - P7-07 — Tenant-scoped daily token anomaly worker completed on 2026-08-19
+- P7-08 — Safe alert email notification contract resolved on 2026-08-19; no worker or provider code added
 
 ## Important Decisions
 
@@ -356,7 +357,22 @@ npm run dev
 - Async billing idempotency uses a separate tenant-scoped `{ orgId, requestId, jobType }` ledger with `PROCESSING` and `COMPLETED` states. Append-only `RequestLog` records are never mutated by workers.
 - The current organisation-month `{ usedTokens, sourceRequestCount }` rollup remains the authoritative budget projection and is deterministically recomputed from `RequestLog`. Richer user/provider/cost rollups are separate future reporting projections.
 - Phase 7 retries are bounded to three exponential-backoff attempts for transient dependency failures. Invalid payloads, missing trusted scope, unknown usage, and unavailable pricing are terminal; exhausted jobs remain in BullMQ's failed set as the MVP dead-letter mechanism.
-- Email jobs will carry trusted IDs and allowlisted template identifiers only. The email delivery provider and credential configuration remain unresolved and must be approved before email-worker implementation.
+- P7-08 email jobs are triggered only by `alert.created` and carry trusted IDs,
+  safe metadata, and one allowlisted template identifier. Recipient email,
+  rendered subject/body, prompt, response, detected PII, credentials, secrets,
+  and arbitrary content are prohibited from queue payloads.
+- Email recipients are `ORG_ADMIN` users resolved through tenant-scoped storage
+  using trusted `orgId`. Clients cannot provide or override recipients.
+- Email delivery idempotency is `{ orgId, alertId, templateId }`. The existing
+  bounded three-attempt exponential-backoff and BullMQ failed-set visibility
+  contracts apply.
+- Only alert creation may trigger email. Reminders, escalations, and resolution
+  emails are deferred.
+- The email provider, credential/config names, sender identity, timeout,
+  provider-specific error mapping, exact template allowlist, and rendered
+  template content remain unresolved. No delivery provider is selected, and
+  email worker implementation must not begin until these items are explicitly
+  approved.
 - BullMQ producers reuse the shared fail-fast Redis client. Managed workers obtain dedicated clients through the same central Redis factory with `maxRetriesPerRequest: null`; Redis connection configuration is not duplicated.
 - The initial `billing-queue` validates `request.completed` payloads before enqueue and uses three exponential-backoff attempts, 100 completed-job retention, and 500 failed-job retention.
 - Runtime validation is repeated at the worker boundary. Malformed payloads become terminal `UnrecoverableError` failures without logging job data or validation input.
@@ -721,16 +737,21 @@ npm run dev
 
 ## Latest Task
 
+- **Task:** P7-08 — Safe Alert Email Notification Contract
+- **Status:** Completed documentation-only on 2026-08-19; implementation remains blocked
+- **Files changed:** `docs/03_TDD.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/09_README.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Event and recipient:** Only `alert.created` may trigger email. Recipient lookup selects `ORG_ADMIN` users through trusted tenant `orgId`; clients cannot provide recipients.
+- **Payload and privacy:** Jobs carry only schema/job/correlation/tenant/alert/template/timestamp identifiers and optional trusted subject user scope. Recipient email, rendered content, prompts, responses, PII, credentials, secrets, and arbitrary objects are forbidden.
+- **Idempotency and failure:** `{ orgId, alertId, templateId }` identifies one intended delivery. Existing three-attempt exponential retry and BullMQ failed-set visibility apply; email failure cannot reverse completed request or alert state.
+- **Deferred decisions:** Provider, credentials, sender, timeout, provider-error mapping, template allowlist values, and rendered template content are unresolved. Reminders, escalations, and resolution emails are deferred. Stale provider-specific assumptions were removed.
+- **Completed commit:** `docs(email): define safe alert notification contract`.
+- **Next task:** Resolve the remaining P7-08 provider/configuration/template blocker through approved documentation. Do not implement email or start P7-09 yet.
+
+## Previous Implementation Task — P7-07
+
 - **Task:** P7-07 — Tenant-Scoped Daily Token Anomaly Worker
 - **Status:** Completed and verified on 2026-08-19
-- **Files changed:** `backend/src/shared/async/job-contract.ts`, `backend/src/features/analytics/analytics.worker.ts`, `backend/src/features/alerts/alert.types.ts`, `backend/src/features/alerts/alert.model.ts`, `backend/src/features/anomaly/anomaly.types.ts`, `backend/src/features/anomaly/anomaly.repository.ts`, `backend/src/features/anomaly/anomaly.queue.ts`, `backend/src/features/anomaly/anomaly.worker.ts`, `backend/src/server.ts`, `backend/tests/analytics.worker.test.mjs`, `backend/tests/anomaly.worker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Implementation:** Analytics publishes a strict safe `usage.updated` job after daily aggregate persistence. The managed anomaly worker applies the approved feature gate, seven-day active-day baseline, minimum-three-day rule, unknown-usage exclusion, and strict greater-than-two-times threshold.
-- **Idempotency and isolation:** Deterministic opaque job IDs coordinate duplicate events, every database query includes trusted `orgId` plus `userId` where applicable, and an atomic unique Alert upsert guarantees one same-day anomaly record without a separate ledger.
-- **Alert safety:** Detected anomalies persist only `HIGH`/`OPEN` and approved aggregate metadata, then emit a safe structured event. No prompt, response, PII, secret, email, notification, RequestLog mutation, or BillingRollup mutation is introduced.
-- **Focused tests:** Four anomaly tests cover a valid three-day baseline detection, insufficient baseline, unknown-usage exclusion/current-day skip, and concurrent duplicate deduplication.
-- **Verification:** Focused anomaly/analytics tests passed 8/8; worker/chat/billing regressions passed 27/27; the full sequential backend suite passed 187/187. `npm run typecheck`, `npm run build`, `git diff --check`, tenant-scope scan, console scan, and sensitive-data scan passed.
 - **Completed commit:** `feat(anomaly): add tenant-scoped daily token anomaly worker`.
-- **Next task:** P7-08 — Email Worker contract audit only; implementation requires explicit provider, configuration, recipient, template, and security decisions.
 
 ## Previous Contract Task
 
@@ -831,7 +852,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P7-08 — Audit and resolve the email worker contract. Do not implement until the provider, configuration, recipient, template, retry, and security rules are approved.
+- Resolve the remaining P7-08 email provider, configuration, sender, provider-error mapping, exact template IDs, and rendered-content decisions. Do not implement email or start P7-09 until approved.
 
 ## Do Not Forget
 
