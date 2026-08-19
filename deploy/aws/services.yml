@@ -156,8 +156,10 @@ Resources:
               Value: "3000"
           HealthCheck:
             Command:
-              - CMD-SHELL
-              - node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+              - CMD
+              - /usr/local/bin/node
+              - -e
+              - fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
             Interval: 30
             Timeout: 5
             Retries: 3
@@ -186,7 +188,7 @@ Resources:
         - Name: api
           Image: !Ref BackendImageUri
           Essential: true
-          Command: ["node", "dist/server.js"]
+          Command: ["/usr/local/bin/node", "dist/server.js"]
           PortMappings:
             - ContainerPort: 8080
               Protocol: tcp
@@ -218,8 +220,10 @@ Resources:
             - { Name: AUTH_RATE_LIMIT_SECRET, ValueFrom: !Sub "${RuntimeSecretArn}:AUTH_RATE_LIMIT_SECRET::" }
           HealthCheck:
             Command:
-              - CMD-SHELL
-              - node -e "fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+              - CMD
+              - /usr/local/bin/node
+              - -e
+              - fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
             Interval: 30
             Timeout: 5
             Retries: 3
@@ -248,7 +252,7 @@ Resources:
         - Name: worker
           Image: !Ref BackendImageUri
           Essential: true
-          Command: ["node", "dist/worker.js"]
+          Command: ["/usr/local/bin/node", "dist/worker.js"]
           Environment:
             - { Name: NODE_ENV, Value: production }
             - { Name: LOG_LEVEL, Value: !Ref LogLevel }
