@@ -6,6 +6,12 @@ export const createConversationRequestSchema = z
     })
     .strict();
 
+export const updateConversationTitleRequestSchema = z
+    .object({
+        title: z.string().trim().min(1).max(120),
+    })
+    .strict();
+
 export const listConversationsQuerySchema = z
     .object({
         cursor: z.string().min(1).optional(),

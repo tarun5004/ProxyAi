@@ -7,11 +7,13 @@ import {
     conversationPathSchema,
     createConversationRequestSchema,
     listConversationsQuerySchema,
+    updateConversationTitleRequestSchema,
 } from "./conversation.schema.js";
 import {
     createConversationForOwner,
     getConversationForOwner,
     listConversationsForOwner,
+    updateConversationTitleForOwner,
 } from "./conversation.service.js";
 import type {
     ConversationSummary,
@@ -122,6 +124,38 @@ export async function getConversation(
         auth.userId,
         parsedPath.data.conversationId,
     );
+
+    response.setHeader("Cache-Control", "no-store");
+    response.status(200).json(
+        createSuccessResponse(conversation, request.requestId),
+    );
+}
+
+export async function updateConversationTitle(
+    request: Request,
+    response: Response,
+): Promise<void> {
+    const auth = requireAuthContext(request);
+    const parsedPath = conversationPathSchema.safeParse(request.params);
+    const parsedRequest = updateConversationTitleRequestSchema.safeParse(
+        request.body,
+    );
+
+    if (!parsedPath.success || !parsedRequest.success) {
+        const issues = [
+            ...(parsedPath.success ? [] : parsedPath.error.issues),
+            ...(parsedRequest.success ? [] : parsedRequest.error.issues),
+        ];
+
+        throw createValidationError(issues);
+    }
+
+    const conversation = await updateConversationTitleForOwner({
+        orgId: auth.orgId,
+        userId: auth.userId,
+        conversationId: parsedPath.data.conversationId,
+        title: parsedRequest.data.title,
+    });
 
     response.setHeader("Cache-Control", "no-store");
     response.status(200).json(

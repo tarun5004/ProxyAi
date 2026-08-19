@@ -17,6 +17,12 @@ export interface ConversationRepository {
         userId: string,
         conversationId: string,
     ): Promise<ConversationDocument | null>;
+    updateTitleOwned(
+        orgId: string,
+        userId: string,
+        conversationId: string,
+        title: string,
+    ): Promise<ConversationDocument | null>;
     listOwned(input: {
         orgId: string;
         userId: string;
@@ -35,6 +41,24 @@ export const conversationRepository: ConversationRepository = {
             userId,
             conversationId,
         }).exec();
+    },
+    async updateTitleOwned(orgId, userId, conversationId, title) {
+        return ConversationModel.findOneAndUpdate(
+            {
+                orgId,
+                userId,
+                conversationId,
+            },
+            {
+                $set: {
+                    title,
+                },
+            },
+            {
+                returnDocument: "after",
+                runValidators: true,
+            },
+        ).exec();
     },
     async listOwned(input) {
         return ConversationModel.find({

@@ -11,6 +11,7 @@ import {
     getConversation,
     listConversationMessages,
     listConversations,
+    updateConversationTitle,
 } from "@/features/conversations/conversation.api";
 import { ConversationSidebar } from "@/features/conversations/conversation-sidebar";
 import type { ConversationSummary } from "@/features/conversations/conversation.types";
@@ -211,6 +212,25 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
         }
     }, [activeConversation, auth.accessToken, router, streaming]);
 
+    const handleRename = useCallback(async (title: string) => {
+        if (!auth.accessToken || !activeConversation) {
+            return;
+        }
+
+        const response = await updateConversationTitle(
+            auth.accessToken,
+            activeConversation.conversationId,
+            title,
+        );
+
+        setActiveConversation(response.data);
+        setConversations((current) => current.map((conversation) =>
+            conversation.conversationId === response.data.conversationId
+                ? response.data
+                : conversation,
+        ));
+    }, [activeConversation, auth.accessToken]);
+
     async function handleLogout() {
         activeRequest.current?.abort();
         await auth.logout();
@@ -239,6 +259,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 streaming={streaming}
                 error={requestError}
                 onSend={handleSend}
+                onRename={activeConversation ? handleRename : undefined}
                 onOpenConversations={() => setSidebarOpen(true)}
                 onOpenPolicy={() => setInspectorOpen(true)}
             />}

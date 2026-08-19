@@ -6,7 +6,7 @@ import { ApiError } from "@/lib/errors/api-error";
 export async function requestJson<TSchema extends z.ZodType>(input: {
     path: string;
     schema: TSchema;
-    method?: "GET" | "POST";
+    method?: "GET" | "PATCH" | "POST";
     accessToken?: string;
     body?: unknown;
     signal?: AbortSignal;

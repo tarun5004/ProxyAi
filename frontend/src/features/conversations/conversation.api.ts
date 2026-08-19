@@ -50,6 +50,20 @@ export function getConversation(
     });
 }
 
+export function updateConversationTitle(
+    accessToken: string,
+    conversationId: string,
+    title: string,
+) {
+    return requestJson({
+        path: `/conversations/${encodeURIComponent(conversationId)}`,
+        method: "PATCH",
+        accessToken,
+        body: { title },
+        schema: conversationResponseSchema,
+    });
+}
+
 export function listConversationMessages(
     accessToken: string,
     conversationId: string,

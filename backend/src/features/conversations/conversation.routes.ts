@@ -7,6 +7,7 @@ import {
     createConversation,
     getConversation,
     listConversations,
+    updateConversationTitle,
 } from "./conversation.controller.js";
 
 export const conversationRouter = Router();
@@ -28,6 +29,12 @@ conversationRouter.get(
     authenticateRequest,
     requirePermission("chat:view_own"),
     getConversation,
+);
+conversationRouter.patch(
+    "/:conversationId",
+    authenticateRequest,
+    requirePermission("chat:send"),
+    updateConversationTitle,
 );
 conversationRouter.get(
     "/:conversationId/messages",

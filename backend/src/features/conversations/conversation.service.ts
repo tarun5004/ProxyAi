@@ -11,6 +11,7 @@ import {
     type ConversationSummary,
     type CreateConversationInput,
     type ListOwnedConversationsInput,
+    type UpdateConversationTitleInput,
 } from "./conversation.types.js";
 
 export async function createConversationForOwner(
@@ -62,6 +63,28 @@ export async function getConversationForOwner(
         orgId,
         userId,
         conversationId,
+    );
+
+    if (!conversation) {
+        throw new AppError(
+            404,
+            "NOT_FOUND",
+            "Conversation not found.",
+        );
+    }
+
+    return toConversationSummary(conversation);
+}
+
+export async function updateConversationTitleForOwner(
+    input: UpdateConversationTitleInput,
+    repository: ConversationRepository = conversationRepository,
+): Promise<ConversationSummary> {
+    const conversation = await repository.updateTitleOwned(
+        input.orgId,
+        input.userId,
+        input.conversationId,
+        input.title,
     );
 
     if (!conversation) {

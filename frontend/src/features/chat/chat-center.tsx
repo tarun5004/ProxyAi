@@ -9,6 +9,8 @@ import {
 import Image from "next/image";
 import { useState, type FormEvent } from "react";
 
+import { ConversationTitleEditor } from "@/features/conversations/conversation-title-editor";
+
 import type { UiChatMessage } from "./chat.types";
 
 interface ChatCenterProps {
@@ -18,6 +20,7 @@ interface ChatCenterProps {
     streaming: boolean;
     error?: string;
     onSend(prompt: string): Promise<void>;
+    onRename?(title: string): Promise<void>;
     onOpenConversations(): void;
     onOpenPolicy?(): void;
 }
@@ -48,9 +51,16 @@ export function ChatCenter(props: ChatCenterProps) {
                     <List size={21} />
                 </button>
                 <div className="grid gap-4 max-[720px]:gap-[9px]">
-                    <h1 className="m-0 overflow-hidden text-[clamp(20px,2vw,25px)] font-bold tracking-[-0.035em] text-ellipsis whitespace-nowrap max-[720px]:text-[17px]">
-                        {props.title}
-                    </h1>
+                    {props.onRename ? (
+                        <ConversationTitleEditor
+                            title={props.title}
+                            onRename={props.onRename}
+                        />
+                    ) : (
+                        <h1 className="m-0 overflow-hidden text-[clamp(20px,2vw,25px)] font-bold tracking-[-0.035em] text-ellipsis whitespace-nowrap max-[720px]:text-[17px]">
+                            {props.title}
+                        </h1>
+                    )}
                     <div className="flex items-center gap-2.5">
                         <span className="inline-flex min-h-9 items-center rounded-[9px] border border-border-default px-3 text-xs text-[#303632] max-[720px]:min-h-[30px] max-[720px]:max-w-45 max-[720px]:overflow-hidden max-[720px]:px-[9px] max-[720px]:text-ellipsis max-[720px]:whitespace-nowrap">
                             openai/gpt-oss-20b

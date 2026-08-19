@@ -21,6 +21,13 @@ export interface CreateConversationInput {
     readonly title?: string;
 }
 
+export interface UpdateConversationTitleInput {
+    readonly orgId: string;
+    readonly userId: string;
+    readonly conversationId: string;
+    readonly title: string;
+}
+
 export interface ConversationSummary {
     readonly conversationId: string;
     readonly title: string;
