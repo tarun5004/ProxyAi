@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-06 prerequisite — Request Outcome Event Contract
-- **Status:** Contract completed; production analytics implementation not started
+- **Phase:** Phase 5 — Chat, Conversations, and Streaming addendum
+- **Task:** P5-08 prerequisite — Chat history, title, and attachment contract resolution
+- **Status:** Contract completed; production implementation not started
 
 ## Completed Tasks
 
@@ -58,6 +58,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-07 addendum — Public Landing Page completed on 2026-08-18
 - P5-07 addendum — Local Development Admin Provisioning completed on 2026-08-18
 - Phase 5 — Chat, Conversations, and Streaming completed on 2026-08-18
+- P5-08 prerequisite — Chat history, manual title, and attachment contracts resolved on 2026-08-19; production implementation remains pending
 - P6-01 — Generalized tenant-scoped idempotency reservations completed on 2026-08-18
 - P6-02 — Secure prompt-cache contract resolved on 2026-08-19; implementation remains deferred
 - P6-03 — Completed idempotency tombstone and opaque request fingerprint protection completed on 2026-08-19
@@ -330,6 +331,12 @@ npm run dev
 - Message listing queries always include trusted `orgId` and `conversationId`, use chronological `createdAt` ordering with `messageId` as the public tie-breaker, and return an opaque validated cursor.
 - Phase 5 Message API responses expose only `messageId`, lowercase API `role`, optional `tokenCount`, `createdAt`, and `contentAvailable: false`; they never expose `content`, `contentEnc`, ciphertext, IV, authentication tags, key versions, or other encryption metadata.
 - Message reads use an explicit safe-field projection. Actual content decryption and any future content-bearing response remain deferred to Phase 9.
+- Phase 5 history is metadata-only: `contentAvailable: false` omits `content`, and `contentEnc` is never exposed. `METADATA_ONLY` never stores content.
+- Phase 9 owns AES-256-GCM user/assistant persistence and authorised decryption for `ENCRYPTED_STORAGE`. Only successful stream completion may be persisted; partial or interrupted assistant output is never persisted.
+- Conversation rename is manual only through authenticated owner-scoped `PATCH /api/v1/conversations/:conversationId` with current `chat:send`, trusted `{ orgId, userId, conversationId }`, and strict trimmed `title` of 1–120 characters. Foreign scope returns generic `404`.
+- Prompt-derived and LLM-generated conversation titles are prohibited.
+- Attachments are deferred from the current MVP. No upload endpoint, multipart contract, paperclip/upload UI, storage reference, or provider attachment forwarding is approved.
+- Future attachment work must first define storage, MIME/size allowlists, malware scanning, tenant ownership, provider capability, retention, and deletion.
 - The P5-06 budget prerequisite was explicitly pulled forward because policy evaluation must never assume that usage is zero or that budget is available.
 - Minimal `RequestLog` records are tenant-scoped, append-only provider-usage records containing trusted request, organisation, and user IDs plus canonical provider/model metadata. Token fields are persisted only as a complete known input/output/total set.
 - RequestLog persistence contains no prompt, response, PII value, credential, secret, pricing, or cost field. All persisted identifiers and usage fields are immutable, and normal update/delete operations are rejected.
@@ -677,6 +684,18 @@ npm run dev
 
 ## Latest Task
 
+- **Task:** P5-08 prerequisite — Chat History, Title, and Attachment Contract Resolution
+- **Status:** Documentation completed on 2026-08-19; no production code changed
+- **Files changed:** `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **History contract:** Phase 5 exposes metadata summaries only. Phase 9 owns encrypted content persistence/decryption, and partial/interrupted assistant output is never persisted.
+- **Title contract:** Manual owner-scoped rename only through `PATCH /api/v1/conversations/:conversationId`; no prompt-derived or LLM title generation.
+- **Attachment contract:** Deferred from the MVP until storage and security requirements are approved; no upload API or paperclip UI is allowed now.
+- **Frontend follow-up:** Real Conversation loading states, metadata-only history notice, safe Markdown, Enter/Shift+Enter behavior, and title PATCH integration remain P5-08 production work.
+- **Recommended commit:** `docs(chat): resolve history title and attachment contracts`.
+- **Next task:** Implement P5-08 only after approval; keep P7-06 paused.
+
+## Previous Contract Task
+
 - **Task:** P7-06 prerequisite — Request Outcome Event Contract
 - **Status:** Documentation contract completed on 2026-08-19; no production analytics code added
 - **Files changed:** `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -736,7 +755,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Re-run the P7-06 readiness audit against the approved outcome-event contract, then wait for implementation approval. Keep reporting APIs, anomaly alerts, email, provider-health work, prompt cache, response replay, and durable crash recovery out of P7-06.
+- Implement P5-08 contract-aligned Chat Workspace corrections only after approval. Keep encrypted history, attachments, LLM title generation, and P7-06 production analytics out of that task.
 
 ## Do Not Forget
 

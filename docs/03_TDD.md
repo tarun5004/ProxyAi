@@ -558,14 +558,28 @@ orgId + _id
 interface Message {
   orgId: ObjectId;
   conversationId: ObjectId;
-  role: 'user' | 'assistant';
+  role: 'USER' | 'ASSISTANT' | 'SYSTEM';
   contentEnc?: EncryptedPayload;
   tokenCount?: number;
   createdAt: Date;
 }
 ```
 
-In `METADATA_ONLY`, no content is stored. In `ENCRYPTED_STORAGE`, content is encrypted before persistence.
+In Phase 5, `METADATA_ONLY` stores no content and `contentEnc` remains absent. Phase 9 owns AES-256-GCM writes and authorised reads for `ENCRYPTED_STORAGE`.
+
+The Phase 5 message-read contract is metadata-only:
+
+```ts
+interface MessageSummary {
+  messageId: string;
+  role: 'user' | 'assistant' | 'system';
+  tokenCount?: number;
+  createdAt: string;
+  contentAvailable: false;
+}
+```
+
+`contentAvailable: false` requires `content` to be omitted. `contentEnc` and encryption metadata are never exposed. Phase 9 may add a separate `contentAvailable: true` response variant containing authorised decrypted `content`, while `METADATA_ONLY` continues to return no content.
 
 ## 12.5 RequestLog
 
@@ -625,10 +639,17 @@ No update or delete repository method may be created for this model.
 | POST | `/conversations` | `CHAT_SEND` | Create conversation |
 | GET | `/conversations` | `CHAT_VIEW_OWN` | List own conversations |
 | GET | `/conversations/:id` | `CHAT_VIEW_OWN` | Read own conversation metadata |
+| PATCH | `/conversations/:id` | `CHAT_SEND` | Manually rename own conversation |
 | GET | `/conversations/:id/messages` | `CHAT_VIEW_OWN` | Read retained messages |
 | POST | `/chat/stream` | `CHAT_SEND` | Submit prompt and stream response |
 
-### 13.2 Chat request schema
+### 13.2 Conversation title update
+
+`PATCH /conversations/:id` accepts a strict `{ title }` body. The title is trimmed and must contain 1–120 characters. The repository update uses trusted authenticated `orgId`, authenticated `userId`, and the path conversation ID in one filter. Foreign-tenant, foreign-user, and nonexistent conversations return the same generic `404` response. Success returns the standard conversation summary envelope.
+
+Titles are client-entered only. Prompt-derived and LLM-generated titles are not allowed.
+
+### 13.3 Chat request schema
 
 ```ts
 const ChatRequestSchema = z.object({
@@ -1273,6 +1294,8 @@ function buildMessageWrite(
 ```
 
 The code must not construct a plain-content MongoDB document and remove content later.
+
+Phase 5 does not call this persistence path. Phase 9 may persist user and assistant content only after a successful stream completion. Partial or interrupted assistant output is not persisted. Attachments remain outside the current MVP: there is no multipart request, upload endpoint, file reference, or provider attachment contract.
 
 ## 27. Audit Logging
 

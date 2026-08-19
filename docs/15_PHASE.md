@@ -134,12 +134,12 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 6 — Redis Cache and Idempotency
-Current Task: P6-05 — Phase 6 Closure and Deferred Gates
-Current Status: Phase 6 Completed; prompt cache, response replay, and durable post-crash recovery deferred to Phase 9 prerequisites
-Current Blocker: None; accepted post-provider crash/expiry duplicate risk remains documented
-Last Completed Task: P6-05 — Phase 6 Closure and Deferred Gates
-Last Completed Commit: docs(progress): close Phase 6 with deferred cache and recovery gates
+Current Phase: Phase 5 — Chat, Conversations, and Streaming addendum
+Current Task: P5-08 prerequisite — Chat history, title, and attachment contract resolution
+Current Status: Contract completed; production implementation not started
+Current Blocker: None
+Last Completed Task: P5-08 prerequisite — Chat history, title, and attachment contract resolution
+Last Completed Commit: docs(chat): resolve history title and attachment contracts
 ```
 
 ---
@@ -493,7 +493,7 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 # 11. Phase 5 — Chat, Conversations, and Streaming
 
 **Effort:** High
-**Status:** Completed
+**Status:** Core completed; approved chat UX contract addendum pending
 
 ## Tasks
 
@@ -511,6 +511,15 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 - [x] P5-07 addendum — Add a public ProxiAI landing page while preserving `/login` and `/chat`.
 - [x] P5-07 addendum — Add development-only idempotent organisation-admin provisioning for fresh local databases.
 - [x] P5-07 addendum — Re-verify landing reference fidelity and the existing login, Conversation, chat-stream, and policy-panel flow.
+
+## Approved Contract Addendum
+
+- [x] Resolve Phase 5 history as metadata-only: `contentAvailable: false` omits content and `contentEnc` is never exposed.
+- [x] Keep AES-256-GCM message persistence/decryption and successful-stream persistence in Phase 9; never persist partial/interrupted assistant output.
+- [x] Approve manual owner-scoped `PATCH /api/v1/conversations/:conversationId` with `chat:send`, strict `{ title }`, trim, and 1–120 characters.
+- [x] Prohibit prompt-derived and LLM-generated titles.
+- [x] Defer attachments: no upload endpoint, multipart contract, or paperclip/upload UI in the current MVP.
+- [ ] P5-08 — Implement the approved title PATCH and Chat Workspace UX corrections without encrypted history or attachments.
 
 ## Exit Criteria
 
@@ -917,7 +926,7 @@ Do not randomly change several files.
 | Phase 2 | Not Started | |
 | Phase 3 | Not Started | |
 | Phase 4 | Not Started | |
-| Phase 5 | Completed | Login, conversations, policy-aware streaming, and responsive frontend verified |
+| Phase 5 | Addendum Pending | Core login, conversations, policy-aware streaming, and responsive frontend verified; P5-08 contract-aligned UX work remains |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
 | Phase 7 | In Progress | P7-01 through P7-05 complete; later background-job scope remains |
 | Phase 8 | Not Started | |
@@ -931,20 +940,19 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-06 — Basic Analytics Worker
+## P5-08 — Chat Workspace Contract Corrections
 
 **Effort:** Medium
 
 Do only this next:
 
-1. Implement the approved discriminated request outcome job schemas.
-2. Publish `request.completed` and `request.blocked` to the analytics queue only
-   after the immutable RequestLog append.
-3. Build the minimal tenant-scoped UTC-daily analytics projection with a
-   separate idempotency ledger.
-4. Reuse the existing BullMQ lifecycle and worker heartbeat.
-5. Do not add reporting APIs, anomaly, email, or provider-health workers.
-6. Do not start production implementation without approval.
+1. Add the authenticated, owner-scoped manual title PATCH endpoint and UI.
+2. Load real Conversation list/read state without bootstrap duplicates.
+3. Keep historical messages metadata-only and show an explicit unavailable-content notice.
+4. Render streamed assistant Markdown safely without unsanitized HTML.
+5. Make Enter send and Shift+Enter insert a newline without duplicate sends.
+6. Do not add encrypted history, attachments, or LLM-generated titles.
+7. Keep P7-06 paused until this approved Phase 5 addendum is complete.
 
 ---
 

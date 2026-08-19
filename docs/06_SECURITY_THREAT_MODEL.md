@@ -877,6 +877,15 @@ Retention is enforced before content persistence:
 
 MongoDB TTL deletion is asynchronous and not guaranteed at the exact expiry second. Documentation and UI must not promise immediate cryptographic deletion at the configured timestamp.
 
+### 16.5 Phase 5 chat-content boundary
+
+- Phase 5 persists message metadata only and never stores plaintext prompt or response content.
+- `contentAvailable: false` omits `content`; `contentEnc`, ciphertext, IVs, authentication tags, and key versions are never returned by the message API.
+- Phase 9 owns AES-256-GCM content persistence and authorised decryption for `ENCRYPTED_STORAGE`. `METADATA_ONLY` continues to expose no content.
+- Only a successfully completed stream may become eligible for Phase 9 persistence. Partial or interrupted assistant output is not persisted.
+- Conversation title changes are manual, owner-scoped, and permission-checked. Prompt-derived and LLM-generated titles are prohibited.
+- Attachments are deferred. No file ingestion, multipart parsing, storage, preview, or provider forwarding is allowed until MIME/size allowlists, malware scanning, tenant ownership, provider capability, retention, and deletion are approved.
+
 ## 17. Secrets Management
 
 ### 17.1 MVP rules

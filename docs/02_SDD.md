@@ -779,6 +779,15 @@ In addition to metadata:
 
 Retention is applied before constructing the persistence document. The system must not create a full-content object and later remove fields.
 
+### Phase 5 chat-content boundary
+
+- Phase 5 is metadata-only. Conversation message reads return `messageId`, lowercase API `role`, optional `tokenCount`, `createdAt`, and `contentAvailable` only.
+- When `contentAvailable` is `false`, `content` is omitted. `contentEnc` and all encryption metadata are never API fields.
+- `METADATA_ONLY` never persists message content. `ENCRYPTED_STORAGE` message persistence and authorised decryption are Phase 9 responsibilities using AES-256-GCM.
+- Successful stream-completion persistence begins only in Phase 9. Partial or interrupted assistant output is never persisted.
+- Conversation titles are renamed manually through authenticated `PATCH /api/v1/conversations/:conversationId`; prompt-derived and LLM-generated titles are prohibited.
+- Attachments are deferred from the current MVP. No upload endpoint, multipart request, storage reference, or paperclip/upload UI is approved until storage, MIME and size allowlists, malware scanning, tenant ownership, provider capability, retention, and deletion are specified.
+
 ## 8.18 Audit Component
 
 ### Events included

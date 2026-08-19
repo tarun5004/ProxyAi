@@ -397,6 +397,7 @@ enum: [manual, auto, fallback, cache]
 | POST | `/conversations` | Bearer | `chat:send` | JSON |
 | GET | `/conversations` | Bearer | `chat:view_own` | JSON |
 | GET | `/conversations/{conversationId}` | Bearer | `chat:view_own` | JSON |
+| PATCH | `/conversations/{conversationId}` | Bearer | `chat:send` | JSON |
 | GET | `/conversations/{conversationId}/messages` | Bearer | `chat:view_own` | JSON |
 | POST | `/chat/stream` | Bearer | `chat:send` | SSE stream |
 | GET | `/admin/summary` | Bearer | `admin:view_logs` | JSON |
@@ -601,7 +602,7 @@ Creates a conversation owned by the authenticated user.
 }
 ```
 
-The title is optional. The API may use a safe default such as `New conversation`. Automatic AI title generation is not required for MVP.
+The title is optional. The API uses the safe default `New conversation`. Prompt-derived and LLM-generated titles are not allowed.
 
 ### Validation
 
@@ -631,7 +632,7 @@ The title is optional. The API may use a safe default such as `New conversation`
 
 - `orgId` and owner `userId` come from authenticated context.
 - A client cannot create a conversation for another user or tenant.
-- In metadata-only mode, avoid storing sensitive generated titles. User-entered title storage should follow the approved retention rule.
+- Phase 5 titles are client-entered only. Title encryption remains Phase 9 work.
 
 ## 15.2 GET `/conversations`
 
@@ -705,7 +706,35 @@ Returns one conversation header owned by the authenticated user.
 
 A conversation belonging to another tenant or user returns the same `404 NOT_FOUND` shape as a nonexistent conversation.
 
-## 15.4 GET `/conversations/{conversationId}/messages`
+## 15.4 PATCH `/conversations/{conversationId}`
+
+Manually renames a conversation owned by the authenticated user.
+
+### Permission
+
+`chat:send`
+
+### Request
+
+```json
+{
+  "title": "Quarterly planning"
+}
+```
+
+The body is strict: `title` is the only accepted property. It is trimmed and must contain 1–120 characters. The client cannot provide `orgId` or `userId`.
+
+### Success — `200 OK`
+
+Returns the standard conversation summary envelope used by `GET /conversations/{conversationId}`.
+
+### Rules
+
+- The update filter includes trusted authenticated `orgId`, authenticated `userId`, and the path `conversationId`.
+- Foreign-tenant, foreign-user, and nonexistent conversations return the same generic `404 NOT_FOUND` response.
+- Titles are manual only; prompt-derived and LLM-generated titles are prohibited.
+
+## 15.5 GET `/conversations/{conversationId}/messages`
 
 Returns retained messages for a conversation owned by the authenticated user.
 
@@ -746,10 +775,12 @@ Returns retained messages for a conversation owned by the authenticated user.
 }
 ```
 
-Phase 5 returns metadata summaries only. It never returns `content`, `contentEnc`,
-or encryption metadata. Phase 9 may extend encrypted-storage responses with
-decrypted content only after tenant and ownership authorization; metadata-only
-retention continues to expose no content.
+Phase 5 returns metadata summaries only. `contentAvailable` is always `false`,
+so `content` is omitted. It never returns `contentEnc` or encryption metadata.
+Phase 9 may add a separate `contentAvailable: true` variant containing decrypted
+`content` only after tenant and ownership authorization; `METADATA_ONLY`
+continues to expose no content. Successful stream-completion persistence is
+also Phase 9 work, and partial or interrupted assistant output is not persisted.
 
 # 16. Chat Streaming API
 
@@ -796,6 +827,14 @@ Rules:
 - When `routingMode=manual`, `providerId` is required.
 - When `routingMode=auto`, `providerId` is ignored or rejected to avoid ambiguity. The implementation should reject conflicting fields with `VALIDATION_ERROR`.
 - Auto routing must be feature-enabled for the organisation. Otherwise return `FEATURE_DISABLED` or require manual routing according to plan behavior.
+
+### Attachment boundary
+
+The current MVP accepts JSON prompt text only. It has no upload endpoint,
+multipart request, file reference, or paperclip/upload UI. A future attachment
+contract must define storage, MIME and size allowlists, malware scanning,
+tenant ownership, provider capability, retention, and deletion before any
+attachment implementation begins.
 
 ### Initial HTTP responses
 
@@ -1843,6 +1882,32 @@ paths:
                 $ref: '#/components/schemas/ConversationSuccess'
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Conversations]
+      operationId: updateConversationTitle
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConversationTitleRequest'
+      responses:
+        '200':
+          description: Conversation renamed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /conversations/{conversationId}/messages:
     get:
       tags: [Conversations]
@@ -2140,6 +2205,12 @@ components:
       additionalProperties: false
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
+    UpdateConversationTitleRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
     ChatRequest:
       type: object
       additionalProperties: false
@@ -2421,11 +2492,10 @@ The following decisions must be resolved during implementation without expanding
 
 1. Select the exact third provider identifier to replace `third`.
 2. Confirm whether public IDs use UUIDs or prefixed random IDs consistently.
-3. Confirm whether metadata-only conversation history returns an empty list or metadata-only message placeholders. This document recommends an empty list plus `contentAvailable=false`.
-4. Confirm the maximum allowed custom-retention days.
-5. Confirm the maximum audit-export date range.
-6. Confirm whether health endpoints are mounted at `/health/...` or `/api/v1/health/...`; this document follows the TDD's unversioned form.
-7. Confirm whether completed idempotent requests are replayed or return a safe duplicate response. No second provider call is allowed in either case.
+3. Confirm the maximum allowed custom-retention days.
+4. Confirm the maximum audit-export date range.
+5. Confirm whether health endpoints are mounted at `/health/...` or `/api/v1/health/...`; this document follows the TDD's unversioned form.
+6. Confirm whether completed idempotent requests are replayed or return a safe duplicate response. No second provider call is allowed in either case.
 
 ## 38. API Self-Audit
 

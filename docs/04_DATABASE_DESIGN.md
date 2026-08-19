@@ -352,11 +352,9 @@ interface ConversationDocument {
   conversationId: string;
   orgId: string;
   userId: string;
-  titleEnc?: EncryptedValue;
-  titlePreview?: string;
-  status: 'ACTIVE' | 'ARCHIVED';
+  title: string;
   messageCount: number;
-  lastMessageAt: Date;
+  lastMessageAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -364,23 +362,22 @@ interface ConversationDocument {
 
 ### 13.2 Title handling
 
-- For encrypted-storage mode, generated titles should be encrypted.
-- `titlePreview` is optional and should contain no sensitive prompt text. The simplest MVP choice is a generic value such as `New conversation` until the user renames it.
-- Metadata-only mode may keep only a generic title.
+- Phase 5 stores a plain manual title with the safe default `New conversation`; title encryption remains Phase 9 work.
+- Titles may be changed only by the authenticated owner through the scoped rename API.
+- Prompt-derived and LLM-generated titles are prohibited. The title must be trimmed and contain 1–120 characters.
 
 ### 13.3 Indexes
 
 ```ts
 conversationSchema.index({ conversationId: 1 }, { unique: true });
 conversationSchema.index({ orgId: 1, userId: 1, lastMessageAt: -1 });
-conversationSchema.index({ orgId: 1, status: 1, lastMessageAt: -1 });
 ```
 
 ### 13.4 Rules
 
 - Employee reads require `{ orgId, userId, conversationId }`.
+- Title updates require `{ orgId, userId, conversationId }` and return generic `404` for foreign or missing records.
 - Admin access to message content is not included in MVP.
-- Archiving changes status but does not delete related request or audit records.
 
 ## 14. Message Collection
 
@@ -422,6 +419,8 @@ interface MessageDocument {
 | `ENCRYPTED_STORAGE` | Store encrypted content; no expiry |
 | `CUSTOM_RETENTION` | Store encrypted content with `expiresAt` |
 
+Phase 5 uses only metadata-only message records: no plaintext content is stored and `contentEnc` is absent. Phase 9 owns encrypted user/assistant content persistence for `ENCRYPTED_STORAGE`.
+
 ### 14.3 Indexes
 
 ```ts
@@ -438,6 +437,8 @@ messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
 - `contentEnc` must not be returned in raw database JSON. Repository code decrypts only for an authorised conversation owner.
 - Audit and application logs must never include `contentEnc` values.
 - Token count can remain stored in metadata-only mode.
+- Phase 9 may persist content only after successful stream completion. Partial or interrupted assistant output is not persisted.
+- Attachments have no approved collection, upload reference, or content field in the current MVP.
 
 ## 15. Request Log Collection
 
@@ -1294,7 +1295,6 @@ The database design is implemented for MVP when:
 5. What exact cost precision is required for provider estimates?
 6. Should organisation admins be allowed to view decrypted employee conversations? The current beginner-safe baseline says no.
 7. How long should audit logs be retained for the portfolio/demo deployment?
-8. Should generic conversation titles be used in metadata-only mode, or should title records be omitted entirely?
 
 ## 38. Traceability
 
