@@ -906,6 +906,18 @@ npm run dev
 
 ## Latest Deployment Task
 
+- **Task:** P12-07 — Parameterized AWS Infrastructure Definitions
+- **Status:** Completed on 2026-08-19
+- **Foundation:** `deploy/aws/foundation.yml` defines two immutable scan-on-push ECR repositories, ECS cluster, retained Secrets Manager containers, least-privilege execution/task roles, CloudWatch logs, internet-facing ALB, exact path routing, target-group health checks, security groups, and Route 53/ACM integration.
+- **Services:** `deploy/aws/services.yml` defines independent private-subnet Fargate frontend, API, and worker services. Frontend/API use ALB target groups; worker has no listener or public IP; API and worker share one backend image digest with different commands and secret sets.
+- **Parameters:** Region remains the CloudFormation deployment context. VPC/subnets, domain, certificate, images, SHA, model, task sizing/counts, and external MongoDB/Redis connectivity remain explicit inputs rather than guessed values.
+- **Data services:** MongoDB Atlas and managed Redis are intentionally external. Secret containers are created without committing endpoint credentials; JWT and rate-limit secrets are independently generated and retained.
+- **Files changed:** `deploy/aws/foundation.yml`, `deploy/aws/services.yml`, `deploy/aws/README.md`, `docs/07_DEPLOYMENT_ARCHITECTURE.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Verification:** Both YAML templates parsed locally with CloudFormation intrinsic-tag support (23 foundation resources and 6 service resources); diff-check passed. AWS service validation could not run because no local AWS credentials are configured, so first staging bootstrap must run `aws cloudformation validate-template` before create/update.
+- **Security:** ECS tasks run in private subnets without public IPs; only ALB security-group traffic reaches ports 3000/8080; secret values are runtime-injected and absent from task plaintext configuration.
+
+## Previous Deployment Task
+
 - **Task:** P12-06 — Idempotent Production Index Deployment
 - **Status:** Completed on 2026-08-19
 - **Command:** `npm run deploy:indexes` loads all 13 approved Mongoose models and calls `createIndexes()` only. It never uses destructive `syncIndexes()`, never drops indexes, and never mutates application records.
@@ -914,7 +926,7 @@ npm run dev
 - **Verification:** Focused test passed 1/1; build passed; the command completed twice against dedicated `proxiai_index_deployment_audit`, creating declared indexes for all 13 models both times without conflict.
 - **Safety:** Logs contain fixed model names and safe events only. MongoDB URIs and credentials are never logged. Future document/data migrations remain a separately approved concern.
 
-## Previous Deployment Task
+## Earlier Deployment Task
 
 - **Task:** P12-05 — Production-Like Local Compose Stack
 - **Status:** Completed on 2026-08-19
@@ -925,7 +937,7 @@ npm run dev
 - **Verification:** Compose configuration validation passed. Real stack verification reported frontend, API, worker, Redis, and gateway healthy; `/`, `/healthz`, `/health/live`, and `/health/ready` returned `200`; readiness reported MongoDB and Redis `up`; nine expected API/worker startup events were observed.
 - **Operational note:** Port `3001` was already occupied during audit, so the verified stack used `PROXIAI_HTTP_PORT=3301`. Containers were stopped cleanly after verification; the Redis named volume was preserved.
 
-## Earlier Deployment Task
+## Earlier Compose Task
 
 - **Task:** P12-04 — Production Frontend and Backend Docker Images
 - **Status:** Completed on 2026-08-19
@@ -937,7 +949,7 @@ npm run dev
 - **Verification:** Frontend typecheck, lint, and standalone build passed; both real Docker image builds passed; image inspection proved non-root users, no copied `.env` files, both backend entrypoints, and configured health checks.
 - **Dependency observation:** The backend production dependency stage reported zero known npm audit vulnerabilities. The build-only dependency stage reported one high-severity development dependency finding; CI image scanning remains required before release.
 
-## Earlier Container Task
+## Earlier Index/Runtime Task
 
 - **Task:** P12-03 — Separate API and BullMQ Worker Production Entrypoints
 - **Status:** Completed on 2026-08-19
@@ -960,7 +972,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P12-07 — Add parameterized AWS infrastructure definitions; do not start Phase 8.
+- P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback; do not start Phase 8.
 
 ## Do Not Forget
 

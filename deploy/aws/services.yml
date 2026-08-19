@@ -1,0 +1,333 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ProxiAI frontend, API, and worker ECS/Fargate services.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+  ClusterArn:
+    Type: String
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  TaskSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  FrontendTargetGroupArn:
+    Type: String
+  ApiTargetGroupArn:
+    Type: String
+  TaskExecutionRoleArn:
+    Type: String
+  TaskRoleArn:
+    Type: String
+  FrontendLogGroupName:
+    Type: String
+  ApiLogGroupName:
+    Type: String
+  WorkerLogGroupName:
+    Type: String
+  MongoUriSecretArn:
+    Type: String
+  RedisUrlSecretArn:
+    Type: String
+  GroqApiKeySecretArn:
+    Type: String
+  JwtAccessSecretArn:
+    Type: String
+  AuthRateLimitSecretArn:
+    Type: String
+  FrontendImageUri:
+    Type: String
+  BackendImageUri:
+    Type: String
+  DomainName:
+    Type: String
+  CommitSha:
+    Type: String
+  GroqModel:
+    Type: String
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [fatal, error, warn, info, debug, trace]
+  FrontendCpu:
+    Type: String
+    Default: "256"
+  FrontendMemory:
+    Type: String
+    Default: "512"
+  ApiCpu:
+    Type: String
+    Default: "512"
+  ApiMemory:
+    Type: String
+    Default: "1024"
+  WorkerCpu:
+    Type: String
+    Default: "512"
+  WorkerMemory:
+    Type: String
+    Default: "1024"
+  FrontendDesiredCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+  ApiDesiredCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+  WorkerDesiredCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+  AccessTokenTtlMinutes:
+    Type: Number
+    Default: 15
+  RefreshTokenTtlDays:
+    Type: Number
+    Default: 7
+  ProviderRequestTimeoutMs:
+    Type: Number
+    Default: 30000
+  ChatRateLimitFreeUserRpm:
+    Type: Number
+    Default: 10
+  ChatRateLimitFreeOrgRpm:
+    Type: Number
+    Default: 60
+  ChatRateLimitProUserRpm:
+    Type: Number
+    Default: 30
+  ChatRateLimitProOrgRpm:
+    Type: Number
+    Default: 300
+  ChatRateLimitEnterpriseUserRpm:
+    Type: Number
+    Default: 60
+  ChatRateLimitEnterpriseOrgRpm:
+    Type: Number
+    Default: 1200
+
+Resources:
+  FrontendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "proxiai-${EnvironmentName}-frontend"
+      Cpu: !Ref FrontendCpu
+      Memory: !Ref FrontendMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: frontend
+          Image: !Ref FrontendImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: "3000"
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 20
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FrontendLogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: frontend
+
+  ApiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "proxiai-${EnvironmentName}-api"
+      Cpu: !Ref ApiCpu
+      Memory: !Ref ApiMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: api
+          Image: !Ref BackendImageUri
+          Essential: true
+          Command: ["node", "dist/server.js"]
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          Environment:
+            - { Name: NODE_ENV, Value: production }
+            - { Name: PORT, Value: "8080" }
+            - Name: FRONTEND_ORIGIN
+              Value: !Sub "https://${DomainName}"
+            - { Name: LOG_LEVEL, Value: !Ref LogLevel }
+            - { Name: ACCESS_TOKEN_TTL_MINUTES, Value: !Ref AccessTokenTtlMinutes }
+            - { Name: REFRESH_TOKEN_TTL_DAYS, Value: !Ref RefreshTokenTtlDays }
+            - { Name: CHAT_RATE_LIMIT_FREE_USER_RPM, Value: !Ref ChatRateLimitFreeUserRpm }
+            - { Name: CHAT_RATE_LIMIT_FREE_ORG_RPM, Value: !Ref ChatRateLimitFreeOrgRpm }
+            - { Name: CHAT_RATE_LIMIT_PRO_USER_RPM, Value: !Ref ChatRateLimitProUserRpm }
+            - { Name: CHAT_RATE_LIMIT_PRO_ORG_RPM, Value: !Ref ChatRateLimitProOrgRpm }
+            - { Name: CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM, Value: !Ref ChatRateLimitEnterpriseUserRpm }
+            - { Name: CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM, Value: !Ref ChatRateLimitEnterpriseOrgRpm }
+            - { Name: IDEMPOTENCY_PROCESSING_TTL_SECONDS, Value: "300" }
+            - { Name: IDEMPOTENCY_COMPLETED_TTL_SECONDS, Value: "3600" }
+            - { Name: GROQ_MODEL, Value: !Ref GroqModel }
+            - { Name: PROVIDER_REQUEST_TIMEOUT_MS, Value: !Ref ProviderRequestTimeoutMs }
+            - { Name: COMMIT_SHA, Value: !Ref CommitSha }
+            - { Name: RUNTIME_ROLE, Value: api }
+          Secrets:
+            - { Name: MONGO_URI, ValueFrom: !Ref MongoUriSecretArn }
+            - { Name: REDIS_URL, ValueFrom: !Ref RedisUrlSecretArn }
+            - { Name: GROQ_API_KEY, ValueFrom: !Ref GroqApiKeySecretArn }
+            - { Name: JWT_ACCESS_SECRET, ValueFrom: !Ref JwtAccessSecretArn }
+            - { Name: AUTH_RATE_LIMIT_SECRET, ValueFrom: !Ref AuthRateLimitSecretArn }
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - node -e "fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ApiLogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: api
+
+  WorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "proxiai-${EnvironmentName}-worker"
+      Cpu: !Ref WorkerCpu
+      Memory: !Ref WorkerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: worker
+          Image: !Ref BackendImageUri
+          Essential: true
+          Command: ["node", "dist/worker.js"]
+          Environment:
+            - { Name: NODE_ENV, Value: production }
+            - { Name: LOG_LEVEL, Value: !Ref LogLevel }
+            - { Name: GROQ_MODEL, Value: !Ref GroqModel }
+            - { Name: PROVIDER_REQUEST_TIMEOUT_MS, Value: !Ref ProviderRequestTimeoutMs }
+            - { Name: COMMIT_SHA, Value: !Ref CommitSha }
+            - { Name: RUNTIME_ROLE, Value: worker }
+          Secrets:
+            - { Name: MONGO_URI, ValueFrom: !Ref MongoUriSecretArn }
+            - { Name: REDIS_URL, ValueFrom: !Ref RedisUrlSecretArn }
+            - { Name: GROQ_API_KEY, ValueFrom: !Ref GroqApiKeySecretArn }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WorkerLogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+
+  FrontendService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub "proxiai-${EnvironmentName}-frontend"
+      Cluster: !Ref ClusterArn
+      TaskDefinition: !Ref FrontendTaskDefinition
+      DesiredCount: !Ref FrontendDesiredCount
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 60
+      EnableExecuteCommand: false
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups: [!Ref TaskSecurityGroupId]
+          Subnets: !Ref PrivateSubnetIds
+      LoadBalancers:
+        - ContainerName: frontend
+          ContainerPort: 3000
+          TargetGroupArn: !Ref FrontendTargetGroupArn
+
+  ApiService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub "proxiai-${EnvironmentName}-api"
+      Cluster: !Ref ClusterArn
+      TaskDefinition: !Ref ApiTaskDefinition
+      DesiredCount: !Ref ApiDesiredCount
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 90
+      EnableExecuteCommand: false
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups: [!Ref TaskSecurityGroupId]
+          Subnets: !Ref PrivateSubnetIds
+      LoadBalancers:
+        - ContainerName: api
+          ContainerPort: 8080
+          TargetGroupArn: !Ref ApiTargetGroupArn
+
+  WorkerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub "proxiai-${EnvironmentName}-worker"
+      Cluster: !Ref ClusterArn
+      TaskDefinition: !Ref WorkerTaskDefinition
+      DesiredCount: !Ref WorkerDesiredCount
+      LaunchType: FARGATE
+      EnableExecuteCommand: false
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups: [!Ref TaskSecurityGroupId]
+          Subnets: !Ref PrivateSubnetIds
+
+Outputs:
+  FrontendServiceName:
+    Value: !GetAtt FrontendService.Name
+  ApiServiceName:
+    Value: !GetAtt ApiService.Name
+  WorkerServiceName:
+    Value: !GetAtt WorkerService.Name
+  FrontendTaskDefinitionArn:
+    Value: !Ref FrontendTaskDefinition
+  ApiTaskDefinitionArn:
+    Value: !Ref ApiTaskDefinition
+  WorkerTaskDefinitionArn:
+    Value: !Ref WorkerTaskDefinition

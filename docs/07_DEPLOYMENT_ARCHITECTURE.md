@@ -187,7 +187,7 @@ contracts may differ, but both remain strictly validated.
 - API readiness means required MongoDB and Redis connections are ready.
 - Provider health is routing/operational state and does not make the base API
   process unready.
-- Frontend ALB health uses a server-rendered dependency-free `/_health` route.
+- Frontend ALB health uses the dependency-free `/healthz` route.
 - Worker health uses ECS process state plus the existing Redis heartbeat and an
   operational queue-processing smoke check; no public worker HTTP endpoint is
   required.
@@ -198,13 +198,26 @@ The deployment pipeline runs an explicit idempotent index command before API
 and worker rollout. It must:
 
 - connect using validated MongoDB configuration;
-- initialize/synchronize only approved schema indexes;
+- create only approved schema-declared indexes;
 - fail the deployment on errors;
 - avoid deleting data or running destructive schema changes;
 - be safe to rerun.
 
 Production backup confirmation is a manual deployment prerequisite. Application
 rollback does not automatically roll back database changes.
+
+## 12.1 Infrastructure definitions
+
+- `deploy/aws/foundation.yml` creates immutable ECR repositories, ECS cluster,
+  CloudWatch log groups, retained Secrets Manager secrets, least-privilege ECS
+  roles, ALB/target groups, HTTPS routing, security groups, and Route 53 alias.
+- `deploy/aws/services.yml` creates separate frontend, API, and worker Fargate
+  task definitions/services from immutable image digest parameters.
+- Public/private subnet IDs, VPC, domain, certificate, region context, image
+  digests, task sizes, desired counts, provider model, and external data paths
+  remain environment deployment inputs.
+- MongoDB Atlas and managed Redis are external approved dependencies. The
+  templates do not guess a Redis product or create unsafe public data stores.
 
 ## 13. Deployment and Rollback
 
