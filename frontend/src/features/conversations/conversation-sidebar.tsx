@@ -18,6 +18,7 @@ import type { ConversationSummary } from "./conversation.types";
 
 interface ConversationSidebarProps {
     conversations: readonly ConversationSummary[];
+    status: "error" | "loading" | "ready";
     activeConversationId?: string;
     user?: LoginUser;
     roleLabel: string;
@@ -26,6 +27,7 @@ interface ConversationSidebarProps {
     onClose(): void;
     onCreate(): void;
     onLogout(): void;
+    onRetry(): void;
 }
 
 export function ConversationSidebar(props: ConversationSidebarProps) {
@@ -84,9 +86,26 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
                 className="mt-5 grid min-h-0 flex-1 content-start gap-[7px] overflow-y-auto pr-0.5"
                 aria-label="Conversations"
             >
-                {filteredConversations.length === 0 ? (
+                {props.status === "loading" ? (
+                    <p className="mx-2 my-5 text-[13px] text-text-faint" role="status">
+                        Loading conversations…
+                    </p>
+                ) : props.status === "error" ? (
+                    <div className="mx-2 my-5 grid gap-2 text-[13px] text-text-soft" role="alert">
+                        <span>Conversations could not be loaded.</span>
+                        <button
+                            className="w-fit rounded-lg border border-border-default px-3 py-1.5 text-xs font-semibold text-brand-dark"
+                            type="button"
+                            onClick={props.onRetry}
+                        >
+                            Try again
+                        </button>
+                    </div>
+                ) : filteredConversations.length === 0 ? (
                     <p className="mx-2 my-5 text-[13px] text-text-faint">
-                        No conversations found.
+                        {query.trim().length === 0
+                            ? "No conversations yet."
+                            : "No conversations found."}
                     </p>
                 ) : filteredConversations.map((conversation) => (
                     <Link

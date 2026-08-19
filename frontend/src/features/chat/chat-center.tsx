@@ -10,13 +10,15 @@ import Image from "next/image";
 import { useState, type FormEvent } from "react";
 
 import { ConversationTitleEditor } from "@/features/conversations/conversation-title-editor";
+import type { MessageSummary } from "@/features/conversations/conversation.types";
 
 import type { UiChatMessage } from "./chat.types";
 
 interface ChatCenterProps {
     title: string;
     messages: readonly UiChatMessage[];
-    retainedMessageCount: number;
+    retainedMessages: readonly MessageSummary[];
+    conversationStatus: "error" | "idle" | "loading" | "ready";
     streaming: boolean;
     error?: string;
     onSend(prompt: string): Promise<void>;
@@ -27,6 +29,13 @@ interface ChatCenterProps {
 
 export function ChatCenter(props: ChatCenterProps) {
     const [prompt, setPrompt] = useState("");
+    const unavailableHistoryCount = props.retainedMessages.filter(
+        (message) => !message.contentAvailable,
+    ).length;
+    const composerDisabled =
+        props.streaming
+        || props.conversationStatus === "loading"
+        || props.conversationStatus === "error";
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -82,13 +91,24 @@ export function ChatCenter(props: ChatCenterProps) {
             </header>
 
             <section className="min-h-0 overflow-y-auto px-8 pt-[30px] pb-6 max-[720px]:px-3.5 max-[720px]:py-[18px]" aria-live="polite">
-                {props.retainedMessageCount > 0 ? (
+                {unavailableHistoryCount > 0 ? (
                     <div className="mx-auto mb-5 max-w-190 rounded-[10px] border border-border-default bg-surface-soft px-3.5 py-[11px] text-xs leading-6 text-text-soft">
-                        {props.retainedMessageCount} previous message summaries are retained. Content is unavailable under the current retention mode.
+                        {unavailableHistoryCount} previous message {unavailableHistoryCount === 1 ? "summary is" : "summaries are"} retained. Content is unavailable under the current retention mode.
                     </div>
                 ) : null}
 
-                {props.messages.length === 0 ? (
+                {props.conversationStatus === "loading" ? (
+                    <div className="mx-auto grid min-h-full max-w-117.5 content-center justify-items-center text-center" role="status">
+                        <span className="text-sm font-semibold text-text-soft">Loading conversation…</span>
+                    </div>
+                ) : props.conversationStatus === "error" ? (
+                    <div className="mx-auto grid min-h-full max-w-117.5 content-center justify-items-center text-center" role="alert">
+                        <h2 className="mb-2 text-xl font-bold">Conversation unavailable</h2>
+                        <p className="m-0 text-sm leading-[1.65] text-text-soft">
+                            This conversation could not be loaded.
+                        </p>
+                    </div>
+                ) : props.messages.length === 0 ? (
                     <div className="mx-auto grid min-h-full max-w-117.5 content-center justify-items-center text-center">
                         <span className="grid size-13 place-items-center rounded-2xl bg-brand-soft text-brand">
                             <Sparkle size={25} weight="fill" />
@@ -148,6 +168,7 @@ export function ChatCenter(props: ChatCenterProps) {
                         aria-label="Message"
                         rows={3}
                         maxLength={20_000}
+                        disabled={composerDisabled}
                     />
                     <div className="flex items-center justify-between">
                         <span className="inline-flex items-center gap-[7px] text-[11px] text-text-faint">
@@ -156,7 +177,7 @@ export function ChatCenter(props: ChatCenterProps) {
                         <button
                             className="grid size-11 cursor-pointer place-items-center rounded-[10px] bg-brand text-white disabled:cursor-not-allowed disabled:opacity-45"
                             type="submit"
-                            disabled={props.streaming || prompt.trim().length === 0}
+                            disabled={composerDisabled || prompt.trim().length === 0}
                             aria-label="Send message"
                         >
                             <PaperPlaneTilt size={20} weight="fill" />

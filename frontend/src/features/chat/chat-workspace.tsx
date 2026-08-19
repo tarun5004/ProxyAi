@@ -15,6 +15,7 @@ import {
 } from "@/features/conversations/conversation.api";
 import { ConversationSidebar } from "@/features/conversations/conversation-sidebar";
 import type { ConversationSummary } from "@/features/conversations/conversation.types";
+import type { MessageSummary } from "@/features/conversations/conversation.types";
 import { PolicyInspector } from "@/features/policy/policy-inspector";
 import { ApiError } from "@/lib/errors/api-error";
 
@@ -38,8 +39,13 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
     const router = useRouter();
     const activeRequest = useRef<AbortController | undefined>(undefined);
     const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+    const [conversationListStatus, setConversationListStatus] = useState<"error" | "loading" | "ready">("loading");
+    const [conversationListReload, setConversationListReload] = useState(0);
     const [activeConversation, setActiveConversation] = useState<ConversationSummary>();
-    const [retainedMessageCount, setRetainedMessageCount] = useState(0);
+    const [conversationStatus, setConversationStatus] = useState<"error" | "idle" | "loading" | "ready">(
+        initialConversationId ? "loading" : "idle",
+    );
+    const [retainedMessages, setRetainedMessages] = useState<MessageSummary[]>([]);
     const [messages, setMessages] = useState<UiChatMessage[]>([]);
     const [policy, setPolicy] = useState<PolicyEvent>();
     const [routing, setRouting] = useState<RoutingEvent>();
@@ -61,22 +67,25 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
         const abortController = new AbortController();
 
         void listConversations(auth.accessToken, abortController.signal)
-            .then((response) => setConversations(response.data.items))
+            .then((response) => {
+                setConversations(response.data.items);
+                setConversationListStatus("ready");
+            })
             .catch((error: unknown) => {
                 if (!isAbortError(error)) {
-                    setRequestError("Conversations could not be loaded.");
+                    setConversationListStatus("error");
                 }
             });
 
         return () => abortController.abort();
-    }, [auth.accessToken, auth.status]);
+    }, [auth.accessToken, auth.status, conversationListReload]);
 
     useEffect(() => {
-        if (
-            auth.status !== "authenticated"
-            || !auth.accessToken
-            || !initialConversationId
-        ) {
+        if (auth.status !== "authenticated" || !auth.accessToken) {
+            return;
+        }
+
+        if (!initialConversationId) {
             return;
         }
 
@@ -87,18 +96,20 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
             listConversationMessages(auth.accessToken, initialConversationId, abortController.signal),
         ]).then(([conversationResponse, messageResponse]) => {
             setActiveConversation(conversationResponse.data);
-            setRetainedMessageCount(messageResponse.data.items.length);
+            setRetainedMessages(messageResponse.data.items);
+            setConversationStatus("ready");
         }).catch((error: unknown) => {
             if (isAbortError(error)) {
                 return;
             }
 
-            setRequestError("This conversation could not be loaded.");
-            router.replace("/chat");
+            setActiveConversation(undefined);
+            setRetainedMessages([]);
+            setConversationStatus("error");
         });
 
         return () => abortController.abort();
-    }, [auth.accessToken, auth.status, initialConversationId, router]);
+    }, [auth.accessToken, auth.status, initialConversationId]);
 
     const handleCreate = useCallback(async () => {
         if (!auth.accessToken || creating) {
@@ -112,8 +123,9 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
             const response = await createConversation(auth.accessToken);
             setConversations((current) => [response.data, ...current]);
             setActiveConversation(response.data);
+            setConversationStatus("ready");
             setMessages([]);
-            setRetainedMessageCount(0);
+            setRetainedMessages([]);
             setPolicy(undefined);
             setRouting(undefined);
             setFallback(undefined);
@@ -147,6 +159,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 const response = await createConversation(auth.accessToken);
                 conversation = response.data;
                 setActiveConversation(conversation);
+                setConversationStatus("ready");
                 setConversations((current) => [conversation!, ...current]);
                 router.replace(`/chat/${conversation.conversationId}`);
             }
@@ -243,6 +256,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
         <WorkspaceShell
             sidebar={<ConversationSidebar
                 conversations={conversations}
+                status={conversationListStatus}
                 activeConversationId={activeConversation?.conversationId ?? initialConversationId}
                 user={auth.user}
                 roleLabel={roleLabel}
@@ -251,11 +265,16 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 onClose={() => setSidebarOpen(false)}
                 onCreate={() => void handleCreate()}
                 onLogout={() => void handleLogout()}
+                onRetry={() => {
+                    setConversationListStatus("loading");
+                    setConversationListReload((current) => current + 1);
+                }}
             />}
             main={<ChatCenter
                 title={activeConversation?.title ?? "New Conversation"}
                 messages={messages}
-                retainedMessageCount={retainedMessageCount}
+                retainedMessages={retainedMessages}
+                conversationStatus={conversationStatus}
                 streaming={streaming}
                 error={requestError}
                 onSend={handleSend}

@@ -7,5 +7,10 @@ export default async function ConversationChatPage({
 }>) {
     const { conversationId } = await params;
 
-    return <ChatWorkspace initialConversationId={conversationId} />;
+    return (
+        <ChatWorkspace
+            key={conversationId}
+            initialConversationId={conversationId}
+        />
+    );
 }
