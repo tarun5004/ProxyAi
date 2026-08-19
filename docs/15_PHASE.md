@@ -134,12 +134,12 @@ test(security): add cross-tenant conversation tests
 Update this block at the end of every work session.
 
 ```text
-Current Phase: Phase 5 — Chat, Conversations, and Streaming addendum
-Current Task: P5-08 prerequisite — Chat history, title, and attachment contract resolution
-Current Status: Contract completed; production implementation not started
+Current Phase: Phase 7 — Background Jobs, Billing, and Alerts
+Current Task: P7-06 — Basic Analytics Worker
+Current Status: Ready for implementation; not started
 Current Blocker: None
-Last Completed Task: P5-08 prerequisite — Chat history, title, and attachment contract resolution
-Last Completed Commit: docs(chat): resolve history title and attachment contracts
+Last Completed Task: P5-08 — Chat Workspace Contract Corrections
+Last Completed Commit: docs(progress): record P5-08 chat UX completion
 ```
 
 ---
@@ -409,12 +409,13 @@ Last Completed Commit: docs(chat): resolve history title and attachment contract
 - [x] Auth middleware resolves trusted user and organisation.
 - [x] Permission middleware works.
 - [x] Cross-tenant Conversation READ gate passes with trusted `orgId`, `userId`, and `conversationId` scope.
-- [ ] Cross-tenant UPDATE and DELETE runtime gates remain deferred until those endpoints exist.
+- [x] Cross-tenant Conversation UPDATE gate passes through the owner-scoped title PATCH endpoint.
+- [ ] Cross-tenant DELETE runtime gate remains deferred until a delete endpoint exists.
 - [x] Secrets do not appear in logs.
 
 **Mandatory Gate:** User from Org A cannot read, update, or delete Org B data.
 
-**Runtime Verification:** Cross-tenant and cross-user Conversation reads return the same generic `404` as missing records. Mandatory UPDATE and DELETE verification must run when the first tenant-owned update/delete endpoints are implemented.
+**Runtime Verification:** Cross-tenant and cross-user Conversation reads and title updates return the same generic `404` as missing records. The UPDATE path is verified not to mutate the foreign record. Mandatory DELETE verification must run when the first tenant-owned delete endpoint is implemented.
 
 ---
 
@@ -493,7 +494,7 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 # 11. Phase 5 — Chat, Conversations, and Streaming
 
 **Effort:** High
-**Status:** Core completed; approved chat UX contract addendum pending
+**Status:** Completed
 
 ## Tasks
 
@@ -519,7 +520,7 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 - [x] Approve manual owner-scoped `PATCH /api/v1/conversations/:conversationId` with `chat:send`, strict `{ title }`, trim, and 1–120 characters.
 - [x] Prohibit prompt-derived and LLM-generated titles.
 - [x] Defer attachments: no upload endpoint, multipart contract, or paperclip/upload UI in the current MVP.
-- [ ] P5-08 — Implement the approved title PATCH and Chat Workspace UX corrections without encrypted history or attachments.
+- [x] P5-08 — Implement the approved title PATCH and Chat Workspace UX corrections without encrypted history or attachments.
 
 ## Exit Criteria
 
@@ -527,6 +528,10 @@ boundary. Durable append-only audit persistence remains owned by Phase 9.
 - [x] User sees only their conversations.
 - [x] Cross-tenant conversation tests pass.
 - [x] Mid-stream provider splice is not implemented.
+- [x] Manual title updates are owner-scoped, permission-protected, and return generic `404` for foreign scope.
+- [x] Existing Conversation routes restore real list/read state and show metadata-only history without inventing content.
+- [x] Assistant Markdown/GFM renders without raw HTML injection; user prompts remain escaped plain text.
+- [x] Enter sends, Shift+Enter inserts a newline, duplicate streaming sends are blocked, and route changes abort the active stream.
 
 The P5-06 accounting prerequisite was explicitly pulled forward because policy
 cannot safely evaluate budget state without persisted usage. It is limited to
@@ -926,7 +931,7 @@ Do not randomly change several files.
 | Phase 2 | Not Started | |
 | Phase 3 | Not Started | |
 | Phase 4 | Not Started | |
-| Phase 5 | Addendum Pending | Core login, conversations, policy-aware streaming, and responsive frontend verified; P5-08 contract-aligned UX work remains |
+| Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
 | Phase 7 | In Progress | P7-01 through P7-05 complete; later background-job scope remains |
 | Phase 8 | Not Started | |
@@ -940,19 +945,17 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P5-08 — Chat Workspace Contract Corrections
+## P7-06 — Basic Analytics Worker
 
 **Effort:** Medium
 
 Do only this next:
 
-1. Add the authenticated, owner-scoped manual title PATCH endpoint and UI.
-2. Load real Conversation list/read state without bootstrap duplicates.
-3. Keep historical messages metadata-only and show an explicit unavailable-content notice.
-4. Render streamed assistant Markdown safely without unsanitized HTML.
-5. Make Enter send and Shift+Enter insert a newline without duplicate sends.
-6. Do not add encrypted history, attachments, or LLM-generated titles.
-7. Keep P7-06 paused until this approved Phase 5 addendum is complete.
+1. Implement the already-approved safe analytics job contract without inferring outcomes.
+2. Enqueue tenant-scoped `request.completed` and `request.blocked` analytics jobs using safe metadata only.
+3. Add idempotent tenant-scoped aggregation for approved MVP counters and known usage only.
+4. Reuse the existing BullMQ connection, lifecycle, retry, failed-job retention, and heartbeat foundations.
+5. Do not add reporting APIs, anomaly alerts, email delivery, pricing, prompts, responses, PII, or secrets.
 
 ---
 

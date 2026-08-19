@@ -4,9 +4,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 5 — Chat, Conversations, and Streaming addendum
-- **Task:** P5-08 prerequisite — Chat history, title, and attachment contract resolution
-- **Status:** Contract completed; production implementation not started
+- **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
+- **Task:** P7-06 — Basic Analytics Worker
+- **Status:** Ready for implementation; not started
 
 ## Completed Tasks
 
@@ -58,7 +58,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P5-07 addendum — Public Landing Page completed on 2026-08-18
 - P5-07 addendum — Local Development Admin Provisioning completed on 2026-08-18
 - Phase 5 — Chat, Conversations, and Streaming completed on 2026-08-18
-- P5-08 prerequisite — Chat history, manual title, and attachment contracts resolved on 2026-08-19; production implementation remains pending
+- P5-08 prerequisite — Chat history, manual title, and attachment contracts resolved on 2026-08-19
+- P5-08 — Chat Workspace Contract Corrections completed on 2026-08-19
+- Phase 2 deferred cross-tenant Conversation UPDATE gate passed through the owner-scoped title PATCH on 2026-08-19; DELETE remains deferred
 - P6-01 — Generalized tenant-scoped idempotency reservations completed on 2026-08-18
 - P6-02 — Secure prompt-cache contract resolved on 2026-08-19; implementation remains deferred
 - P6-03 — Completed idempotency tombstone and opaque request fingerprint protection completed on 2026-08-19
@@ -290,7 +292,7 @@ npm run dev
 - P3-05 adds only the generic retry helper/policy. It is not wired into routing, fallback, or circuit breaker behavior yet.
 - P3-07 fallback is reusable provider orchestration only; it is not wired into chat endpoints because Phase 5 chat is not started.
 - Circuit breaker state remains in-memory only; distributed provider resilience state is deferred.
-- Cross-tenant scope helpers deny mismatched trusted org/team resources, but full CRUD proof remains deferred until tenant-owned business routes exist.
+- Cross-tenant Conversation READ and UPDATE gates are proven through scoped list/read and manual title PATCH routes. The DELETE gate remains deferred until a tenant-owned delete endpoint exists.
 - P4-01 regex detectors can produce false positives/negatives and are not a complete DLP system.
 - `BUSINESS_CONFIDENTIAL` remains an approved category but is not emitted until an approved organisation-configured confidential-term detector exists.
 - Risk accuracy depends on P4-01 detection accuracy; P4-03 intentionally adds no confidence weighting, masking, thresholds, or policy decisions.
@@ -305,7 +307,7 @@ npm run dev
 - Phase 4 implementation is complete, but two runtime gates remain explicitly deferred: `BLOCK` must cause zero provider calls, and `ALLOW_WITH_MASK` must send only masked `providerPrompt`.
 - Both deferred gates must be proven when the first Phase 5 chat pipeline wires policy decisions to provider execution; no temporary provider/chat route will be created merely to mark them passed.
 - P5-01 resolves the Conversation documentation conflict in favour of the approved task contract: plain `title`, default `"New conversation"`, nullable `lastMessageAt`, and no `status`, `titleEnc`, or `titlePreview` fields.
-- Conversation title encryption remains deferred to Phase 9. Future title-writing APIs must follow the approved retention behavior and must not generate titles from sensitive prompt content without the required protection.
+- Conversation title encryption remains deferred to Phase 9. The approved manual title PATCH stores only the explicitly supplied title and never derives it from prompt or provider content.
 - Conversation ownership identifiers `conversationId`, `orgId`, and `userId` are immutable UUID v4 values; `conversationId` is generated only by the backend.
 - Conversation declares only the approved unique `{ conversationId: 1 }` index and owner-list `{ orgId: 1, userId: 1, lastMessageAt: -1 }` index.
 - Future tenant-owned Conversation queries must use trusted `orgId` plus authenticated `userId` and the resource identifier where applicable; ordinary client input never establishes tenant scope.
@@ -326,7 +328,7 @@ npm run dev
 - Foreign-organisation, foreign-user, and nonexistent Conversation identifiers share the same generic `404 NOT_FOUND` response.
 - Conversation pagination sorts by descending `lastMessageAt` with descending public `conversationId` as the stable tie-breaker, fetches `limit + 1`, and returns an opaque base64url cursor.
 - Cursor data is treated as untrusted and validated before use. It contains no tenant identity and cannot override auth-derived scope; cursor HMAC remains unimplemented because no dedicated signing key is approved.
-- Real MongoDB HTTP tests prove the previously deferred cross-tenant and cross-user READ gate. UPDATE and DELETE gates remain deferred because no such endpoints exist.
+- Real MongoDB HTTP tests prove cross-tenant and cross-user Conversation READ and UPDATE denial. DELETE remains deferred because no delete endpoint exists.
 - `GET /api/v1/conversations/:conversationId/messages` requires authentication and current `chat:view_own` permission, then verifies Conversation ownership through trusted `orgId`, `userId`, and `conversationId` before reading Messages.
 - Message listing queries always include trusted `orgId` and `conversationId`, use chronological `createdAt` ordering with `messageId` as the public tie-breaker, and return an opaque validated cursor.
 - Phase 5 Message API responses expose only `messageId`, lowercase API `role`, optional `tokenCount`, `createdAt`, and `contentAvailable: false`; they never expose `content`, `contentEnc`, ciphertext, IV, authentication tags, key versions, or other encryption metadata.
@@ -684,15 +686,19 @@ npm run dev
 
 ## Latest Task
 
-- **Task:** P5-08 prerequisite — Chat History, Title, and Attachment Contract Resolution
-- **Status:** Documentation completed on 2026-08-19; no production code changed
-- **Files changed:** `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **History contract:** Phase 5 exposes metadata summaries only. Phase 9 owns encrypted content persistence/decryption, and partial/interrupted assistant output is never persisted.
-- **Title contract:** Manual owner-scoped rename only through `PATCH /api/v1/conversations/:conversationId`; no prompt-derived or LLM title generation.
-- **Attachment contract:** Deferred from the MVP until storage and security requirements are approved; no upload API or paperclip UI is allowed now.
-- **Frontend follow-up:** Real Conversation loading states, metadata-only history notice, safe Markdown, Enter/Shift+Enter behavior, and title PATCH integration remain P5-08 production work.
-- **Recommended commit:** `docs(chat): resolve history title and attachment contracts`.
-- **Next task:** Implement P5-08 only after approval; keep P7-06 paused.
+- **Task:** P5-08 — Chat Workspace Contract Corrections
+- **Status:** Completed and browser-verified on 2026-08-19
+- **Files changed:** `backend/src/features/conversations/conversation.controller.ts`, `backend/src/features/conversations/conversation.repository.ts`, `backend/src/features/conversations/conversation.routes.ts`, `backend/src/features/conversations/conversation.schema.ts`, `backend/src/features/conversations/conversation.service.ts`, `backend/src/features/conversations/conversation.types.ts`, `backend/tests/conversation.title-update.integration.mjs`, `frontend/package.json`, `frontend/package-lock.json`, `frontend/src/app/(workspace)/chat/[conversationId]/page.tsx`, `frontend/src/features/chat/assistant-markdown.tsx`, `frontend/src/features/chat/chat-center.tsx`, `frontend/src/features/chat/chat-workspace.tsx`, `frontend/src/features/chat/chat-center.test.tsx`, `frontend/src/features/chat/chat-workspace.test.tsx`, `frontend/src/features/conversations/conversation-sidebar.tsx`, `frontend/src/features/conversations/conversation-title-editor.tsx`, `frontend/src/features/conversations/conversation.api.ts`, `frontend/src/lib/api/api-client.ts`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Title update:** `PATCH /api/v1/conversations/:conversationId` requires authentication plus current `chat:send`, validates strict trimmed titles from 1–120 characters, and updates only `{ orgId, userId, conversationId }`; foreign scope returns generic `404` without mutation.
+- **Conversation recovery:** Workspace startup and direct `/chat/:conversationId` refresh use real Conversation list/read APIs with explicit loading, empty, and error states. Historical messages remain safe summaries and display a metadata-only content-unavailable notice.
+- **Rendering and input:** Assistant output uses safe Markdown/GFM rendering without raw HTML support; user prompts remain plain escaped text. Enter sends, Shift+Enter inserts a newline, streaming blocks duplicates, focus is restored, and switching routes aborts the active request.
+- **Focused tests:** Four new high-value tests cover owned/foreign title updates, Conversation loading and stream abort state, safe Markdown/table rendering, and Enter/Shift+Enter behavior. The real-Mongo title test passed 2/2; the complete backend suite passed 181/181. Frontend focused tests passed at each implementation commit; a final rerun encountered the known Vitest worker-start hang and was terminated without a test assertion failure.
+- **Verification:** Backend typecheck/build passed. Frontend typecheck/lint/production build passed. `git diff --check`, scope/leak scans, and clean-tree checks passed before this docs update.
+- **Browser QA:** Login, real Conversation loading, selecting and refreshing an old Conversation, manual rename, metadata-only history notice, real Groq SSE output, Markdown headings/lists/table rendering, Enter, Shift+Enter, route-switch `net::ERR_ABORTED`, and responsive desktop/mobile layouts were verified. No browser console errors or horizontal mobile overflow were found.
+- **Known UI observation:** Direct authenticated refresh restores the scoped Conversation, but the sidebar identity labels can fall back to `ProxyAi User` and `Your workspace`; this pre-existing auth-bootstrap presentation issue is outside P5-08.
+- **Security/scope:** No attachments, multipart/upload UI, LLM title generation, plaintext historical content, `contentEnc` exposure, raw HTML injection, or prompt logging was added.
+- **Completed commits:** `feat(conversations): add tenant-scoped conversation title update`; `fix(chat): restore conversation loading and metadata-only history states`; `feat(chat): render assistant markdown and tables safely`; `fix(chat): support Enter-to-send and Shift+Enter newline`; `docs(progress): record P5-08 chat UX completion`.
+- **Next task:** P7-06 — Basic Analytics Worker. Do not start without approval.
 
 ## Previous Contract Task
 
@@ -755,7 +761,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- Implement P5-08 contract-aligned Chat Workspace corrections only after approval. Keep encrypted history, attachments, LLM title generation, and P7-06 production analytics out of that task.
+- P7-06 — Basic Analytics Worker, using the approved request-outcome contract and existing BullMQ lifecycle. Do not start without approval.
 
 ## Do Not Forget
 
