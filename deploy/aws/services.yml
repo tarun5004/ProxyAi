@@ -4,6 +4,7 @@ Description: ProxiAI frontend, API, and worker ECS/Fargate services.
 Parameters:
   EnvironmentName:
     Type: String
+    AllowedValues: [production, staging]
   ClusterArn:
     Type: String
   PrivateSubnetIds:
@@ -24,20 +25,18 @@ Parameters:
     Type: String
   WorkerLogGroupName:
     Type: String
-  MongoUriSecretArn:
+  RuntimeSecretArn:
     Type: String
-  RedisUrlSecretArn:
-    Type: String
-  GroqApiKeySecretArn:
-    Type: String
-  JwtAccessSecretArn:
-    Type: String
-  AuthRateLimitSecretArn:
-    Type: String
+    NoEcho: true
+    AllowedPattern: "^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:proxiai/(production|staging)-[A-Za-z0-9]+$"
   FrontendImageUri:
     Type: String
+    AllowedPattern: "^.+@sha256:[a-f0-9]{64}$"
+    ConstraintDescription: FrontendImageUri must use an immutable repository digest.
   BackendImageUri:
     Type: String
+    AllowedPattern: "^.+@sha256:[a-f0-9]{64}$"
+    ConstraintDescription: BackendImageUri must use an immutable repository digest.
   DomainName:
     Type: String
   CommitSha:
@@ -56,28 +55,31 @@ Parameters:
     Default: "512"
   ApiCpu:
     Type: String
-    Default: "512"
+    Default: "256"
   ApiMemory:
     Type: String
-    Default: "1024"
+    Default: "512"
   WorkerCpu:
     Type: String
-    Default: "512"
+    Default: "256"
   WorkerMemory:
     Type: String
-    Default: "1024"
+    Default: "512"
   FrontendDesiredCount:
     Type: Number
     Default: 1
-    MinValue: 1
+    MinValue: 0
+    MaxValue: 1
   ApiDesiredCount:
     Type: Number
     Default: 1
-    MinValue: 1
+    MinValue: 0
+    MaxValue: 1
   WorkerDesiredCount:
     Type: Number
     Default: 1
-    MinValue: 1
+    MinValue: 0
+    MaxValue: 1
   AccessTokenTtlMinutes:
     Type: Number
     Default: 15
@@ -105,6 +107,17 @@ Parameters:
   ChatRateLimitEnterpriseOrgRpm:
     Type: Number
     Default: 1200
+
+Rules:
+  ProductionDesiredCounts:
+    RuleCondition: !Equals [!Ref EnvironmentName, production]
+    Assertions:
+      - Assert: !Equals [!Ref FrontendDesiredCount, 1]
+        AssertDescription: Production frontend desired count must be one.
+      - Assert: !Equals [!Ref ApiDesiredCount, 1]
+        AssertDescription: Production API desired count must be one.
+      - Assert: !Equals [!Ref WorkerDesiredCount, 1]
+        AssertDescription: Production worker desired count must be one.
 
 Resources:
   FrontendTaskDefinition:
@@ -189,11 +202,11 @@ Resources:
             - { Name: COMMIT_SHA, Value: !Ref CommitSha }
             - { Name: RUNTIME_ROLE, Value: api }
           Secrets:
-            - { Name: MONGO_URI, ValueFrom: !Ref MongoUriSecretArn }
-            - { Name: REDIS_URL, ValueFrom: !Ref RedisUrlSecretArn }
-            - { Name: GROQ_API_KEY, ValueFrom: !Ref GroqApiKeySecretArn }
-            - { Name: JWT_ACCESS_SECRET, ValueFrom: !Ref JwtAccessSecretArn }
-            - { Name: AUTH_RATE_LIMIT_SECRET, ValueFrom: !Ref AuthRateLimitSecretArn }
+            - { Name: MONGO_URI, ValueFrom: !Sub "${RuntimeSecretArn}:MONGO_URI::" }
+            - { Name: REDIS_URL, ValueFrom: !Sub "${RuntimeSecretArn}:REDIS_URL::" }
+            - { Name: GROQ_API_KEY, ValueFrom: !Sub "${RuntimeSecretArn}:GROQ_API_KEY::" }
+            - { Name: JWT_ACCESS_SECRET, ValueFrom: !Sub "${RuntimeSecretArn}:JWT_ACCESS_SECRET::" }
+            - { Name: AUTH_RATE_LIMIT_SECRET, ValueFrom: !Sub "${RuntimeSecretArn}:AUTH_RATE_LIMIT_SECRET::" }
           HealthCheck:
             Command:
               - CMD-SHELL
@@ -235,9 +248,9 @@ Resources:
             - { Name: COMMIT_SHA, Value: !Ref CommitSha }
             - { Name: RUNTIME_ROLE, Value: worker }
           Secrets:
-            - { Name: MONGO_URI, ValueFrom: !Ref MongoUriSecretArn }
-            - { Name: REDIS_URL, ValueFrom: !Ref RedisUrlSecretArn }
-            - { Name: GROQ_API_KEY, ValueFrom: !Ref GroqApiKeySecretArn }
+            - { Name: MONGO_URI, ValueFrom: !Sub "${RuntimeSecretArn}:MONGO_URI::" }
+            - { Name: REDIS_URL, ValueFrom: !Sub "${RuntimeSecretArn}:REDIS_URL::" }
+            - { Name: GROQ_API_KEY, ValueFrom: !Sub "${RuntimeSecretArn}:GROQ_API_KEY::" }
           LogConfiguration:
             LogDriver: awslogs
             Options:

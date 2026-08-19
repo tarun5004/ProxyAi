@@ -116,8 +116,9 @@ as supported, secrets, task definitions, service names, and smoke identities.
 - Keep safe structured logs only; do not enable verbose/debug production logs.
 - Add ECR lifecycle rules only after protecting active and rollback digests;
   retain a small bounded set of SHA-tagged images.
-- Keep the five existing application secret boundaries. Do not consolidate
-  secrets merely to reduce a small Secrets Manager charge.
+- Keep one environment-scoped JSON secret. Production uses
+  `proxiai/production` with only `MONGO_URI`, `REDIS_URL`,
+  `JWT_ACCESS_SECRET`, `AUTH_RATE_LIMIT_SECRET`, and `GROQ_API_KEY`.
 - Do not enable Container Insights beyond the approved need without reviewing
   its metric/log cost. Disable it if the deployment contract does not require
   it for the initial smoke period.
@@ -138,13 +139,14 @@ as supported, secrets, task definitions, service names, and smoke identities.
 
 ## 10. Manual Cost Controls
 
-Current template defaults must not be used blindly:
+Current template controls are intentionally cost-capped:
 
-- `services.yml` currently defaults API and worker to 512 CPU units/1024 MiB;
-  P12-09 must explicitly pass 256/512 for all three services.
-- `foundation.yml` defaults logs to 30 days; P12-09 must pass 7 days.
-- `foundation.yml` currently enables ECS Container Insights. Disable it before
-  creation unless the owner approves its recurring observability cost.
+- `services.yml` defaults every service to 256 CPU units/512 MiB and permits no
+  desired count above one.
+- `foundation.yml` creates a missing log group only when explicitly requested,
+  retains it on stack deletion/replacement, and fixes retention at 7 days.
+- Existing ECS clusters must keep Container Insights disabled for the initial
+  paid environment.
 - `services.yml` requires private task subnets. Reuse the approved/default VPC
   but create only the minimum private routing needed; do not create another VPC.
 

@@ -165,8 +165,9 @@ The exact managed Redis product remains a deployment parameter until approved.
 - `AUTH_RATE_LIMIT_SECRET`
 - `GROQ_API_KEY`
 
-Secrets are stored in AWS Secrets Manager and injected into ECS tasks at
-runtime. Secret values never enter Docker build arguments, image layers,
+These keys are stored in one environment-scoped AWS Secrets Manager JSON
+secret. Production uses `proxiai/production`; ECS injects only the keys required
+by each task. Secret values never enter Docker build arguments, image layers,
 GitHub logs, frontend bundles, or committed environment files.
 
 ### Runtime configuration
@@ -210,9 +211,10 @@ rollback does not automatically roll back database changes.
 
 - `deploy/aws/registry.yml` creates the two shared immutable ECR repositories
   used to promote identical image digests from staging to production.
-- `deploy/aws/foundation.yml` creates the environment ECS cluster, CloudWatch
-  log groups, retained Secrets Manager secrets, least-privilege ECS
-  roles, ALB/target groups, HTTPS routing, security groups, and Route 53 alias.
+- `deploy/aws/foundation.yml` adopts explicit existing cluster, networking,
+  ALB, target-group, IAM-role, log-group, and runtime-secret identifiers. It may
+  create retained 7-day log groups or the missing HTTPS listener/rules only
+  when an explicit create flag is approved.
 - `deploy/aws/services.yml` creates separate frontend, API, and worker Fargate
   task definitions/services from immutable image digest parameters.
 - Public/private subnet IDs, VPC, domain, certificate, region context, image

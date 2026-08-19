@@ -1,243 +1,130 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: ProxiAI shared AWS deployment foundation for ECS/Fargate.
+Description: ProxiAI adapter for existing AWS foundation resources and optional missing HTTPS/log resources.
 
 Parameters:
   EnvironmentName:
     Type: String
-    AllowedPattern: "^[a-z][a-z0-9-]{1,20}$"
+    AllowedValues: [production, staging]
   VpcId:
     Type: AWS::EC2::VPC::Id
   PublicSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  NatGatewayId:
+    Type: String
+    AllowedPattern: "^nat-[0-9a-f]+$"
+  ClusterArn:
+    Type: String
+    AllowedPattern: "^arn:aws:ecs:[a-z0-9-]+:[0-9]{12}:cluster/proxiai-production$"
+  LoadBalancerArn:
+    Type: String
+    AllowedPattern: "^arn:aws:elasticloadbalancing:[a-z0-9-]+:[0-9]{12}:loadbalancer/app/proxiai-alb/[0-9a-f]+$"
+  HttpListenerArn:
+    Type: String
+    AllowedPattern: "^arn:aws:elasticloadbalancing:[a-z0-9-]+:[0-9]{12}:listener/app/proxiai-alb/[0-9a-f]+/[0-9a-f]+$"
+  LoadBalancerSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  TaskSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+  FrontendTargetGroupArn:
+    Type: String
+    AllowedPattern: "^arn:aws:elasticloadbalancing:[a-z0-9-]+:[0-9]{12}:targetgroup/proxiai-[a-z0-9-]+/[0-9a-f]+$"
+  ApiTargetGroupArn:
+    Type: String
+    AllowedPattern: "^arn:aws:elasticloadbalancing:[a-z0-9-]+:[0-9]{12}:targetgroup/proxiai-[a-z0-9-]+/[0-9a-f]+$"
+  TaskExecutionRoleArn:
+    Type: String
+    AllowedPattern: "^arn:aws:iam::[0-9]{12}:role/proxiai-ecs-execution-role$"
+  TaskRoleArn:
+    Type: String
+    AllowedPattern: "^arn:aws:iam::[0-9]{12}:role/proxiai-ecs-task-role$"
+  FrontendLogGroupName:
+    Type: String
+    AllowedPattern: "^/ecs/proxiai/(production|staging)/frontend$"
+  ApiLogGroupName:
+    Type: String
+    AllowedPattern: "^/ecs/proxiai/(production|staging)/api$"
+  WorkerLogGroupName:
+    Type: String
+    AllowedPattern: "^/ecs/proxiai/(production|staging)/worker$"
+  RuntimeSecretArn:
+    Type: String
+    NoEcho: true
+    AllowedPattern: "^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:proxiai/(production|staging)-[A-Za-z0-9]+$"
   DomainName:
     Type: String
-  HostedZoneId:
-    Type: AWS::Route53::HostedZone::Id
+    Default: ""
   CertificateArn:
     Type: String
-  LogRetentionDays:
-    Type: Number
-    Default: 30
-    AllowedValues: [7, 14, 30, 60, 90, 120, 150, 180, 365]
+    Default: ""
+  CreateMissingLogGroups:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+  CreateHttpsListener:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+
+Rules:
+  HttpsInputsRequired:
+    RuleCondition: !Equals [!Ref CreateHttpsListener, "true"]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref DomainName, ""]]
+        AssertDescription: DomainName is required when creating the HTTPS listener.
+      - Assert: !Not [!Equals [!Ref CertificateArn, ""]]
+        AssertDescription: CertificateArn is required when creating the HTTPS listener.
+
+Conditions:
+  CreateLogGroups: !Equals [!Ref CreateMissingLogGroups, "true"]
+  CreateHttps: !Equals [!Ref CreateHttpsListener, "true"]
 
 Resources:
-  Cluster:
-    Type: AWS::ECS::Cluster
-    Properties:
-      ClusterName: !Sub "proxiai-${EnvironmentName}"
-      ClusterSettings:
-        - Name: containerInsights
-          Value: enabled
-
   FrontendLogGroup:
     Type: AWS::Logs::LogGroup
+    Condition: CreateLogGroups
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
-      LogGroupName: !Sub "/ecs/proxiai/${EnvironmentName}/frontend"
-      RetentionInDays: !Ref LogRetentionDays
+      LogGroupName: !Ref FrontendLogGroupName
+      RetentionInDays: 7
 
   ApiLogGroup:
     Type: AWS::Logs::LogGroup
+    Condition: CreateLogGroups
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
-      LogGroupName: !Sub "/ecs/proxiai/${EnvironmentName}/api"
-      RetentionInDays: !Ref LogRetentionDays
+      LogGroupName: !Ref ApiLogGroupName
+      RetentionInDays: 7
 
   WorkerLogGroup:
     Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/ecs/proxiai/${EnvironmentName}/worker"
-      RetentionInDays: !Ref LogRetentionDays
-
-  MongoUriSecret:
-    Type: AWS::SecretsManager::Secret
+    Condition: CreateLogGroups
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      Name: !Sub "proxiai/${EnvironmentName}/mongo-uri"
-      Description: MongoDB Atlas URI. Populate after foundation creation.
-
-  RedisUrlSecret:
-    Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      Name: !Sub "proxiai/${EnvironmentName}/redis-url"
-      Description: Managed Redis TLS URL. Populate after foundation creation.
-
-  GroqApiKeySecret:
-    Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      Name: !Sub "proxiai/${EnvironmentName}/groq-api-key"
-      Description: Groq API key. Populate after foundation creation.
-
-  JwtAccessSecret:
-    Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      Name: !Sub "proxiai/${EnvironmentName}/jwt-access-secret"
-      GenerateSecretString:
-        PasswordLength: 48
-        ExcludePunctuation: true
-
-  AuthRateLimitSecret:
-    Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      Name: !Sub "proxiai/${EnvironmentName}/auth-rate-limit-secret"
-      GenerateSecretString:
-        PasswordLength: 48
-        ExcludePunctuation: true
-
-  TaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:
-        - PolicyName: ReadProxiAISecrets
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
-                  - !Ref MongoUriSecret
-                  - !Ref RedisUrlSecret
-                  - !Ref GroqApiKeySecret
-                  - !Ref JwtAccessSecret
-                  - !Ref AuthRateLimitSecret
-
-  TaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-
-  LoadBalancerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Public HTTPS ingress for ProxiAI ALB
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-      SecurityGroupEgress:
-        - IpProtocol: "-1"
-          CidrIp: 0.0.0.0/0
-
-  TaskSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: ALB-to-ECS ingress and managed dependency egress
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 3000
-          ToPort: 3000
-          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-      SecurityGroupEgress:
-        - IpProtocol: "-1"
-          CidrIp: 0.0.0.0/0
-
-  LoadBalancer:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Name: !Sub "proxiai-${EnvironmentName}"
-      Scheme: internet-facing
-      Type: application
-      SecurityGroups:
-        - !Ref LoadBalancerSecurityGroup
-      Subnets: !Ref PublicSubnetIds
-
-  FrontendTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      VpcId: !Ref VpcId
-      TargetType: ip
-      Protocol: HTTP
-      Port: 3000
-      HealthCheckEnabled: true
-      HealthCheckPath: /healthz
-      HealthCheckIntervalSeconds: 30
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
-      Matcher:
-        HttpCode: "200-399"
-      TargetGroupAttributes:
-        - Key: deregistration_delay.timeout_seconds
-          Value: "30"
-
-  ApiTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      VpcId: !Ref VpcId
-      TargetType: ip
-      Protocol: HTTP
-      Port: 8080
-      HealthCheckEnabled: true
-      HealthCheckPath: /health/ready
-      HealthCheckIntervalSeconds: 30
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
-      Matcher:
-        HttpCode: "200"
-      TargetGroupAttributes:
-        - Key: deregistration_delay.timeout_seconds
-          Value: "60"
-
-  HttpListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref LoadBalancer
-      Port: 80
-      Protocol: HTTP
-      DefaultActions:
-        - Type: redirect
-          RedirectConfig:
-            Protocol: HTTPS
-            Port: "443"
-            StatusCode: HTTP_301
+      LogGroupName: !Ref WorkerLogGroupName
+      RetentionInDays: 7
 
   HttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: CreateHttps
     Properties:
-      LoadBalancerArn: !Ref LoadBalancer
+      LoadBalancerArn: !Ref LoadBalancerArn
       Port: 443
       Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
       Certificates:
         - CertificateArn: !Ref CertificateArn
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref FrontendTargetGroup
+          TargetGroupArn: !Ref FrontendTargetGroupArn
 
   ApiListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: CreateHttps
     Properties:
       ListenerArn: !Ref HttpsListener
       Priority: 10
@@ -247,10 +134,11 @@ Resources:
             Values: ["/api/*"]
       Actions:
         - Type: forward
-          TargetGroupArn: !Ref ApiTargetGroup
+          TargetGroupArn: !Ref ApiTargetGroupArn
 
   HealthListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: CreateHttps
     Properties:
       ListenerArn: !Ref HttpsListener
       Priority: 20
@@ -260,46 +148,44 @@ Resources:
             Values: ["/health/*"]
       Actions:
         - Type: forward
-          TargetGroupArn: !Ref ApiTargetGroup
-
-  DomainAlias:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Ref DomainName
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt LoadBalancer.DNSName
-        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+          TargetGroupArn: !Ref ApiTargetGroupArn
 
 Outputs:
   ClusterArn:
-    Value: !GetAtt Cluster.Arn
-  TaskExecutionRoleArn:
-    Value: !GetAtt TaskExecutionRole.Arn
-  TaskRoleArn:
-    Value: !GetAtt TaskRole.Arn
+    Value: !Ref ClusterArn
+  VpcId:
+    Value: !Ref VpcId
+  PublicSubnetIds:
+    Value: !Join [",", !Ref PublicSubnetIds]
+  PrivateSubnetIds:
+    Value: !Join [",", !Ref PrivateSubnetIds]
+  NatGatewayId:
+    Value: !Ref NatGatewayId
+  LoadBalancerArn:
+    Value: !Ref LoadBalancerArn
+  HttpListenerArn:
+    Value: !Ref HttpListenerArn
+  HttpsListenerArn:
+    Value: !If [CreateHttps, !Ref HttpsListener, ""]
+  LoadBalancerSecurityGroupId:
+    Value: !Ref LoadBalancerSecurityGroupId
   TaskSecurityGroupId:
-    Value: !Ref TaskSecurityGroup
+    Value: !Ref TaskSecurityGroupId
   FrontendTargetGroupArn:
-    Value: !Ref FrontendTargetGroup
+    Value: !Ref FrontendTargetGroupArn
   ApiTargetGroupArn:
-    Value: !Ref ApiTargetGroup
+    Value: !Ref ApiTargetGroupArn
+  TaskExecutionRoleArn:
+    Value: !Ref TaskExecutionRoleArn
+  TaskRoleArn:
+    Value: !Ref TaskRoleArn
   FrontendLogGroupName:
-    Value: !Ref FrontendLogGroup
+    Value: !Ref FrontendLogGroupName
   ApiLogGroupName:
-    Value: !Ref ApiLogGroup
+    Value: !Ref ApiLogGroupName
   WorkerLogGroupName:
-    Value: !Ref WorkerLogGroup
-  MongoUriSecretArn:
-    Value: !Ref MongoUriSecret
-  RedisUrlSecretArn:
-    Value: !Ref RedisUrlSecret
-  GroqApiKeySecretArn:
-    Value: !Ref GroqApiKeySecret
-  JwtAccessSecretArn:
-    Value: !Ref JwtAccessSecret
-  AuthRateLimitSecretArn:
-    Value: !Ref AuthRateLimitSecret
+    Value: !Ref WorkerLogGroupName
+  RuntimeSecretArn:
+    Value: !Ref RuntimeSecretArn
   PublicOrigin:
-    Value: !Sub "https://${DomainName}"
+    Value: !If [CreateHttps, !Sub "https://${DomainName}", ""]

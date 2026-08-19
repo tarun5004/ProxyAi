@@ -920,6 +920,19 @@ npm run dev
 - **Completed commits:** `fix(analytics): prevent aggregate id leakage during updates`; `fix(deploy): align policy smoke inputs with seeded thresholds`.
 - **Remaining gate:** Run CloudFormation validation and actual immutable-digest staging → approval → production → rollback flow after approved AWS parameters and secrets are provisioned.
 
+## Latest AWS IaC Alignment
+
+- **Task:** P12-09 pre-deployment IaC correction for existing production resources.
+- **Status:** Repository-side IaC alignment completed on 2026-08-19; no AWS resources or ECS services were created by this task, and live P12-09 rollout remains pending.
+- **Resource reuse:** `foundation.yml` now accepts the existing `proxiai-production` cluster, `proxiai-alb`, ALB/ECS security groups, frontend/API target groups, IAM roles, VPC, public/private subnets, NAT gateway, log-group names, and runtime-secret ARN as parameters instead of declaring duplicate resources.
+- **Optional resources:** The foundation stack can create only explicitly missing retained 7-day log groups and, after approved domain/certificate inputs exist, the HTTPS listener and path rules. Existing HTTP listener conversion to HTTP → HTTPS redirect remains a reviewed deployment action because that listener is externally managed.
+- **Secret contract:** Production uses one JSON Secrets Manager secret, `proxiai/production`, containing only `MONGO_URI`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `AUTH_RATE_LIMIT_SECRET`, and `GROQ_API_KEY`; task definitions select keys at runtime and never embed secret values.
+- **Release safety:** Production image parameters require `repository@sha256:<digest>`. Production desired counts are fixed at one; staging may use zero while reusing the cluster/ALB with environment-specific services, target groups, logs, secret, and data.
+- **Cost/security:** Frontend, API, and worker default to 256 CPU units/512 MiB, autoscaling is absent, ECS public IP assignment stays disabled, existing one-NAT topology is reused, Container Insights remains disabled, and retained log groups use seven-day retention.
+- **Files changed:** `deploy/aws/foundation.yml`, `deploy/aws/services.yml`, `deploy/aws/README.md`, `deploy/aws/MANUAL_ACTIONS.md`, `docs/07_DEPLOYMENT_ARCHITECTURE.md`, and `PROJECT_MEMORY.md`.
+- **Verification:** AWS CloudFormation validation passed for both templates; static duplicate-resource, mutable-image, stale split-secret, concrete-secret, and whitespace scans passed.
+- **Remaining manual inputs:** Approved domain and ACM certificate, explicit existing HTTP-listener redirect update, populated production secret values, Atlas and managed Redis connectivity, immutable frontend/backend image digests, environment-specific staging target groups/secret/data, and live staging/rollback verification.
+
 ## Latest Deployment Task
 
 - **Task:** P12-08 — GitHub Actions Validation, Deployment, Smoke, and Rollback
