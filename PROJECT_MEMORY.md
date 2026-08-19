@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 7 — Background Jobs, Billing, and Alerts
-- **Task:** P7-07 — Simple Anomaly Worker
-- **Status:** Contract approved and documented; implementation not started
+- **Task:** P7-08 — Email Worker Contract Audit
+- **Status:** P7-07 completed and verified; P7-08 not started
 
 ## Completed Tasks
 
@@ -74,6 +74,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P7-05 — Billing worker heartbeat completed on 2026-08-19
 - P7-06 — Tenant-scoped async request analytics completed on 2026-08-19
 - P7-07 prerequisite — Tenant-scoped daily anomaly contract resolved on 2026-08-19; no worker code added
+- P7-07 — Tenant-scoped daily token anomaly worker completed on 2026-08-19
 
 ## Important Decisions
 
@@ -375,6 +376,22 @@ npm run dev
 - P7-07 does not enqueue email or notification work. Anomaly records and jobs
   contain safe aggregate metadata only and never prompt, response, PII, or
   secrets.
+- Analytics publishes one strict `usage.updated` event only after the trusted
+  tenant/user daily aggregate is persisted. The event contains only
+  `schemaVersion`, `jobType`, `requestId`, `orgId`, `userId`, `observedDay`, and
+  `occurredAt`.
+- Anomaly queue IDs are deterministic opaque SHA-256 values scoped by trusted
+  organisation, user, and request identifiers; raw identifiers do not appear
+  in Redis job IDs.
+- P7-07 reuses the shared BullMQ connection, bounded retry, managed lifecycle,
+  and heartbeat. It does not create another Redis connection or idempotency
+  ledger.
+- Detection queries trusted organisation state and tenant/user-scoped analytics
+  projections. Integer-safe comparison enforces current tokens strictly greater
+  than twice the qualifying baseline average without floating-point drift.
+- Alert creation uses an atomic unique `{ orgId, userId, observedDay, type }`
+  upsert. Duplicate and concurrent events produce one `HIGH`/`OPEN` alert with
+  safe aggregate metadata; billing records and rollups remain untouched.
 - BullMQ custom IDs use `billing-request-completed-{requestId}` because `:` is not permitted in custom BullMQ job IDs.
 - Completed chat accounting now persists the append-only RequestLog before publishing exactly one validated `request.completed` billing job.
 - Billing jobs carry canonical `requestId`, trusted tenant identifiers, provider/model, and only complete known usage; pricing remains unavailable, so `estimatedCostMicros` is omitted.
@@ -704,15 +721,22 @@ npm run dev
 
 ## Latest Task
 
+- **Task:** P7-07 — Tenant-Scoped Daily Token Anomaly Worker
+- **Status:** Completed and verified on 2026-08-19
+- **Files changed:** `backend/src/shared/async/job-contract.ts`, `backend/src/features/analytics/analytics.worker.ts`, `backend/src/features/alerts/alert.types.ts`, `backend/src/features/alerts/alert.model.ts`, `backend/src/features/anomaly/anomaly.types.ts`, `backend/src/features/anomaly/anomaly.repository.ts`, `backend/src/features/anomaly/anomaly.queue.ts`, `backend/src/features/anomaly/anomaly.worker.ts`, `backend/src/server.ts`, `backend/tests/analytics.worker.test.mjs`, `backend/tests/anomaly.worker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Implementation:** Analytics publishes a strict safe `usage.updated` job after daily aggregate persistence. The managed anomaly worker applies the approved feature gate, seven-day active-day baseline, minimum-three-day rule, unknown-usage exclusion, and strict greater-than-two-times threshold.
+- **Idempotency and isolation:** Deterministic opaque job IDs coordinate duplicate events, every database query includes trusted `orgId` plus `userId` where applicable, and an atomic unique Alert upsert guarantees one same-day anomaly record without a separate ledger.
+- **Alert safety:** Detected anomalies persist only `HIGH`/`OPEN` and approved aggregate metadata, then emit a safe structured event. No prompt, response, PII, secret, email, notification, RequestLog mutation, or BillingRollup mutation is introduced.
+- **Focused tests:** Four anomaly tests cover a valid three-day baseline detection, insufficient baseline, unknown-usage exclusion/current-day skip, and concurrent duplicate deduplication.
+- **Verification:** Focused anomaly/analytics tests passed 8/8; worker/chat/billing regressions passed 27/27; the full sequential backend suite passed 187/187. `npm run typecheck`, `npm run build`, `git diff --check`, tenant-scope scan, console scan, and sensitive-data scan passed.
+- **Completed commit:** `feat(anomaly): add tenant-scoped daily token anomaly worker`.
+- **Next task:** P7-08 — Email Worker contract audit only; implementation requires explicit provider, configuration, recipient, template, and security decisions.
+
+## Previous Contract Task
+
 - **Task:** P7-07 — Daily Anomaly Detection Contract
-- **Status:** Completed documentation-only on 2026-08-19; implementation not started
-- **Files changed:** `docs/01_PRD.md`, `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/08_TESTING_STRATEGY.md`, `docs/12_SEQUENCE_DIAGRAMS.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
-- **Canonical rule:** Evaluate only current UTC-day user known tokens greater than twice the previous seven-day active-day average, using at least three prior days with fully known usage.
-- **Gates and safety:** Trusted organisation `anomalyDetection` must be enabled. Unknown baseline days are excluded rather than zeroed, all queries and alerts remain tenant/user scoped, and no sensitive content enters jobs or records.
-- **Alert contract:** Create `HIGH`/`OPEN`, enforce one unresolved `{ orgId, userId, observedDay, ANOMALY }` alert, and update or resolve that same record during re-evaluation.
-- **Excluded scope:** No request-level, request-volume, blocked-rate, provider-error, email, notification, reporting, or worker implementation was added.
+- **Status:** Completed documentation-only on 2026-08-19
 - **Completed commit:** `docs(anomaly): define tenant-scoped daily anomaly detection contract`.
-- **Next task:** Implement P7-07 only after explicit approval.
 
 ## Previous Implementation Task
 
@@ -807,7 +831,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P7-07 — Implement the approved tenant-scoped daily anomaly worker. Do not start without approval.
+- P7-08 — Audit and resolve the email worker contract. Do not implement until the provider, configuration, recipient, template, retry, and security rules are approved.
 
 ## Do Not Forget
 

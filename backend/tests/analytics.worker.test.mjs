@@ -34,6 +34,7 @@ const [
     requestLogModule,
     billingServiceModule,
     workerModule,
+    anomalyQueueModule,
 ] = await Promise.all([
     import("mongoose"),
     import("../dist/shared/lib/mongo.js"),
@@ -45,6 +46,7 @@ const [
     import("../dist/features/billing/request-log.model.js"),
     import("../dist/features/billing/billing.service.js"),
     import("../dist/features/analytics/analytics.worker.js"),
+    import("../dist/features/anomaly/anomaly.queue.js"),
 ]);
 
 const mongoose = mongooseModule.default;
@@ -61,8 +63,13 @@ const { AnalyticsJobLedgerModel } = ledgerModelModule;
 const { RequestLogModel } = requestLogModule;
 const { appendRequestUsage } = billingServiceModule;
 const { processAnalyticsRequestOutcomeJob } = workerModule;
+const {
+    connectAnomalyQueue,
+    getAnomalyQueue,
+} = anomalyQueueModule;
 
 let analyticsQueue;
+let anomalyQueue;
 
 test.before(async () => {
     await Promise.all([connectMongo(), connectRedis()]);
@@ -72,9 +79,16 @@ test.before(async () => {
         AnalyticsJobLedgerModel.init(),
         RequestLogModel.init(),
     ]);
-    await connectAnalyticsQueue();
+    await Promise.all([
+        connectAnalyticsQueue(),
+        connectAnomalyQueue(),
+    ]);
     analyticsQueue = getAnalyticsQueue();
-    await analyticsQueue.obliterate({ force: true });
+    anomalyQueue = getAnomalyQueue();
+    await Promise.all([
+        analyticsQueue.obliterate({ force: true }),
+        anomalyQueue.obliterate({ force: true }),
+    ]);
 });
 
 test.beforeEach(async () => {
@@ -83,6 +97,7 @@ test.beforeEach(async () => {
         AnalyticsJobLedgerModel.collection.deleteMany({}),
         RequestLogModel.collection.deleteMany({}),
         analyticsQueue.obliterate({ force: true }),
+        anomalyQueue.obliterate({ force: true }),
     ]);
 });
 
@@ -130,6 +145,7 @@ test("duplicate completed job produces exactly one aggregate effect", async () =
         jobContext(0),
     );
     const aggregate = await findOrganisationAggregate(job.orgId);
+    const anomalyJobs = await anomalyQueue.getJobs(["waiting"]);
 
     assert.equal(first, "APPLIED");
     assert.equal(duplicate, "SKIPPED_COMPLETED");
@@ -138,6 +154,19 @@ test("duplicate completed job produces exactly one aggregate effect", async () =
     assert.equal(aggregate.maskedRequests, 1);
     assert.equal(aggregate.totalTokens, 40);
     assert.equal(aggregate.providerModelRequestCounts[0].requestCount, 1);
+    assert.equal(anomalyJobs.length, 1);
+    assert.equal(anomalyJobs[0].id.includes(job.orgId), false);
+    assert.equal(anomalyJobs[0].id.includes(job.userId), false);
+    assert.equal(anomalyJobs[0].id.includes(job.requestId), false);
+    assert.deepEqual(anomalyJobs[0].data, {
+        schemaVersion: 1,
+        jobType: "usage.updated",
+        requestId: job.requestId,
+        orgId: job.orgId,
+        userId: job.userId,
+        observedDay: job.occurredAt.slice(0, 10),
+        occurredAt: job.occurredAt,
+    });
 });
 
 test("blocked request increments only safe blocked analytics", async () => {

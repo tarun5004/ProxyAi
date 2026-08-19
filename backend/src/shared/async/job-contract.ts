@@ -5,6 +5,7 @@ import { PROVIDER_IDS } from "../../features/providers/provider.types.js";
 export const ASYNC_JOB_SCHEMA_VERSION = 1 as const;
 export const REQUEST_COMPLETED_JOB_TYPE = "request.completed" as const;
 export const REQUEST_BLOCKED_JOB_TYPE = "request.blocked" as const;
+export const USAGE_UPDATED_JOB_TYPE = "usage.updated" as const;
 export const REQUEST_COMPLETED_STATUSES = [
     "COMPLETED",
     "FAILED",
@@ -16,6 +17,15 @@ export const REQUEST_POLICY_ACTIONS = [
 ] as const;
 
 const uuidV4Schema = z.uuid({ version: "v4" });
+const utcDateSchema = z
+    .string()
+    .regex(/^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/)
+    .refine((value) => {
+        const date = new Date(`${value}T00:00:00.000Z`);
+
+        return !Number.isNaN(date.getTime())
+            && date.toISOString().slice(0, 10) === value;
+    });
 const nonNegativeSafeIntegerSchema = z
     .number()
     .int()
@@ -72,6 +82,16 @@ const analyticsRequestOutcomeJobSchema = z.discriminatedUnion(
     [requestCompletedJobSchema, requestBlockedJobSchema],
 );
 
+const usageUpdatedJobSchema = z.strictObject({
+    schemaVersion: z.literal(ASYNC_JOB_SCHEMA_VERSION),
+    jobType: z.literal(USAGE_UPDATED_JOB_TYPE),
+    requestId: uuidV4Schema,
+    orgId: uuidV4Schema,
+    userId: uuidV4Schema,
+    observedDay: utcDateSchema,
+    occurredAt: z.string().datetime(),
+});
+
 export type RequestCompletedJob = Readonly<
     z.infer<typeof requestCompletedJobSchema>
 >;
@@ -80,6 +100,9 @@ export type RequestBlockedJob = Readonly<
 >;
 export type AnalyticsRequestOutcomeJob = Readonly<
     z.infer<typeof analyticsRequestOutcomeJobSchema>
+>;
+export type UsageUpdatedJob = Readonly<
+    z.infer<typeof usageUpdatedJobSchema>
 >;
 export type RequestCompletedStatus =
     (typeof REQUEST_COMPLETED_STATUSES)[number];
@@ -129,4 +152,14 @@ export function parseAnalyticsRequestOutcomeJob(
                 : {}
         ),
     });
+}
+
+export function parseUsageUpdatedJob(input: unknown): UsageUpdatedJob {
+    const result = usageUpdatedJobSchema.safeParse(input);
+
+    if (!result.success) {
+        throw new InvalidAsyncJobPayloadError();
+    }
+
+    return Object.freeze(result.data);
 }

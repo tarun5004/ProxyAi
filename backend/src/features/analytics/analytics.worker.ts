@@ -5,10 +5,13 @@ import {
     type SafeWorkerJobContext,
 } from "../../shared/async/bullmq.js";
 import {
+    ASYNC_JOB_SCHEMA_VERSION,
     parseAnalyticsRequestOutcomeJob,
+    USAGE_UPDATED_JOB_TYPE,
     type AnalyticsRequestOutcomeJob,
 } from "../../shared/async/job-contract.js";
 import { logger } from "../../shared/lib/logger.js";
+import { enqueueUsageUpdatedJob } from "../anomaly/anomaly.queue.js";
 import {
     analyticsRepository,
     type AnalyticsRepository,
@@ -25,11 +28,13 @@ export type AnalyticsJobProcessingResult =
 
 export interface AnalyticsWorkerDependencies {
     readonly repository: AnalyticsRepository;
+    readonly enqueueAnomalyJob: typeof enqueueUsageUpdatedJob;
     readonly now: () => Date;
 }
 
 const defaultAnalyticsWorkerDependencies: AnalyticsWorkerDependencies = {
     repository: analyticsRepository,
+    enqueueAnomalyJob: enqueueUsageUpdatedJob,
     now: () => new Date(),
 };
 
@@ -134,6 +139,15 @@ export async function processAnalyticsRequestOutcomeJob(
             date,
             scope: "USER",
             values: userValues,
+        });
+        await dependencies.enqueueAnomalyJob({
+            schemaVersion: ASYNC_JOB_SCHEMA_VERSION,
+            jobType: USAGE_UPDATED_JOB_TYPE,
+            requestId: job.requestId,
+            orgId: job.orgId,
+            userId: job.userId,
+            observedDay: date,
+            occurredAt: job.occurredAt,
         });
         await dependencies.repository.completeJobProcessing({
             ...scope,

@@ -4,6 +4,10 @@ import { connectAnalyticsQueue } from
     "./features/analytics/analytics.queue.js";
 import { startAnalyticsWorker } from
     "./features/analytics/analytics.worker.js";
+import { connectAnomalyQueue } from
+    "./features/anomaly/anomaly.queue.js";
+import { startAnomalyWorker } from
+    "./features/anomaly/anomaly.worker.js";
 import { connectBillingQueue } from "./features/billing/billing.queue.js";
 import { startBillingWorker } from "./features/billing/billing.worker.js";
 import { disconnectBullMq } from "./shared/async/bullmq.js";
@@ -118,10 +122,12 @@ void Promise.all([mongoConnection, redisConnection])
         await Promise.all([
             connectBillingQueue(),
             connectAnalyticsQueue(),
+            connectAnomalyQueue(),
         ]);
         await Promise.all([
             startBillingWorker(),
             startAnalyticsWorker(),
+            startAnomalyWorker(),
         ]);
     })
     .catch(() => {

@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 7 — Background Jobs, Billing, and Alerts
-Current Task: P7-07 — Simple Anomaly Worker
-Current Status: Contract approved and documented; implementation not started
+Current Task: P7-08 — Email Worker Contract Audit
+Current Status: P7-07 completed and verified; P7-08 not started
 Current Blocker: None
-Last Completed Task: P7-07 — Daily Anomaly Detection Contract
-Last Completed Commit: docs(anomaly): define tenant-scoped daily anomaly detection contract
+Last Completed Task: P7-07 — Tenant-Scoped Daily Token Anomaly Worker
+Last Completed Commit: feat(anomaly): add tenant-scoped daily token anomaly worker
 ```
 
 ---
@@ -604,7 +604,7 @@ costs, and dashboard rollups remain Phase 7 responsibilities.
 - [x] Prevent replay from double charging.
 - [x] P7-06 — Create a tenant-scoped idempotent basic analytics worker.
 - [x] P7-07 prerequisite — Define the tenant-scoped daily anomaly rule, feature gate, baseline, severity, and deduplication contract.
-- [ ] P7-07 — Create simple anomaly worker.
+- [x] P7-07 — Create tenant-scoped daily token anomaly worker.
 - [ ] Create email worker with safe templates.
 - [x] Keep raw prompts out of job payloads.
 
@@ -651,6 +651,18 @@ analytics `usage.updated`, and creates or updates one `HIGH`, initially `OPEN`,
 tenant-scoped alert per user and observed day. Request-level, volume,
 blocked-rate, provider-error, email, and notification behavior are excluded.
 
+P7-07 extends the strict async contract with a safe `usage.updated` event that
+contains only trusted identifiers and the observed UTC day. The analytics
+worker publishes it after the tenant/user aggregate is persisted. The anomaly
+worker reuses the shared BullMQ lifecycle, loads the trusted organisation
+feature flag and scoped user-day projections, excludes unknown-usage days,
+requires three qualifying prior active days, and compares the current total
+against the approved strict greater-than-two-times baseline using integer-safe
+arithmetic. A deterministic opaque job ID and an atomic unique tenant/user/day
+Alert upsert prevent duplicate unresolved anomalies without a separate ledger.
+Detected alerts contain only approved aggregate metadata and emit a safe
+structured event; no email or notification job is created.
+
 ## Exit Criteria
 
 - [x] Chat response does not wait for workers.
@@ -659,6 +671,7 @@ blocked-rate, provider-error, email, and notification behavior are excluded.
 - [x] Failed jobs are visible.
 - [x] Queue payloads contain no raw prompts.
 - [x] Basic analytics jobs are tenant-scoped and idempotent.
+- [x] Daily token anomalies are feature-gated, tenant/user scoped, and atomically deduplicated.
 
 ---
 
@@ -953,7 +966,7 @@ Do not randomly change several files.
 | Phase 4 | Not Started | |
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
-| Phase 7 | In Progress | P7-01 through P7-06 complete; anomaly and email workers remain |
+| Phase 7 | In Progress | P7-01 through P7-07 complete; email worker remains |
 | Phase 8 | Not Started | |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
@@ -965,20 +978,18 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P7-07 — Simple Anomaly Worker
+## P7-08 — Email Worker Contract Audit
 
 **Effort:** Medium
 
 Do only this next:
 
-1. Implement only the approved daily known-token rule using analytics
-   `usage.updated` and the existing BullMQ lifecycle.
-2. Gate detection with trusted `Organisation.featureFlags.anomalyDetection` and
-   require three prior fully known active days.
-3. Atomically reuse the same tenant/user/day anomaly alert for duplicate,
-   retried, or re-evaluated jobs.
-4. Do not implement email delivery, provider-health jobs, reporting APIs,
-   pricing, request-level anomaly signals, or Phase 8 work.
+1. Resolve the approved email event, template, recipient, provider,
+   configuration, retry, and tenant-scope contracts before implementation.
+2. Do not choose an email provider, credentials, recipient source, or template
+   content without approved documentation.
+3. Do not implement email delivery, provider-health jobs, reporting APIs,
+   pricing, or Phase 8 work during the audit.
 
 ---
 
