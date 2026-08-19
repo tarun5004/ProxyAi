@@ -256,7 +256,17 @@ export const analyticsRepository: AnalyticsRepository = {
         const summary = summaryRows[0] ?? emptySummary();
 
         return {
-            ...summary,
+            totalRequests: summary.totalRequests,
+            successfulRequests: summary.successfulRequests,
+            blockedRequests: summary.blockedRequests,
+            maskedRequests: summary.maskedRequests,
+            failedRequests: summary.failedRequests,
+            interruptedRequests: summary.interruptedRequests,
+            knownUsageRequestCount: summary.knownUsageRequestCount,
+            unknownUsageRequestCount: summary.unknownUsageRequestCount,
+            inputTokens: summary.inputTokens,
+            outputTokens: summary.outputTokens,
+            totalTokens: summary.totalTokens,
             providerModelRequestCounts: providerRows.map((row) => ({
                 providerId: row._id.providerId,
                 model: row._id.model,

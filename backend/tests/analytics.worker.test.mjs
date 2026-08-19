@@ -125,7 +125,7 @@ test("request outcomes enqueue one safe canonical analytics job", async () => {
     assert.equal("response" in queued.data, false);
 });
 
-test("duplicate completed job produces exactly one aggregate effect", async () => {
+test("distinct jobs update aggregates while duplicates have no extra effect", async () => {
     const job = createCompletedJob({
         policyAction: "ALLOW_WITH_MASK",
         usage: {
@@ -134,7 +134,13 @@ test("duplicate completed job produces exactly one aggregate effect", async () =
             totalTokens: 40,
         },
     });
-    await appendOutcome(job);
+    const secondJob = createCompletedJob({
+        orgId: job.orgId,
+        userId: job.userId,
+        policyAction: "ALLOW_WITH_MASK",
+        usage: job.usage,
+    });
+    await Promise.all([appendOutcome(job), appendOutcome(secondJob)]);
 
     const first = await processAnalyticsRequestOutcomeJob(
         job,
@@ -144,21 +150,30 @@ test("duplicate completed job produces exactly one aggregate effect", async () =
         job,
         jobContext(0),
     );
+    const second = await processAnalyticsRequestOutcomeJob(
+        secondJob,
+        jobContext(0),
+    );
     const aggregate = await findOrganisationAggregate(job.orgId);
     const anomalyJobs = await anomalyQueue.getJobs(["waiting"]);
 
     assert.equal(first, "APPLIED");
     assert.equal(duplicate, "SKIPPED_COMPLETED");
-    assert.equal(aggregate.totalRequests, 1);
-    assert.equal(aggregate.successfulRequests, 1);
-    assert.equal(aggregate.maskedRequests, 1);
-    assert.equal(aggregate.totalTokens, 40);
-    assert.equal(aggregate.providerModelRequestCounts[0].requestCount, 1);
-    assert.equal(anomalyJobs.length, 1);
-    assert.equal(anomalyJobs[0].id.includes(job.orgId), false);
-    assert.equal(anomalyJobs[0].id.includes(job.userId), false);
-    assert.equal(anomalyJobs[0].id.includes(job.requestId), false);
-    assert.deepEqual(anomalyJobs[0].data, {
+    assert.equal(second, "APPLIED");
+    assert.equal(aggregate.totalRequests, 2);
+    assert.equal(aggregate.successfulRequests, 2);
+    assert.equal(aggregate.maskedRequests, 2);
+    assert.equal(aggregate.totalTokens, 80);
+    assert.equal(aggregate.providerModelRequestCounts[0].requestCount, 2);
+    assert.equal(anomalyJobs.length, 2);
+    const firstAnomalyJob = anomalyJobs.find(
+        (queuedJob) => queuedJob.data.requestId === job.requestId,
+    );
+    assert.ok(firstAnomalyJob);
+    assert.equal(firstAnomalyJob.id.includes(job.orgId), false);
+    assert.equal(firstAnomalyJob.id.includes(job.userId), false);
+    assert.equal(firstAnomalyJob.id.includes(job.requestId), false);
+    assert.deepEqual(firstAnomalyJob.data, {
         schemaVersion: 1,
         jobType: "usage.updated",
         requestId: job.requestId,
