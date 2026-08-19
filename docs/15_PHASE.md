@@ -864,7 +864,7 @@ readiness. Phases 8–11 remain planned and are not cancelled.
 - [x] P12-02 — Make frontend configuration immutable across environments.
 - [x] P12-03 — Separate API and BullMQ worker production entrypoints.
 - [x] P12-04 — Add production frontend/backend Docker images.
-- [ ] P12-05 — Add a production-like local Compose stack.
+- [x] P12-05 — Add a production-like local Compose stack.
 - [ ] P12-06 — Add an idempotent production index deployment command.
 - [ ] P12-07 — Add parameterized AWS infrastructure definitions.
 - [ ] P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback.
@@ -874,7 +874,7 @@ readiness. Phases 8–11 remain planned and are not cancelled.
 - [x] Non-root runtime.
 - [x] Production dependencies only.
 - [x] API and worker commands.
-- [ ] Docker Compose local stack.
+- [x] Docker Compose local stack.
 - [ ] CI: lint, typecheck, tests, builds, Docker build, smoke test.
 - [ ] Push SHA-tagged image.
 - [ ] Deploy staging API.
@@ -1044,20 +1044,20 @@ Do not randomly change several files.
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
-| Phase 12 | In Progress | P12-01 through P12-04 complete; immutable non-root frontend/backend images build successfully |
+| Phase 12 | In Progress | P12-01 through P12-05 complete; production-like local gateway/API/worker/Redis stack verified |
 | Phase 13 | Not Started | |
 
 ---
 
 # 26. Immediate Next Task
 
-## P12-05 — Production-Like Local Compose Stack
+## P12-06 — Idempotent Production Index Deployment
 
 **Effort:** Medium
 
-Run the production images behind a local reverse proxy with API, worker,
-Redis, health checks, and environment boundaries that mirror the approved
-ALB routing contract. Do not start Phase 8 product work.
+Add a safe one-off command that creates every schema-declared MongoDB index
+without dropping data or undeclared indexes. Do not start Phase 8 product
+work.
 
 ---
 

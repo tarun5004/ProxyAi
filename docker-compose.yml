@@ -1,0 +1,88 @@
+name: proxiai
+
+services:
+  gateway:
+    image: nginx:1.27.4-alpine
+    ports:
+      - "${PROXIAI_HTTP_PORT:-3001}:80"
+    volumes:
+      - ./deploy/local/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    image: proxiai-frontend:local
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    image: proxiai-backend:local
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: development
+      PORT: "8080"
+      FRONTEND_ORIGIN: http://localhost:${PROXIAI_HTTP_PORT:-3001}
+      MONGO_URI: ${COMPOSE_MONGO_URI:?Set COMPOSE_MONGO_URI to Atlas or a container-reachable MongoDB URI}
+      REDIS_URL: redis://redis:6379
+      RUNTIME_ROLE: api
+    expose:
+      - "8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: proxiai-backend:local
+    pull_policy: never
+    command: ["node", "dist/worker.js"]
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: development
+      MONGO_URI: ${COMPOSE_MONGO_URI:?Set COMPOSE_MONGO_URI to Atlas or a container-reachable MongoDB URI}
+      REDIS_URL: redis://redis:6379
+      RUNTIME_ROLE: worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4.2-bookworm
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory-policy
+      - noeviction
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  redis-data:

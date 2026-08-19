@@ -473,10 +473,10 @@ You do not need Kubernetes, Kafka, or a local cloud emulator for the MVP.
 
 ## 16. Environment Configuration
 
-Create local environment files from the examples provided by the repository.
+Create the backend local environment file from the repository example.
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
 Recommended backend variables:
@@ -503,11 +503,9 @@ CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM=1200
 IDEMPOTENCY_PROCESSING_TTL_SECONDS=300
 IDEMPOTENCY_COMPLETED_TTL_SECONDS=3600
 
-CONTENT_ENCRYPTION_KEY=replace-with-a-valid-32-byte-key
-
-GROQ_API_KEY=
-GEMINI_API_KEY=
-THIRD_PROVIDER_API_KEY=
+GROQ_API_KEY=replace-with-a-development-groq-key
+GROQ_MODEL=openai/gpt-oss-20b
+PROVIDER_REQUEST_TIMEOUT_MS=30000
 
 LOG_LEVEL=debug
 ```
@@ -523,10 +521,11 @@ Generate each authentication secret independently:
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 ```
 
-Frontend variables may include:
+The browser uses same-origin `/api/v1` paths. For direct local `next dev`, the
+optional server-only proxy target is:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8080/api/v1
+BACKEND_INTERNAL_ORIGIN=http://localhost:8080
 ```
 
 ### Rules
@@ -542,27 +541,33 @@ VITE_API_BASE_URL=http://localhost:8080/api/v1
 
 ## 17. Quick Start with Docker Compose
 
-The final commands depend on the actual repository scripts. A typical MVP setup is:
+Set `COMPOSE_MONGO_URI` to an Atlas development database or another MongoDB URI
+that is reachable from Docker. A host MongoDB on Docker Desktop may use
+`mongodb://host.docker.internal:27017/proxiai_compose`.
 
-```bash
-git clone <repository-url>
-cd proxiai
-cp .env.example .env
+```powershell
+$env:COMPOSE_MONGO_URI="mongodb://host.docker.internal:27017/proxiai_compose"
 docker compose up --build
 ```
+
+If port `3001` is already occupied, set `PROXIAI_HTTP_PORT` before starting;
+Compose keeps the backend's exact `FRONTEND_ORIGIN` aligned to that port.
 
 Expected local services:
 
 | Service | Default URL |
 |---|---|
 | Frontend | `http://localhost:3001` |
-| Backend API | `http://localhost:8080` |
-| Liveness | `http://localhost:8080/health/live` |
-| Readiness | `http://localhost:8080/health/ready` |
-| MongoDB | `mongodb://localhost:27017` |
-| Redis | `redis://localhost:6379` |
+| Backend API | Same origin under `http://localhost:3001/api/v1` |
+| Liveness | `http://localhost:3001/health/live` |
+| Readiness | `http://localhost:3001/health/ready` |
+| Frontend health | `http://localhost:3001/healthz` |
+| Worker | Internal long-running process; no HTTP port |
+| Redis | Internal `redis:6379`; not host-published |
 
-Do not claim these commands work until the corresponding Docker and package files exist in the repository.
+The local gateway mirrors the production ALB path split. Local Compose uses
+`NODE_ENV=development` because it serves HTTP and development refresh cookies;
+production ECS tasks use `NODE_ENV=production` behind HTTPS.
 
 ---
 
@@ -578,11 +583,11 @@ npm run dev
 
 ### Worker
 
-In a second terminal:
+After building, the production worker command is:
 
 ```bash
 cd backend
-npm run worker:dev
+npm run start:worker
 ```
 
 ### Frontend
@@ -597,10 +602,11 @@ npm run dev
 
 ### Infrastructure
 
-MongoDB and Redis can still run through Docker:
+Redis can run through the repository Compose stack. MongoDB is intentionally
+external so local Compose can use Atlas or an existing development service:
 
 ```bash
-docker compose up mongo redis
+docker compose up redis
 ```
 
 The exact script names must match `package.json`. Update this README when implementation chooses different names.
@@ -615,10 +621,9 @@ The backend should provide a small, understandable script set:
 {
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "worker:dev": "tsx watch src/worker.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "worker:start": "node dist/worker.js",
+    "start:worker": "node dist/worker.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

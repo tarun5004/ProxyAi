@@ -906,6 +906,17 @@ npm run dev
 
 ## Latest Deployment Task
 
+- **Task:** P12-05 — Production-Like Local Compose Stack
+- **Status:** Completed on 2026-08-19
+- **Topology:** Added Nginx gateway, standalone Next.js frontend, Express API, BullMQ worker, and Redis services. Nginx mirrors ALB routing by sending `/api/*` and `/health/*` to API and all other paths to frontend.
+- **Configuration:** `COMPOSE_MONGO_URI` is mandatory and must be container-reachable; Redis remains internal with AOF and `noeviction`; `PROXIAI_HTTP_PORT` safely parameterizes the exact local origin without wildcard CORS.
+- **Local HTTP boundary:** Compose intentionally uses backend `NODE_ENV=development` so host-only refresh cookies work over local HTTP. Production ECS tasks remain `NODE_ENV=production` behind ACM/TLS.
+- **Files changed:** `docker-compose.yml`, `deploy/local/nginx.conf`, `docs/09_README.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
+- **Verification:** Compose configuration validation passed. Real stack verification reported frontend, API, worker, Redis, and gateway healthy; `/`, `/healthz`, `/health/live`, and `/health/ready` returned `200`; readiness reported MongoDB and Redis `up`; nine expected API/worker startup events were observed.
+- **Operational note:** Port `3001` was already occupied during audit, so the verified stack used `PROXIAI_HTTP_PORT=3301`. Containers were stopped cleanly after verification; the Redis named volume was preserved.
+
+## Previous Deployment Task
+
 - **Task:** P12-04 — Production Frontend and Backend Docker Images
 - **Status:** Completed on 2026-08-19
 - **Images:** Added pinned Node 22 Debian-slim multi-stage images for the Next.js standalone server and the shared Express/BullMQ backend artifact.
@@ -916,7 +927,7 @@ npm run dev
 - **Verification:** Frontend typecheck, lint, and standalone build passed; both real Docker image builds passed; image inspection proved non-root users, no copied `.env` files, both backend entrypoints, and configured health checks.
 - **Dependency observation:** The backend production dependency stage reported zero known npm audit vulnerabilities. The build-only dependency stage reported one high-severity development dependency finding; CI image scanning remains required before release.
 
-## Previous Deployment Task
+## Earlier Deployment Task
 
 - **Task:** P12-03 — Separate API and BullMQ Worker Production Entrypoints
 - **Status:** Completed on 2026-08-19
@@ -927,7 +938,7 @@ npm run dev
 - **Verification:** Focused environment tests passed 6/6; full backend suite passed 196/196; typecheck, build, and diff-check passed.
 - **Security:** Worker no longer requires API JWT/CORS/rate-limit secrets. No secret values are logged, and queue consumers cannot accidentally start inside API tasks.
 
-## Earlier Deployment Task
+## Earlier Immutable Frontend Task
 
 - **Task:** P12-02 — Immutable Frontend Deployment Configuration
 - **Status:** Completed on 2026-08-19
@@ -939,7 +950,7 @@ npm run dev
 
 ## Recommended Next Task
 
-- P12-05 — Add the production-like local Compose stack; do not start Phase 8.
+- P12-06 — Add the idempotent production MongoDB index command; do not start Phase 8.
 
 ## Do Not Forget
 
