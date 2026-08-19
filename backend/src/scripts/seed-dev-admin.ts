@@ -2,10 +2,10 @@ import "dotenv/config";
 
 import { z } from "zod";
 
-const DEMO_ORGANISATION_SLUG = "proxiai-demo";
-const DEMO_ADMIN_EMAIL = "admin@proxiai.local";
+const DEMO_ORGANISATION_SLUG = "proxiai-demo-2";
+const DEMO_ADMIN_EMAIL = "admin@proxiai2.local";
 const DEMO_ADMIN_DISPLAY_NAME = "ProxiAI Demo Admin";
-const DEMO_MONTHLY_TOKEN_BUDGET = 100_000;
+const DEMO_MONTHLY_TOKEN_BUDGET = 10000_000;
 
 const seedEnvironmentSchema = z.object({
     NODE_ENV: z.literal("development"),
