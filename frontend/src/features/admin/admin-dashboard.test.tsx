@@ -1,15 +1,23 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdminDashboard } from "./admin-dashboard";
 
 const adminApi = vi.hoisted(() => ({
+    downloadAdminAudit: vi.fn(),
     getAdminBilling: vi.fn(),
     getAdminSummary: vi.fn(),
     listAdminAlerts: vi.fn(),
     listAdminLogs: vi.fn(),
     listAdminTeams: vi.fn(),
     listAdminUsers: vi.fn(),
+    revokeAdminUserSessions: vi.fn(),
+    updateAdminAlert: vi.fn(),
+    updateAdminPolicy: vi.fn(),
+    updateAdminRetention: vi.fn(),
+    updateAdminUserRole: vi.fn(),
+    updateAdminUserStatus: vi.fn(),
+    updateAdminUserTeam: vi.fn(),
 }));
 const authState = vi.hoisted(() => ({
     permissions: [
@@ -97,5 +105,25 @@ describe("Phase 8 admin dashboard", () => {
 
         expect(await screen.findByText("Admin data unavailable")).toBeInTheDocument();
         expect(screen.getByText("No cached or fabricated values are shown.")).toBeInTheDocument();
+    });
+
+    it("waits for audited policy mutation confirmation before showing refreshed data", async () => {
+        authState.permissions = ["admin:view_logs", "admin:configure_policy"];
+        let completeMutation!: () => void;
+        adminApi.updateAdminPolicy.mockReturnValueOnce(new Promise<void>((resolve) => {
+            completeMutation = resolve;
+        }));
+        render(<AdminDashboard />);
+
+        const save = await screen.findByRole("button", { name: "Save policy" });
+        fireEvent.click(save);
+        expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+
+        completeMutation();
+        await waitFor(() => expect(adminApi.updateAdminPolicy).toHaveBeenCalledWith(
+            "access-token",
+            { maskThreshold: 20, blockThreshold: 60, monthlyTokenBudget: 1000 },
+        ));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Save policy" })).toBeEnabled());
     });
 });

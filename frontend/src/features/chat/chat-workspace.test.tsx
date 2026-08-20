@@ -83,6 +83,12 @@ describe("conversation workspace loading", () => {
                     tokenCount: 24,
                     createdAt: "2026-08-19T08:05:00.000Z",
                     contentAvailable: false,
+                }, {
+                    messageId: "44444444-4444-4444-8444-444444444444",
+                    role: "assistant",
+                    createdAt: "2026-08-19T08:06:00.000Z",
+                    contentAvailable: true,
+                    content: "## Stored answer",
                 }],
             }),
         );
@@ -111,6 +117,7 @@ describe("conversation workspace loading", () => {
 
         expect(await screen.findByRole("heading", { name: "Security review" })).toBeInTheDocument();
         expect(screen.getByText(/1 previous message summary is retained/)).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Stored answer" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: /Provider analysis/ })).toHaveAttribute(
             "href",
             `/chat/${secondConversation.conversationId}`,

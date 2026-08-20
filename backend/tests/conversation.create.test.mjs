@@ -34,10 +34,11 @@ function createRepository(records) {
             records.push(input);
 
             return {
-                conversationId: randomUUID(),
+                conversationId: input.conversationId,
                 orgId: input.orgId,
                 userId: input.userId,
                 title: input.title,
+                titleEnc: input.titleEnc,
                 messageCount: 0,
                 lastMessageAt: null,
                 createdAt: new Date("2026-08-17T12:00:00.000Z"),
@@ -120,13 +121,12 @@ test("creates a conversation for the trusted authenticated owner", async () => {
     assert.equal(body.data.messageCount, 0);
     assert.equal(body.data.lastMessageAt, null);
     assert.equal(body.meta.requestId, response.headers.get("x-request-id"));
-    assert.deepEqual(records, [
-        {
-            orgId: trustedOrgId,
-            userId: trustedUserId,
-            title: "Architecture review",
-        },
-    ]);
+    assert.equal(records.length, 1);
+    assert.equal(records[0].orgId, trustedOrgId);
+    assert.equal(records[0].userId, trustedUserId);
+    assert.equal(records[0].title, "New conversation");
+    assert.equal(records[0].titleEnc.algorithm, "AES-256-GCM");
+    assert.equal(JSON.stringify(records[0]).includes("Architecture review"), false);
 });
 
 test("rejects client-controlled organisation and user ownership", async () => {

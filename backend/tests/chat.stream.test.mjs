@@ -127,6 +127,7 @@ function createRuntime({
                 plan: "FREE",
                 policy,
                 autoRoutingEnabled: false,
+                retentionMode: "METADATA_ONLY",
             };
         },
         controls,
@@ -171,6 +172,8 @@ function createRuntime({
             policyEvents.push(event);
             return event;
         },
+        async appendAudit() {},
+        async persistMessages() {},
     };
 
     return {

@@ -52,6 +52,7 @@ test("valid metadata and encrypted messages use safe storage defaults", async ()
         validMessage({
             contentStored: true,
             contentEnc: {
+                algorithm: "AES-256-GCM",
                 ciphertext: "ciphertext",
                 iv: "initialization-vector",
                 authTag: "authentication-tag",
@@ -136,11 +137,12 @@ test("schema rejects unknown fields and declares only approved indexes", async (
         validMessage({
             contentStored: true,
             contentEnc: {
+                algorithm: "AES-256-GCM",
                 ciphertext: "ciphertext",
                 iv: "initialization-vector",
                 authTag: "authentication-tag",
                 keyVersion: 1,
-                algorithm: "unknown",
+                legacy: "unknown",
             },
         }),
     );
@@ -158,6 +160,22 @@ test("schema rejects unknown fields and declares only approved indexes", async (
                 {
                     name: "uniq_messages_message_id",
                     unique: true,
+                },
+            ],
+            [
+                {
+                    orgId: 1,
+                    requestId: 1,
+                    role: 1,
+                },
+                {
+                    name: "uniq_messages_org_request_role",
+                    unique: true,
+                    partialFilterExpression: {
+                        requestId: {
+                            $exists: true,
+                        },
+                    },
                 },
             ],
             [

@@ -119,12 +119,13 @@ test("renames an owned conversation with a strict trimmed title", async () => {
     const body = await response.json();
     const stored = await ConversationModel.findOne({
         conversationId: conversation.conversationId,
-    }).lean();
+    }).select("+titleEnc").lean();
 
     assert.equal(response.status, 200);
     assert.equal(body.data.title, "Updated title");
     assert.equal(body.meta.requestId, response.headers.get("x-request-id"));
-    assert.equal(stored?.title, "Updated title");
+    assert.equal(stored?.title, "New conversation");
+    assert.equal(stored?.titleEnc?.algorithm, "AES-256-GCM");
 
     const invalidResponse = await patchTitle(conversation.conversationId, {
         title: "Rejected",

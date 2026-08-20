@@ -12,6 +12,10 @@ export const authTestEnvironment = Object.freeze({
     IDEMPOTENCY_COMPLETED_TTL_SECONDS: "3600",
     IDEMPOTENCY_PROCESSING_TTL_SECONDS: "300",
     JWT_ACCESS_SECRET: Buffer.alloc(32, 1).toString("base64url"),
+    MESSAGE_ENCRYPTION_KEYS_JSON: JSON.stringify({
+        1: Buffer.alloc(32, 3).toString("base64url"),
+    }),
+    MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION: "1",
     PROVIDER_REQUEST_TIMEOUT_MS: "30000",
     REFRESH_TOKEN_TTL_DAYS: "7",
 });
