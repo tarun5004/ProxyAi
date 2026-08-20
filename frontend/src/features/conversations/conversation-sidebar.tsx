@@ -5,6 +5,7 @@ import {
     ChatCircleDots,
     MagnifyingGlass,
     Plus,
+    SlidersHorizontal,
     SignOut,
     X,
 } from "@phosphor-icons/react";
@@ -28,6 +29,7 @@ interface ConversationSidebarProps {
     onCreate(): void;
     onLogout(): void;
     onRetry(): void;
+    showAdmin: boolean;
 }
 
 export function ConversationSidebar(props: ConversationSidebarProps) {
@@ -128,6 +130,16 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
                     </Link>
                 ))}
             </nav>
+
+            {props.showAdmin ? (
+                <Link
+                    href="/admin"
+                    className="mb-3 flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-text-soft hover:bg-surface-green hover:text-brand-dark"
+                    onClick={props.onClose}
+                >
+                    <SlidersHorizontal size={17} /> Organisation admin
+                </Link>
+            ) : null}
 
             <div className="overflow-hidden rounded-xl border border-border-default">
                 <div className="flex items-center justify-between gap-3 border-b border-border-default p-3.5">
