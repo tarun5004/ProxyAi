@@ -1,10 +1,15 @@
-import mongoose from "mongoose";
-import argon2 from "argon2";
 import { randomUUID } from "node:crypto";
+
+import mongoose from "mongoose";
 
 import { OrganisationModel } from "../features/organisations/organisation.model.js";
 import { TeamModel } from "../features/teams/team.model.js";
 import { UserModel } from "../features/users/user.model.js";
+import type {
+    UserPermission,
+    UserRole,
+} from "../features/users/user.types.js";
+import { hashPassword } from "../shared/security/password.js";
 
 const ORG_SLUG = "novastack";
 const ORG_NAME = "NovaStack Technologies";
@@ -15,7 +20,7 @@ const EMPLOYEE_EMAILS = [
     "rahul@novastack.demo",
     "priya@novastack.demo",
     "arjun@novastack.demo",
-];
+] as const;
 
 const ALL_ADMIN_PERMISSIONS = [
     "chat:send",
@@ -47,31 +52,12 @@ function requireEnv(name: string): string {
     return value;
 }
 
-async function hashPassword(password: string): Promise<string> {
-    const normalized = password.normalize("NFC");
-    const codePointLength = [...normalized].length;
-
-    if (codePointLength < 15 || codePointLength > 128) {
-        throw new Error(
-            "DEMO_ADMIN_PASSWORD must be between 15 and 128 Unicode code points.",
-        );
-    }
-
-    return argon2.hash(normalized, {
-        type: argon2.argon2id,
-        memoryCost: 19456,
-        timeCost: 2,
-        parallelism: 1,
-        hashLength: 32,
-    });
-}
-
 async function upsertUser(input: {
     orgId: string;
     email: string;
     displayName: string;
-    role: "ORG_ADMIN" | "TEAM_LEAD" | "EMPLOYEE";
-    permissions: readonly string[];
+    role: UserRole;
+    permissions: readonly UserPermission[];
     passwordHash: string;
     teamId?: string;
 }) {
@@ -92,7 +78,7 @@ async function upsertUser(input: {
         if (input.teamId !== undefined) {
             existing.teamId = input.teamId;
         } else {
-            existing.teamId = undefined;
+            existing.set("teamId", undefined);
         }
 
         await existing.save();
