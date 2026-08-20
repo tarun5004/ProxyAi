@@ -126,8 +126,8 @@ HTTPS redirect.
   retain a small bounded set of SHA-tagged images.
 - Keep one environment-scoped JSON secret. Production uses
   `proxiai/production` with `MONGO_URI`, `REDIS_URL`, `JWT_ACCESS_SECRET`,
-  `AUTH_RATE_LIMIT_SECRET`, and `GROQ_API_KEY`. Before Phase 9 encrypted
-  storage is enabled, add `MESSAGE_ENCRYPTION_KEYS_JSON` and
+  `AUTH_RATE_LIMIT_SECRET`, and `GROQ_API_KEY`. Before deploying the Phase 9
+  build, add `MESSAGE_ENCRYPTION_KEYS_JSON` and
   `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` to that same secret; never create a
   second encryption-only secret or remove an old key version prematurely.
 - Do not enable Container Insights beyond the approved need without reviewing

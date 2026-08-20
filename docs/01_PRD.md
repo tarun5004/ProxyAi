@@ -486,7 +486,11 @@ If a provider fails after streaming starts, the stream shall emit a clear error 
 
 ### FR-CACHE-001 — Prompt cache contract (implementation deferred)
 
-Eligible prompts may be cached only after Phase 9 provides approved encrypted payload or access-checked safe-reference storage, policy/config fingerprinting, and cache-hit accounting semantics. P6 defines the contract but does not implement cache reads, writes, or response storage.
+Phase 9 encrypted Message storage is not a cache-value/replay contract. Eligible
+prompt caching remains deferred until dedicated encrypted/reference storage,
+policy/config fingerprinting, and cache-hit accounting semantics are approved.
+P6 defines eligibility but does not implement cache reads, writes, or response
+storage.
 
 A prompt shall not be cached when:
 

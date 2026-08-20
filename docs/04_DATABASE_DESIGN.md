@@ -340,6 +340,7 @@ interface ConversationDocument {
   orgId: string;
   userId: string;
   title: string;
+  titleEnc?: EncryptedValue;
   messageCount: number;
   lastMessageAt: Date | null;
   createdAt: Date;
@@ -409,7 +410,9 @@ interface MessageDocument {
 | `METADATA_ONLY` | Store no `contentEnc`; `contentStored = false` |
 | `ENCRYPTED_STORAGE` | Store encrypted content; no expiry |
 
-Phase 5 uses only metadata-only message records: no plaintext content is stored and `contentEnc` is absent. Phase 9 owns encrypted user/assistant content persistence for `ENCRYPTED_STORAGE`.
+Metadata-only message records contain no plaintext content and no `contentEnc`.
+The Phase 9 retention writer stores encrypted user/assistant content only for
+`ENCRYPTED_STORAGE` after successful stream completion.
 
 ### 14.3 Indexes
 
@@ -429,7 +432,7 @@ messageSchema.index(
 - `contentEnc` must not be returned in raw database JSON. Repository code decrypts only for an authorised conversation owner.
 - Audit and application logs must never include `contentEnc` values.
 - Token count can remain stored in metadata-only mode.
-- Phase 9 may persist content only after successful stream completion. Partial or interrupted assistant output is not persisted.
+- Content may be persisted only after successful stream completion. Partial or interrupted assistant output is not persisted.
 - `requestId` links the user/assistant pair and the compound unique index makes
   the successful-stream write idempotent without mutating existing messages.
 - Attachments have no approved collection, upload reference, or content field in the current MVP.
@@ -583,8 +586,10 @@ alert.reopened
 audit.exported
 ```
 
-P2-04 emits these authentication actions as structured security logs only.
-The durable append-only `audit_logs` implementation remains Phase 9.
+Phase 9 persists approved trusted-tenant authentication, session, policy,
+administrative, alert, and export events in the durable append-only
+`audit_logs` collection. Missing/untrusted tenant identity still remains a
+structured-log-only condition.
 
 ### 16.3 Indexes
 

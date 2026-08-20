@@ -800,29 +800,29 @@ response, PII, credential, or secret is stored or logged.
 
 ## Implementation Order
 
-- [ ] P9-01 — Add validated versioned encryption keyring, AES-256-GCM service,
+- [x] P9-01 — Add validated versioned encryption keyring, AES-256-GCM service,
   exact base64url envelope validation, trusted AAD, and tamper/failure tests.
-- [ ] P9-02 — Add the strict tenant-scoped append-only `AuditLog` model,
+- [x] P9-02 — Add the strict tenant-scoped append-only `AuditLog` model,
   action-specific safe metadata builders, repository, indexes, and MongoDB
   transaction helper.
-- [ ] P9-03 — Persist approved auth/session and policy decision audit events
+- [x] P9-03 — Persist approved auth/session and policy decision audit events
   with the documented fail-safe ordering and zero sensitive values.
-- [ ] P9-04 — Add idempotent retention-aware successful-stream Message
+- [x] P9-04 — Add idempotent retention-aware successful-stream Message
   persistence: metadata-only records or encrypted user/assistant content, never
   partial/interrupted content.
-- [ ] P9-05 — Add owner-authorized retained-message decryption through the
+- [x] P9-05 — Add owner-authorized retained-message decryption through the
   existing Message read route without exposing encryption metadata.
-- [ ] P9-06 — Add encrypted manual Conversation titles plus an idempotent
+- [x] P9-06 — Add encrypted manual Conversation titles plus an idempotent
   controlled migration that removes pre-Phase-9 custom plaintext titles.
-- [ ] P9-07 — Add audited tenant-scoped user role, team, status, explicit
+- [x] P9-07 — Add audited tenant-scoped user role, team, status, explicit
   refresh-session revocation, deterministic role permissions, and last-active-
   admin protections.
-- [ ] P9-08 — Add audited policy, monthly-token-budget, and prospective
+- [x] P9-08 — Add audited policy, monthly-token-budget, and prospective
   retention-mode mutations with complete-result validation.
-- [ ] P9-09 — Add audited tenant-scoped alert resolution/reopening.
-- [ ] P9-10 — Add tenant-scoped, 90-day/10,000-row, formula-safe audit CSV
+- [x] P9-09 — Add audited tenant-scoped alert resolution/reopening.
+- [x] P9-10 — Add tenant-scoped, 90-day/10,000-row, formula-safe audit CSV
   export that audits itself before response headers.
-- [ ] P9-11 — Run migration/preflight, cross-tenant, crypto-tamper,
+- [x] P9-11 — Run migration/preflight, cross-tenant, crypto-tamper,
   append-only, transaction-rollback, session-revocation, export, source-scan,
   full test/typecheck/build, and deployed encrypted-storage readiness gates.
 
@@ -865,22 +865,22 @@ response, PII, credential, or secret is stored or logged.
 
 ## Exit Criteria
 
-- [ ] Modified ciphertext fails authentication.
-- [ ] Metadata-only mode writes no content.
-- [ ] Encryption failure stores no plaintext.
-- [ ] Successful encrypted streams persist exactly one user/assistant pair and
+- [x] Modified ciphertext fails authentication.
+- [x] Metadata-only mode writes no content.
+- [x] Encryption failure stores no plaintext.
+- [x] Successful encrypted streams persist exactly one user/assistant pair and
   interrupted streams persist no content.
-- [ ] Owner reads decrypt only after trusted tenant/user ownership checks;
+- [x] Owner reads decrypt only after trusted tenant/user ownership checks;
   admin dashboards never decrypt content.
-- [ ] Audit records cannot be modified through API.
-- [ ] Model/repository update, replace, and delete attempts against AuditLog fail.
-- [ ] Every admin mutation rolls back when its audit append fails.
-- [ ] User deactivation revokes active refresh sessions and fresh auth rejects
+- [x] Audit records cannot be modified through API.
+- [x] Model/repository update, replace, and delete attempts against AuditLog fail.
+- [x] Every admin mutation rolls back when its audit append fails.
+- [x] User deactivation revokes active refresh sessions and fresh auth rejects
   the disabled user.
-- [ ] Export is tenant-scoped.
-- [ ] Export range/row limits and CSV formula neutralization are verified, and
+- [x] Export is tenant-scoped.
+- [x] Export range/row limits and CSV formula neutralization are verified, and
   export audit failure prevents file delivery.
-- [ ] Encryption keys/plaintext/ciphertext envelopes never appear in logs,
+- [x] Encryption keys/plaintext/ciphertext envelopes never appear in logs,
   errors, queue payloads, frontend responses, Git diffs, or built images.
 
 ## Explicit Deferrals
@@ -1153,7 +1153,7 @@ Do not randomly change several files.
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
 | Phase 7 | Completed | Provider health and durable billing/analytics enqueue recovery verified; email delivery waived to Phase 8 |
 | Phase 8 | Completed | Read-only tenant admin APIs/UI verified; audit-dependent mutations explicitly blocked/deferred to Phase 9 |
-| Phase 9 | Contract Resolved | P9-00 complete; implementation starts with P9-01 only after approval |
+| Phase 9 | Completed | Versioned AES-GCM storage, append-only audit, audited admin mutations, safe export, migration, and tenant/security gates verified |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
 | Phase 12 | In Progress | P12-01 through P12-08 implementation complete; live AWS rollout/rollback gates remain P12-09 |
@@ -1163,13 +1163,11 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P9-01 — Versioned AES-256-GCM Foundation
+## Phase 10 — Observability and Operations Planning
 
-**Effort:** High
-
-Implement only the validated versioned keyring and central AES-256-GCM service
-with strict envelope/AAD validation, tamper tests, no MongoDB persistence, and
-no admin mutation work. Do not start P9-02 without explicit approval.
+Phase 9 is complete. Run the Phase 10 contract/readiness audit before adding
+metrics, tracing, dashboards, or operational alerting. Phase 10 implementation
+has not started.
 
 ### Active cost-cut migration
 

@@ -5,12 +5,18 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 9 — Retention, Encryption, and Audit
-- **Task:** P9-01 — Versioned AES-256-GCM Foundation
-- **Status:** P9-00 contract and architecture audit completed on 2026-08-21.
-  No Phase 9 production code has started. Await explicit approval before P9-01.
+- **Task:** Phase 9 closure completed; Phase 10 planning is next.
+- **Status:** P9-01 through P9-11 completed and verified on 2026-08-21.
+  Phase 10 has not started.
 
 ## Completed Tasks
 
+- P9-01 through P9-11 — Versioned AES-256-GCM, retention-aware encrypted
+  Message storage/read, encrypted Conversation titles and migration,
+  append-only AuditLog, audited admin/session/policy/budget/retention/alert
+  mutations, safe CSV export, frontend workflows, and closure gates completed
+  on 2026-08-21.
+- Phase 9 — Retention, Encryption, and Audit completed on 2026-08-21.
 - P9-00 — Phase 9 encryption, retention, audit, migration, export, session, and
   admin-mutation contracts resolved on 2026-08-21; no production code added.
 - Phase 8 — Read-only organisation dashboard APIs and permission-aware admin
@@ -91,7 +97,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Important Decisions
 
-- Phase 9 implementation order is fixed as P9-01 encryption keyring/service,
+- Phase 9 was completed in the approved order: P9-01 encryption keyring/service,
   P9-02 append-only AuditLog, P9-03 auth/policy durable events, P9-04 retained
   Message writes, P9-05 owner decryption, P9-06 title encryption/migration,
   P9-07 user/session mutations, P9-08 policy/budget/retention, P9-09 alert
@@ -144,9 +150,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
   ownership field. Role/team/status, policy/budget/retention, alert resolution,
   and audit export are blocked by the Phase 9 durable append-only audit
   prerequisite.
-- `ENCRYPTED_STORAGE` cannot be enabled before Phase 9, `CUSTOM_RETENTION` is
-  not an MVP mode, and alert email delivery remains deferred pending an
-  approved provider/configuration/template contract.
+- `ENCRYPTED_STORAGE` requires the validated Phase 9 keyring and readiness
+  checks. `CUSTOM_RETENTION` is not an MVP mode, and alert email delivery
+  remains deferred pending an approved provider/configuration/template contract.
 
 - `docs/15_PHASE.md` is the official PHASE document; no duplicate root `PHASE.md` will be created.
 - P1-02 is limited to `NODE_ENV`, `PORT`, `MONGO_URI`, and `REDIS_URL`.
@@ -226,7 +232,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - The host-only `proxiai_refresh` cookie is HttpOnly, Secure only in production, SameSite Lax, scoped to `/api/v1/auth`, and has no Domain attribute.
 - SameSite Lax assumes the frontend and API are deployed same-site. Cross-site cookie design is not part of P2-04.
 - Initial refresh-token persistence is critical and occurs before access-token signing or cookie response. Login metadata updates and structured security-event logging are best-effort.
-- P2-04 emits only `auth.login_succeeded`, `auth.login_failed`, and `auth.login_operational_error`; durable append-only audit persistence remains Phase 9.
+- P2-04 introduced safe structured authentication events; Phase 9 now appends
+  approved durable tenant audit events after trusted organisation resolution.
 - P2-05 exclusively owns refresh rotation, reuse detection, family revocation, and the refresh endpoint.
 - Refresh-token lookup may start with unique `tokenHash` because trusted `orgId` is not known until the database record is loaded.
 - Refresh rotation uses a conditional MongoDB `findOneAndUpdate` gate scoped by old token `_id`, trusted `orgId`, `usedAt: null`, `revokedAt: null`, and future `expiresAt`.
@@ -240,7 +247,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Refresh operational failures emit `auth.refresh_operational_error` and return
   generic `503 AUTH_TEMPORARILY_UNAVAILABLE` without clearing the refresh
   cookie. Terminal invalid-token `401` responses may clear it.
-- P2-05 emits only `auth.refresh_succeeded`, `auth.refresh_failed`, `auth.refresh_reuse_detected`, and `auth.refresh_operational_error`; durable audit persistence remains Phase 9.
+- P2-05 introduced safe refresh events; Phase 9 now durably audits trusted
+  refresh-reuse and session/logout actions without token material.
 - P2-06 verifies bearer access tokens with `jose`, HS256, protected-header `typ: at+jwt`, issuer `proxiai`, audience `proxiai-api`, valid signature, expiry, and `type: access`.
 - P2-06 treats JWT claims as identity hints only. It reloads the current User with `{ orgId, userId }` and the current Organisation with `{ orgId }` before attaching context.
 - Authenticated request context contains only `userId`, `orgId`, current database `role`, current database `permissions`, and `sessionId`.
@@ -387,11 +395,14 @@ npm run dev
 - Policy decisions emit only allowlisted metadata: request ID, action, risk score, approved reason code, category names, detector count, and trusted auth-derived organisation/user IDs when available.
 - Stable policy event names are `policy.allow`, `policy.mask`, `policy.block`, and `policy.budget_block`; budget exhaustion remains distinguishable without exposing budget details or prompt content.
 - Policy event creation never spreads the decision or auth objects, so `providerPrompt`, role, permissions, session ID, and unexpected fields are not forwarded to logs.
-- P4-10 emits structured application events only. Durable append-only audit persistence remains owned by Phase 9.
+- P4-10 originally emitted structured application events only; Phase 9 now
+  persists approved policy decisions in the append-only AuditLog.
 - Phase 4 implementation is complete, but two runtime gates remain explicitly deferred: `BLOCK` must cause zero provider calls, and `ALLOW_WITH_MASK` must send only masked `providerPrompt`.
 - Both deferred gates must be proven when the first Phase 5 chat pipeline wires policy decisions to provider execution; no temporary provider/chat route will be created merely to mark them passed.
 - P5-01 resolves the Conversation documentation conflict in favour of the approved task contract: plain `title`, default `"New conversation"`, nullable `lastMessageAt`, and no `status`, `titleEnc`, or `titlePreview` fields.
-- Conversation title encryption remains deferred to Phase 9. The approved manual title PATCH stores only the explicitly supplied title and never derives it from prompt or provider content.
+- Phase 9 now encrypts approved manual custom titles; the PATCH still stores
+  only the explicitly supplied title and never derives it from prompt or
+  provider content.
 - Conversation ownership identifiers `conversationId`, `orgId`, and `userId` are immutable UUID v4 values; `conversationId` is generated only by the backend.
 - Conversation declares only the approved unique `{ conversationId: 1 }` index and owner-list `{ orgId: 1, userId: 1, lastMessageAt: -1 }` index.
 - Future tenant-owned Conversation queries must use trusted `orgId` plus authenticated `userId` and the resource identifier where applicable; ordinary client input never establishes tenant scope.
@@ -400,7 +411,8 @@ npm run dev
 - Message documents have no plaintext content field. Optional `contentEnc` uses a strict encrypted shape and is excluded from normal selection and serialization; `contentStored` defaults to `false` and must match encrypted-content presence on creation.
 - Message is append-oriented and uses `createdAt` only. `tokenCount` is optional but must be a non-negative safe integer.
 - Message declares only unique `{ messageId: 1 }` and tenant-conversation `{ orgId: 1, conversationId: 1, createdAt: 1 }` indexes.
-- `requestId`, provider/model metadata, `expiresAt`/TTL, and the encryption service remain deferred. Actual AES-256-GCM encryption and retention writing remain Phase 9 responsibilities.
+- Phase 9 adds immutable `requestId` pair correlation and the encryption
+  service. Provider/model message metadata and `expiresAt`/TTL remain deferred.
 - Future Message reads must first establish Conversation ownership and query with trusted tenant/owner scope; client-supplied `orgId`, `userId`, or conversation ownership is never authoritative.
 - `POST /api/v1/conversations` requires a valid access token and current `chat:send` permission before request validation or persistence.
 - Create-conversation input is a strict Zod object containing only optional `title`; client-supplied `orgId`, `userId`, or unknown fields are rejected.
@@ -415,10 +427,16 @@ npm run dev
 - Real MongoDB HTTP tests prove cross-tenant and cross-user Conversation READ and UPDATE denial. DELETE remains deferred because no delete endpoint exists.
 - `GET /api/v1/conversations/:conversationId/messages` requires authentication and current `chat:view_own` permission, then verifies Conversation ownership through trusted `orgId`, `userId`, and `conversationId` before reading Messages.
 - Message listing queries always include trusted `orgId` and `conversationId`, use chronological `createdAt` ordering with `messageId` as the public tie-breaker, and return an opaque validated cursor.
-- Phase 5 Message API responses expose only `messageId`, lowercase API `role`, optional `tokenCount`, `createdAt`, and `contentAvailable: false`; they never expose `content`, `contentEnc`, ciphertext, IV, authentication tags, key versions, or other encryption metadata.
-- Message reads use an explicit safe-field projection. Actual content decryption and any future content-bearing response remain deferred to Phase 9.
+- Message API responses expose `messageId`, lowercase API `role`, optional
+  `tokenCount`, `createdAt`, and `contentAvailable`. Phase 9 may add authorised
+  owner-only `content`; it never exposes `contentEnc`, ciphertext, IV,
+  authentication tag, key version, or other encryption metadata.
+- Message reads prove owner scope before selecting encrypted fields and decrypt
+  only for that owner. Metadata-only rows continue to omit content.
 - Phase 5 history is metadata-only: `contentAvailable: false` omits `content`, and `contentEnc` is never exposed. `METADATA_ONLY` never stores content.
-- Phase 9 owns AES-256-GCM user/assistant persistence and authorised decryption for `ENCRYPTED_STORAGE`. Only successful stream completion may be persisted; partial or interrupted assistant output is never persisted.
+- Phase 9 implements AES-256-GCM user/assistant persistence and authorised
+  decryption for `ENCRYPTED_STORAGE`. Only successful stream completion is
+  persisted; partial or interrupted assistant output is never persisted.
 - Conversation rename is manual only through authenticated owner-scoped `PATCH /api/v1/conversations/:conversationId` with current `chat:send`, trusted `{ orgId, userId, conversationId }`, and strict trimmed `title` of 1–120 characters. Foreign scope returns generic `404`.
 - Prompt-derived and LLM-generated conversation titles are prohibited.
 - Attachments are deferred from the current MVP. No upload endpoint, multipart contract, paperclip/upload UI, storage reference, or provider attachment forwarding is approved.
@@ -598,7 +616,10 @@ npm run dev
 - **Files changed:** `docs/02_SDD.md`, `docs/03_TDD.md`, `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`, `docs/06_SECURITY_THREAT_MODEL.md`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
 - **Eligibility:** Only `ALLOW` with risk score `0`, zero detected sensitive spans, and response-content-compatible retention may be cached. `ALLOW_WITH_MASK`, `BLOCK`, masked prompts, and `METADATA_ONLY` response-content caching are prohibited.
 - **Scope and key:** Cache reuse is trusted-`orgId` scoped and organisation-wide only without user-specific context. The opaque HMAC input binds trusted `orgId`, exact approved `providerPrompt` bytes, provider, model, deterministic settings, and policy/config fingerprint. Whitespace and casing are not normalized without a future approved contract.
-- **Storage:** Plaintext assistant responses in Redis are prohibited. Future values require an encrypted payload or access-checked safe reference; neither exists, so implementation remains deferred until Phase 9 provides the capability.
+- **Storage:** Plaintext assistant responses in Redis are prohibited. The Phase
+  9 Message store is not a cache/replay value contract; prompt cache remains
+  deferred pending dedicated encrypted/reference storage, fingerprint, and
+  accounting semantics.
 - **TTL and failure:** `PROMPT_CACHE_TTL_SECONDS=3600` becomes required with no hidden default when cache implementation is enabled. Cache reads/writes fail open; idempotency remains separate and fail closed.
 - **Future SSE behavior:** A hit uses `request_started` → `policy` → `routing` with `routingReason=cache` → `token*` → `done` with `cacheHit=true`; no new `cache_hit` event exists and provider execution is skipped.
 - **Accounting:** True hits have zero provider usage and synthetic usage is forbidden. Current `RequestLog` semantics cannot safely represent non-billable cache delivery, so accounting must be resolved before implementation.
@@ -748,7 +769,8 @@ npm run dev
 - **Files changed:** `docs/15_PHASE.md` and `PROJECT_MEMORY.md` only.
 - **Completed scope:** P4-01 through P4-10 implementation is recorded complete.
 - **Deferred gates:** Integrated chat must prove zero provider calls for `BLOCK` and masked-only `providerPrompt` for `ALLOW_WITH_MASK` when Phase 5 wires policy to providers.
-- **Audit boundary:** P4-10 provides safe structured events; durable append-only audit persistence remains Phase 9.
+- **Audit boundary:** P4-10 provides safe structured events; Phase 9 now adds
+  durable append-only policy decision audit records.
 - **Scope:** No temporary provider/chat code was added, and Phase 5 was not started.
 - **Verification:** `npm run typecheck`, `npm run build`, `git diff --check`, and clean post-commit `git status --short` are required for closure.
 - **Next task:** Await explicit approval before starting Phase 5.
@@ -760,7 +782,9 @@ npm run dev
 - **Safety:** Raw prompts, masked prompts, detected values, `providerPrompt`, credentials, full auth context, and unexpected decision fields are never copied into event data; `orgId` and `userId` are included only from an existing trusted `AuthContext`.
 - **Focused tests:** Four tests cover safe ALLOW, MASK, high-risk BLOCK, and budget BLOCK events, including raw-sensitive sentinel absence from captured logger output.
 - **Verification:** `node --test tests/policy-events.test.mjs` passed 4/4; `npm run typecheck`, `npm run build`, and `git diff --check` passed; focused policy source/console scans found no forbidden content access or console logging.
-- **Limitation:** This task does not add durable audit storage; Phase 9 owns append-only audit persistence. End-to-end blocked/masked provider gates remain pending chat integration.
+- **Historical limitation:** P4 did not add durable storage. Phase 9 now owns
+  append-only policy audit persistence; P5 already proved blocked/masked
+  provider integration gates.
 - **Next task:** Phase 4 closure audit/approval. Do not start Phase 5 automatically.
 
 - **Task:** P4-08 — Implement `BLOCK`
@@ -879,11 +903,12 @@ npm run dev
   concrete-secret, Markdown fence, OpenAPI YAML parser, and sensitive-term scans
   passed. `git diff --check` passed. No runtime tests/typecheck/build were run
   because this task changes documentation only.
-- **Next task:** P9-01 — Versioned AES-256-GCM Foundation, only after explicit
-  implementation approval. Do not combine P9-02.
+- **Historical next task:** P9-01 was approved after this contract audit and is
+  now complete with P9-02 through P9-11.
 
 - **Task:** Phase 8 — Admin Dashboard and RBAC
-- **Status:** Completed and verified on 2026-08-21; Phase 9 not started.
+- **Status:** Completed and verified on 2026-08-21. Phase 9 was not started at
+  this checkpoint and is now complete.
 - **Backend:** Added authenticated `GET /api/v1/admin/summary`, `/logs`,
   `/billing`, `/alerts`, `/users`, and `/teams` with canonical permission
   guards, trusted `orgId`, strict Zod query validation, stable bounded cursors,
@@ -1154,9 +1179,65 @@ npm run dev
 - **Verification:** Frontend tests passed 9/9 using a deterministic single-worker run with an environment-only timeout; typecheck, lint, production build, and diff-check passed. The normal 5-second test timeout remains slow-machine sensitive and was not changed in source.
 - **Security:** No backend secret or internal origin is exposed to browser code. Production has no hidden local proxy fallback.
 
+## Latest Phase 9 Task
+
+- **Task:** P9-01 through P9-11 — Complete Phase 9 Retention, Encryption, and Audit.
+- **Status:** Completed on 2026-08-21. Phase 10 was not started.
+- **Encryption:** Central AES-256-GCM service uses a validated versioned
+  application keyring, fresh 12-byte IVs, 16-byte tags, canonical base64url,
+  and tenant/resource-bound AAD. Missing keys, wrong AAD, tampering, malformed
+  envelopes, and missing key versions fail closed with no plaintext fallback.
+- **Retention:** `METADATA_ONLY` stores two metadata-only records after a
+  completed stream. `ENCRYPTED_STORAGE` stores ciphertext-only user/assistant
+  records. Message pair creation and Conversation activity update are one
+  idempotent Mongo transaction; partial/interrupted streams store no content.
+- **Owner read:** Conversation ownership is checked through trusted
+  `{ orgId, userId, conversationId }` before encrypted messages are selected
+  and decrypted. API/frontend receive `content` only with
+  `contentAvailable=true`; `contentEnc` is never serialized.
+- **Titles/migration:** New manual custom titles are encrypted. The controlled
+  migration verifies existing ciphertext, encrypts legacy custom titles,
+  verifies decryption, and conditionally replaces plaintext. A second run is
+  a no-op; verification failure preserves the original title.
+- **Audit/admin:** Tenant-scoped AuditLog is append-only with action-specific
+  bounded metadata. Role/team/status/session, policy/budget/retention, and
+  alert state changes commit atomically with audit; role permissions are
+  deterministic and disabling a user revokes active refresh sessions.
+- **Export/frontend:** Audit CSV is feature/permission-gated, tenant-scoped,
+  ordered, limited to 90 days and 10,000 rows, formula-neutralized, and
+  self-audited. Admin controls wait for backend confirmation and expose safe
+  loading/error/disabled states. Historical encrypted content renders only
+  through the approved owner response contract.
+- **Files changed:** Phase 9 backend security, audit, admin, auth, chat,
+  conversation/message, config/runtime, migration/index and test files;
+  frontend admin/chat/conversation files; deployment secret selectors; and
+  approved architecture, database, OpenAPI, security, roadmap, CI/CD, README,
+  and memory documentation.
+- **Verification:** Backend full suite passed `213/213` with explicit local
+  Redis. Isolated MongoDB replica-set integration passed `7/7` admin/audit
+  tests and `4/4` encrypted-message/migration tests. Frontend passed `16/16`
+  with the existing slow-import test timeout raised only at command time.
+  Backend/frontend lint, typecheck, and production builds passed. Production
+  dependency audits found `0` vulnerabilities. Production images built as
+  non-root and contained no `.env` files or runtime-secret environment values.
+  Static secret and sensitive-log scans returned zero matches; diff-check
+  passed.
+- **Operational limitations:** The MVP uses one application-level versioned
+  keyring. BYOK, per-organisation keys, KMS/HSM envelope encryption, automatic
+  rotation/re-encryption, custom retention/TTL deletion, prompt cache, response
+  replay, and email remain deferred. Backend build-only dependencies retain one
+  pre-existing high-severity `brace-expansion` advisory; production dependency
+  audit is clean.
+- **Local environment note:** The developer `.env` currently contains a
+  malformed duplicated Redis assignment prefix. Verification used the healthy
+  local Redis service through an explicit process-only `REDIS_URL` override;
+  no `.env` or secret file was modified or committed.
+
 ## Recommended Next Task
 
-- P12-09 — Run local final gates, then provision/verify staging AWS rollout and rollback; do not start Phase 8.
+- Run the Phase 10 Observability and Operations contract/readiness audit. Do
+  not implement Phase 10 until that audit is approved. P12-09A deployment work
+  remains a separate operational track.
 
 ## Active Lightsail Cost-Cut Migration
 
@@ -1220,9 +1301,9 @@ npm run dev
   required repository/listener operations to ProxiAI resources, and ECS
   staging/production workflows retain previous task definitions with
   `if: always()` and automatically roll back failed functional smoke releases.
-- **Autopsy classification:** Historical readable message persistence is not a
-  current defect under the approved metadata-only Phase 5 contract. Plaintext
-  storage remains prohibited; Phase 9 owns encrypted history.
+- **Autopsy classification:** Historical metadata-only rows remain unavailable
+  by design. Phase 9 now persists newly completed content only under
+  `ENCRYPTED_STORAGE`; plaintext storage remains prohibited.
 - **Verification (2026-08-20):** Backend full suite passed 203/203 with the
   configured local Redis dependency; backend lint/typecheck/build passed.
   Frontend passed 12/12 tests with a non-semantic 30-second test timeout for a

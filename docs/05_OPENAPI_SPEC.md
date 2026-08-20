@@ -504,9 +504,9 @@ missing-user timing equalization remain pending authentication work.
 - Never log the raw organisation slug, email, password hash, access token,
   refresh token, cookie, request body, or sensitive headers.
 - Set `Cache-Control: no-store`.
-- Emit structured `auth.login_succeeded`, `auth.login_failed`, and
-  `auth.login_operational_error` security events. Durable audit persistence
-  remains Phase 9.
+- Emit structured security events. Phase 9 also appends approved durable audit
+  events once a trusted organisation has been resolved; no password, email,
+  token, cookie, or raw request body is included.
 
 ## 14.2 POST `/auth/refresh`
 
@@ -1044,7 +1044,7 @@ done (cacheHit=true)
 
 No `cache_hit` event is added. The provider adapter call is skipped entirely. The response remains tenant-scoped, policy-eligible, and backed by approved encrypted storage or an access-checked safe reference. Exact provider/model metadata semantics remain deferred until the implementation contract is finalized.
 
-Provider usage on a true cache hit is zero and must never be synthesized. The current request-accounting schema does not safely represent non-billable cache delivery, so cache-hit accounting must be resolved before cache implementation. Prompt caching remains deferred until Phase 9 provides the approved response-storage prerequisite.
+Provider usage on a true cache hit is zero and must never be synthesized. The current request-accounting schema does not safely represent non-billable cache delivery, so cache-hit accounting and the dedicated encrypted/reference cache-value contract must be resolved before implementation. The Phase 9 Message store is not a prompt-cache replay contract.
 
 ## 16.6 Idempotency behavior
 
@@ -1306,7 +1306,7 @@ to the authenticated organisation.
 }
 ```
 
-## 20.2 PATCH `/admin/alerts/{alertId}` — deferred
+## 20.2 PATCH `/admin/alerts/{alertId}`
 
 Marks an alert resolved or reopens it.
 
@@ -1342,8 +1342,9 @@ resolution reuse that record and do not create duplicate same-day alerts.
 }
 ```
 
-This route is not implemented before Phase 9 because the required durable audit
-write does not yet exist.
+The alert transition and durable audit append commit in one MongoDB
+transaction. Audit failure returns `503 AUDIT_UNAVAILABLE` with no state
+change.
 
 ## 20.3 Admin User Mutation APIs — Phase 9
 

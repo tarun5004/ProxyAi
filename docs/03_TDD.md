@@ -579,9 +579,10 @@ interface Message {
 }
 ```
 
-In Phase 5, `METADATA_ONLY` stores no content and `contentEnc` remains absent. Phase 9 owns AES-256-GCM writes and authorised reads for `ENCRYPTED_STORAGE`.
+`METADATA_ONLY` stores no content and `contentEnc` remains absent. Phase 9 adds
+AES-256-GCM writes and authorised reads for `ENCRYPTED_STORAGE`.
 
-The Phase 5 message-read contract is metadata-only:
+The message-read contract is:
 
 ```ts
 interface MessageSummary {
@@ -589,14 +590,15 @@ interface MessageSummary {
   role: 'user' | 'assistant' | 'system';
   tokenCount?: number;
   createdAt: string;
-  contentAvailable: false;
+  contentAvailable: boolean;
+  content?: string;
 }
 ```
 
 `contentAvailable: false` requires `content` to be omitted. `contentEnc` and
-encryption metadata are never exposed. Phase 9 adds a
-`contentAvailable: true` variant containing authorised decrypted `content`
-after owner scope checks, while `METADATA_ONLY` continues to return no content.
+encryption metadata are never exposed. `contentAvailable: true` contains
+authorised decrypted `content` only after owner scope checks, while
+`METADATA_ONLY` continues to return no content.
 
 ## 12.5 RequestLog
 
@@ -870,7 +872,11 @@ cache:prompt:{opaqueHmac(canonicalCacheInput)}
 
 ### 17.3 Value
 
-Plaintext assistant responses in Redis are not approved. A future cache value may contain either an encrypted response payload or an access-checked safe reference plus the minimum safe coordination metadata. Neither storage capability exists yet, so prompt-cache implementation is deferred until Phase 9 provides one of them.
+Plaintext assistant responses in Redis are not approved. Phase 9 provides an
+encrypted MongoDB message store, not an approved Redis cache-value/replay
+contract. Prompt-cache implementation remains deferred until cache-hit
+accounting, policy/config fingerprinting, and an access-checked encrypted value
+or reference contract are approved.
 
 `PROMPT_CACHE_TTL_SECONDS=3600` becomes a required validated environment variable with no hidden default when cache implementation is enabled. It must not be added as a current startup requirement before the cache feature exists.
 
@@ -935,7 +941,7 @@ write succeeds. If that write fails, propagate the safe operational error and
 leave `PROCESSING` until its approved TTL rather than falsely recording a
 completed request with no durable accounting evidence.
 
-The key and record contain no prompt, response, email, raw tenant/user identifiers, PII, provider secret, token, final API status/code, or provider usage. `COMPLETED` is a non-replayable tombstone; response replay/storage remains deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
+The key and record contain no prompt, response, email, raw tenant/user identifiers, PII, provider secret, token, final API status/code, or provider usage. `COMPLETED` is a non-replayable tombstone; response replay/storage remains deferred because the Phase 9 encrypted Message store is not an idempotency replay contract.
 
 If the process crashes after provider execution may have started, the `PROCESSING` tombstone can expire after 300 seconds and permit a later retry. The MVP does not perform unsafe automatic reconciliation. Full durable recovery and replay remain deferred.
 
@@ -1347,23 +1353,25 @@ function buildMessageWrite(
   mode: RetentionMode,
   message: PlainMessage,
 ): MessageWrite | null {
-  if (mode === 'METADATA_ONLY') return null;
+  if (mode === 'METADATA_ONLY') {
+    return { ...message.metadata, contentStored: false };
+  }
   return {
     ...message.metadata,
-    contentEnc: encryptionService.encrypt(message.content),
+    contentStored: true,
+    contentEnc: encryptionService.encrypt(message.content, trustedAad),
   };
 }
 ```
 
 The code must not construct a plain-content MongoDB document and remove content later.
 
-Phase 5 does not call this persistence path. Phase 9 may persist user and
-assistant content only after a successful stream completion. Partial or
-interrupted assistant output is not persisted. Attachments remain outside the
-current MVP: there is no multipart request, upload endpoint, file reference, or
-provider attachment contract.
+The chat completion path persists user and assistant records only after a
+successful stream completion. Partial or interrupted assistant output is not
+persisted. Attachments remain outside the current MVP: there is no multipart
+request, upload endpoint, file reference, or provider attachment contract.
 
-For a successful `ALLOW` or `ALLOW_WITH_MASK` stream, Phase 9 writes two
+For a successful `ALLOW` or `ALLOW_WITH_MASK` stream, the retention writer creates two
 append-oriented Message records after provider completion: the original user
 message and the assistant response. `METADATA_ONLY` writes metadata records
 with `contentStored=false`; `ENCRYPTED_STORAGE` encrypts each content value
@@ -1394,7 +1402,7 @@ unavailable, and `500 MESSAGE_CONTENT_UNAVAILABLE` for malformed envelopes or
 authentication-tag failure. Client responses contain no key
 version, envelope field, database identifier, stack, or crypto-library error.
 
-Conversation titles are also Phase 9 encrypted-at-rest work. The persisted
+Conversation titles are also encrypted at rest. The persisted
 plain title becomes a fixed non-sensitive fallback (`New conversation`), while
 an optional encrypted title envelope stores a manual custom title. Owner list,
 read, and `chat:send` rename paths decrypt only after trusted ownership checks. Prompt-
@@ -1901,10 +1909,10 @@ credentials, prices/cost, latency, cache, fallback, and PII-risk fields because
 the current authoritative schemas do not persist those values.
 
 Team-lead log access is deferred because `RequestLog` has no trusted `teamId`.
-Role/team/status, policy/budget/retention, and alert-resolution mutations are
-not exposed before the Phase 9 append-only admin-audit guarantee. Audit export
-also remains Phase 9 work. `ENCRYPTED_STORAGE` cannot be enabled before Phase 9,
-and `CUSTOM_RETENTION` is not an MVP mode.
+Role/team/status/session, policy/budget/retention, and alert-resolution
+mutations now use the Phase 9 append-only admin-audit guarantee. Audit export
+is tenant-scoped and bounded. `ENCRYPTED_STORAGE` requires a validated active
+keyring; `CUSTOM_RETENTION` is not an MVP mode.
 
 | Method | Path | Permission | Notes |
 |---|---|---|---|

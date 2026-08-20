@@ -899,11 +899,11 @@ MongoDB TTL deletion is asynchronous and not guaranteed at the exact expiry seco
 
 ### 16.5 Phase 5 chat-content boundary
 
-- Phase 5 persists message metadata only and never stores plaintext prompt or response content.
+- `METADATA_ONLY` persists message metadata only and never stores plaintext prompt or response content.
 - `contentAvailable: false` omits `content`; `contentEnc`, ciphertext, IVs, authentication tags, and key versions are never returned by the message API.
-- Phase 9 owns AES-256-GCM content persistence and authorised decryption for `ENCRYPTED_STORAGE`. `METADATA_ONLY` continues to expose no content.
-- Only a successfully completed stream may become eligible for Phase 9 persistence. Partial or interrupted assistant output is not persisted.
-- Phase 9 encrypts manual custom conversation titles at rest; only the fixed
+- Phase 9 implements AES-256-GCM content persistence and authorised decryption for `ENCRYPTED_STORAGE`. `METADATA_ONLY` continues to expose no content.
+- Only a successfully completed stream may become eligible for persistence. Partial or interrupted assistant output is not persisted.
+- Manual custom conversation titles are encrypted at rest; only the fixed
   `New conversation` fallback remains plaintext. Title decryption is owner-
   scoped and prompt-derived/LLM-generated titles remain prohibited.
 - Attachments are deferred. No file ingestion, multipart parsing, storage, preview, or provider forwarding is allowed until MIME/size allowlists, malware scanning, tenant ownership, provider capability, retention, and deletion are approved.
@@ -1162,9 +1162,9 @@ Audit at minimum:
 
 Audit metadata contains safe before/after summaries, not full sensitive objects.
 
-P2-04 emits structured `auth.login_succeeded`, `auth.login_failed`, and
-`auth.login_operational_error` events only. Durable append-only audit
-persistence remains Phase 9.
+Authentication retains safe structured events and now appends approved durable
+AuditLog events after trusted organisation resolution. Unknown-organisation
+attempts cannot be tenant-scoped and therefore are not inserted into AuditLog.
 
 ## 21. Deployment and Infrastructure Security
 
@@ -1204,10 +1204,10 @@ remain metadata-only and never reveal prompt, response, encrypted message
 content, credentials, or sensitive headers. Team-lead logs are deferred until
 trusted team ownership exists on the queried resource.
 
-User/team/status, policy/budget/retention, and alert-state mutations remain
-blocked until Phase 9 provides the required durable append-only admin audit
-guarantee. Hiding controls in the frontend is not authorization; deferred
-routes are absent from the backend.
+User/team/status/session, policy/budget/retention, and alert-state mutations use
+tenant-scoped permissions plus mutation-and-audit MongoDB transactions. Hiding
+controls in the frontend is not authorization; backend permission and trusted
+tenant checks remain authoritative.
 
 - Production console access is restricted.
 - Avoid shared accounts.

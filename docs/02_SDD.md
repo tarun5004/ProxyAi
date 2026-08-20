@@ -61,7 +61,7 @@ The system design is intentionally limited to the already approved MVP.
 - Full compliance certification
 - Full BYOK implementation
 - Advanced payment automation
-- Prompt-cache response storage and delivery until Phase 9 provides encrypted payload or access-checked safe-reference storage
+- Prompt-cache response storage and delivery until a dedicated encrypted/reference cache-value and accounting contract is approved
 - Safe completed-response replay and durable post-provider crash reconciliation
 
 ## 4. System Context
@@ -650,7 +650,9 @@ cache:prompt:{opaqueHmac(canonicalCacheInput)}
 - Plaintext assistant responses are not approved for Redis. A future value must use an encrypted payload or an access-checked safe reference.
 - `PROMPT_CACHE_TTL_SECONDS=3600` is required with no hidden default when cache implementation is enabled.
 - Cache reads and writes fail open; idempotency remains a separate fail-closed control.
-- Cache implementation is deferred until Phase 9 provides approved encrypted or safe-reference response storage and accounting can represent non-billable cache delivery.
+- Cache implementation remains deferred because the Phase 9 Message store is
+  not a replay cache and accounting cannot yet represent non-billable cache
+  delivery.
 
 ### Idempotency
 
@@ -667,7 +669,7 @@ States:
 
 Both states store only status, server `requestId`, the relevant timestamp, and an opaque request fingerprint. The fingerprint binds canonical non-sensitive request fields plus a domain-separated HMAC of the exact prompt bytes; raw prompt content is never stored. Reusing one client request ID with a different fingerprint returns `409 DUPLICATE_REQUEST`.
 
-`COMPLETED` is a non-replayable tombstone. It stores no HTTP response, provider response, token usage, or final API status/code, and every completed duplicate returns `409 DUPLICATE_REQUEST`. Response replay remains deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
+`COMPLETED` is a non-replayable tombstone. It stores no HTTP response, provider response, token usage, or final API status/code, and every completed duplicate returns `409 DUPLICATE_REQUEST`. Response replay remains deferred; the Phase 9 encrypted Message store is not an idempotency replay contract.
 
 If a process dies after provider execution may have started, the `PROCESSING` record can expire after 300 seconds and permit a later retry. The MVP documents this limitation and does not invent unsafe automatic reconciliation; durable recovery/replay remains deferred.
 
@@ -885,7 +887,9 @@ orgId + period + optional userId
 
 ### Rules
 
-- Future cache hits do not create a provider cost; cache delivery is not implemented before Phase 9 prerequisites.
+- Future cache hits do not create a provider cost; cache delivery remains
+  unimplemented pending its dedicated value, fingerprint, and accounting
+  prerequisites.
 - Failed attempts may be recorded for operations, but billed cost is added only when provider usage is reported or reliably estimated.
 - Budget checks read current monthly rollup plus any accepted in-flight reservation approach implemented later. For the beginner MVP, small race conditions under high concurrency are acknowledged.
 

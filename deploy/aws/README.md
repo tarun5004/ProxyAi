@@ -26,7 +26,9 @@ hardcoded by the templates.
    disabled by default; enable one only after proving that resource is missing.
 3. Populate the canonical `proxiai/production` secret with `MONGO_URI`,
    `REDIS_URL`, `JWT_ACCESS_SECRET`, `AUTH_RATE_LIMIT_SECRET`, and
-   `GROQ_API_KEY` through an approved secret-management session.
+   `GROQ_API_KEY`, plus the Phase 9 `MESSAGE_ENCRYPTION_KEYS_JSON` and
+   `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` values through an approved
+   secret-management session.
 4. Confirm Atlas and managed Redis accept private-task connectivity. Redis must
    use TLS, persistence appropriate to the provider, and `noeviction`.
 5. Build, scan, and push frontend/backend images by immutable SHA.

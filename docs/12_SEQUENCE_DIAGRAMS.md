@@ -214,7 +214,7 @@ sequenceDiagram
 - Passwords are never stored or logged in plaintext.
 - Refresh tokens are stored as hashes.
 - Successful, failed, and operational login outcomes emit structured security
-  events. Durable audit persistence remains Phase 9.
+  events. Phase 9 now adds durable events only after trusted tenant resolution.
 - The refresh token is returned only as a secure HTTP-only cookie.
 
 ---

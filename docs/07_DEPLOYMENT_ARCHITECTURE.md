@@ -175,8 +175,8 @@ promotion. This exception does not redefine the final isolation architecture.
 - `AUTH_RATE_LIMIT_SECRET`
 - `GROQ_API_KEY`
 
-Before Phase 9 encrypted titles/content or `ENCRYPTED_STORAGE` is enabled, the
-same environment-scoped secret must also contain:
+Before deploying the Phase 9 build or enabling encrypted titles/content, the
+same environment-scoped secret must contain:
 
 - `MESSAGE_ENCRYPTION_KEYS_JSON`
 - `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION`
