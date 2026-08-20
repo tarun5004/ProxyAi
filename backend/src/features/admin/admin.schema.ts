@@ -6,6 +6,7 @@ import {
 } from "../../shared/async/job-contract.js";
 import { PROVIDER_IDS } from "../providers/provider.types.js";
 import { USER_ROLES, USER_STATUSES } from "../users/user.types.js";
+import { RETENTION_MODES } from "../organisations/organisation.types.js";
 import { ADMIN_PERIODS } from "./admin.types.js";
 
 const listLimit = z.coerce.number().int().min(1).max(100).default(25);
@@ -62,4 +63,67 @@ export const adminTeamsQuerySchema = z.strictObject({
     limit: listLimit,
     cursor: optionalCursor,
     isActive: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
+});
+
+export const adminUserIdParamsSchema = z.strictObject({
+    userId: z.string().uuid(),
+});
+
+export const adminAlertIdParamsSchema = z.strictObject({
+    alertId: z.string().uuid(),
+});
+
+export const adminUserRoleBodySchema = z.strictObject({
+    role: z.enum(USER_ROLES),
+});
+
+export const adminUserTeamBodySchema = z.strictObject({
+    teamId: z.string().uuid().nullable(),
+});
+
+export const adminUserStatusBodySchema = z.strictObject({
+    status: z.enum(["ACTIVE", "DISABLED"]),
+});
+
+export const adminEmptyBodySchema = z.strictObject({});
+
+export const adminPolicyBodySchema = z.strictObject({
+    maskThreshold: z.number().int().min(0).max(100).optional(),
+    blockThreshold: z.number().int().min(0).max(100).optional(),
+    monthlyTokenBudget: z.number().int().nonnegative().safe().optional(),
+}).refine((value) => Object.keys(value).length > 0, {
+    message: "At least one policy field is required.",
+});
+
+export const adminRetentionBodySchema = z.strictObject({
+    mode: z.enum(RETENTION_MODES),
+});
+
+export const adminAlertStatusBodySchema = z.strictObject({
+    resolved: z.boolean(),
+});
+
+export const adminAuditExportQuerySchema = z.strictObject({
+    dateFrom: z.string().datetime({ offset: true }),
+    dateTo: z.string().datetime({ offset: true }),
+    action: z.string().trim().min(1).max(120).optional(),
+}).superRefine((value, context) => {
+    const from = new Date(value.dateFrom);
+    const to = new Date(value.dateTo);
+
+    if (to < from) {
+        context.addIssue({
+            code: "custom",
+            path: ["dateTo"],
+            message: "dateTo must not be earlier than dateFrom.",
+        });
+    }
+
+    if (to.getTime() - from.getTime() > 90 * 24 * 60 * 60 * 1_000) {
+        context.addIssue({
+            code: "custom",
+            path: ["dateTo"],
+            message: "Audit export range cannot exceed 90 days.",
+        });
+    }
 });

@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 
 import { AlertModel } from "../features/alerts/alert.model.js";
+import { AuditLogModel } from "../features/audit/audit.model.js";
 import { AnalyticsDailyAggregateModel } from
     "../features/analytics/analytics-daily.model.js";
 import { AnalyticsJobLedgerModel } from
@@ -43,6 +44,7 @@ const deploymentModels: readonly IndexableModel[] = Object.freeze([
     AnalyticsDailyAggregateModel,
     AnalyticsJobLedgerModel,
     AlertModel,
+    AuditLogModel,
     EnqueueRecoveryModel,
 ]);
 

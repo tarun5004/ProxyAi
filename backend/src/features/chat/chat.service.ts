@@ -6,6 +6,8 @@ import {
     type RequestCompletedStatus,
 } from "../../shared/async/job-contract.js";
 import { AppError } from "../../shared/errors/app-error.js";
+import { appendAudit } from "../audit/audit.service.js";
+import { buildAuditMetadata } from "../audit/audit.metadata.js";
 import {
     createIdempotencyRequestFingerprint,
     idempotencyService,
@@ -22,6 +24,8 @@ import {
     readAuthoritativeBudgetStatus,
 } from "../billing/billing.service.js";
 import { getConversationForOwner } from "../conversations/conversation.service.js";
+import { persistCompletedMessagePair } from "../messages/message.service.js";
+import type { RetentionMode } from "../organisations/organisation.types.js";
 import { processPiiPromptImmutably } from "../pii/pii-prompt-processor.js";
 import { calculatePiiRisk } from "../pii/pii-risk-scorer.js";
 import { emitPolicyDecisionEvent } from "../policy/policy-events.js";
@@ -91,6 +95,8 @@ export interface ChatPipelineDependencies {
         typeof enqueueAnalyticsRequestOutcomeJob;
     readonly recordEnqueueFailure: typeof recordFailedEnqueue;
     readonly emitPolicyEvent: typeof emitPolicyDecisionEvent;
+    readonly appendAudit: typeof appendAudit;
+    readonly persistMessages: typeof persistCompletedMessagePair;
 }
 
 export interface PreparedChatStream {
@@ -106,6 +112,9 @@ export interface PreparedChatStream {
     readonly firstChunk: StreamChunk;
     readonly fallbackEvents: readonly ProviderFallbackEvent[];
     readonly reservation: IdempotencyReservation;
+    readonly conversationId: string;
+    readonly retentionMode: RetentionMode;
+    readonly originalUserContent: string;
 }
 
 export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
@@ -123,6 +132,8 @@ export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
     enqueueAnalyticsJob: enqueueAnalyticsRequestOutcomeJob,
     recordEnqueueFailure: recordFailedEnqueue,
     emitPolicyEvent: emitPolicyDecisionEvent,
+    appendAudit,
+    persistMessages: persistCompletedMessagePair,
 };
 
 export async function prepareChatStream(
@@ -184,6 +195,33 @@ export async function prepareChatStream(
             requestId: input.requestId,
             decision,
             auth: input.auth,
+        });
+        await dependencies.appendAudit({
+            orgId: input.auth.orgId,
+            actorId: input.auth.userId,
+            actorType: "USER",
+            actorRole: input.auth.role,
+            action: decision.action === "ALLOW"
+                ? "policy.allow"
+                : decision.action === "ALLOW_WITH_MASK"
+                    ? "policy.mask"
+                    : "policy.block",
+            outcome: "SUCCESS",
+            resourceType: "POLICY_DECISION",
+            resourceId: input.requestId,
+            metadata: buildAuditMetadata(
+                decision.action === "ALLOW"
+                    ? "policy.allow"
+                    : decision.action === "ALLOW_WITH_MASK"
+                        ? "policy.mask"
+                        : "policy.block",
+                {
+                    riskScore: decision.riskScore,
+                    reasonCode: decision.reasonCode,
+                    categoryCount: decision.categories.length,
+                },
+            ),
+            requestId: input.requestId,
         });
 
         if (decision.action === "BLOCK") {
@@ -303,6 +341,9 @@ export async function prepareChatStream(
             firstChunk: firstResult.value,
             fallbackEvents: Object.freeze(fallbackEvents),
             reservation,
+            conversationId: input.request.conversationId,
+            retentionMode: organisation.retentionMode,
+            originalUserContent: input.request.prompt,
         };
     } catch (error: unknown) {
         if (!reservationFinalized) {
@@ -348,6 +389,7 @@ export async function finalizeChatStream(
     outcome: {
         readonly status: RequestCompletedStatus;
         readonly usage?: Readonly<TokenUsage>;
+        readonly assistantContent?: string;
     },
     dependencies: ChatPipelineDependencies = defaultChatPipelineDependencies,
 ): Promise<void> {
@@ -358,6 +400,16 @@ export async function finalizeChatStream(
             policyAction: prepared.decision.action === "ALLOW_WITH_MASK"
                 ? "ALLOW_WITH_MASK"
                 : "ALLOW",
+            ...(outcome.assistantContent === undefined
+                ? {}
+                : {
+                    messagePersistence: {
+                        conversationId: prepared.conversationId,
+                        retentionMode: prepared.retentionMode,
+                        userContent: prepared.originalUserContent,
+                        assistantContent: outcome.assistantContent,
+                    },
+                }),
         },
         dependencies,
     );
@@ -440,10 +492,17 @@ async function recordUsageAndComplete(
         readonly status: RequestCompletedStatus;
         readonly policyAction: "ALLOW" | "ALLOW_WITH_MASK";
         readonly usage?: Readonly<TokenUsage>;
+        readonly messagePersistence?: {
+            readonly conversationId: string;
+            readonly retentionMode: RetentionMode;
+            readonly userContent: string;
+            readonly assistantContent: string;
+        };
     },
     dependencies: ChatPipelineDependencies,
 ): Promise<void> {
     let usagePersisted = false;
+    let messagePersistenceError: unknown;
 
     try {
         const occurredAt = new Date().toISOString();
@@ -461,6 +520,31 @@ async function recordUsageAndComplete(
                 : { usage: outcome.usage }),
         });
         usagePersisted = true;
+
+        if (
+            outcome.status === "COMPLETED"
+            && outcome.messagePersistence !== undefined
+        ) {
+            try {
+                await dependencies.persistMessages({
+                    orgId: input.orgId,
+                    userId: input.userId,
+                    requestId: input.requestId,
+                    conversationId: outcome.messagePersistence.conversationId,
+                    retentionMode: outcome.messagePersistence.retentionMode,
+                    userContent: outcome.messagePersistence.userContent,
+                    assistantContent: outcome.messagePersistence.assistantContent,
+                    ...(outcome.usage === undefined
+                        ? {}
+                        : {
+                            inputTokenCount: outcome.usage.inputTokens,
+                            outputTokenCount: outcome.usage.outputTokens,
+                        }),
+                });
+            } catch (error: unknown) {
+                messagePersistenceError = error;
+            }
+        }
 
         try {
             await dependencies.enqueueBillingJob({
@@ -538,6 +622,10 @@ async function recordUsageAndComplete(
                 },
                 dependencies,
             );
+        }
+
+        if (messagePersistenceError !== undefined) {
+            throw messagePersistenceError;
         }
 
     } finally {

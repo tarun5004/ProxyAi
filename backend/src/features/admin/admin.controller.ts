@@ -5,11 +5,21 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { createSuccessResponse } from "../../shared/responses/api-response.js";
 import { decodeAdminCursor } from "./admin.cursor.js";
 import {
+    adminAlertIdParamsSchema,
+    adminAlertStatusBodySchema,
+    adminAuditExportQuerySchema,
+    adminEmptyBodySchema,
     adminAlertsQuerySchema,
     adminBillingQuerySchema,
     adminLogsQuerySchema,
     adminSummaryQuerySchema,
     adminTeamsQuerySchema,
+    adminPolicyBodySchema,
+    adminRetentionBodySchema,
+    adminUserIdParamsSchema,
+    adminUserRoleBodySchema,
+    adminUserStatusBodySchema,
+    adminUserTeamBodySchema,
     adminUsersQuerySchema,
 } from "./admin.schema.js";
 import {
@@ -21,6 +31,17 @@ import {
     listAdminTeams,
     listAdminUsers,
 } from "./admin.service.js";
+import {
+    changeUserRole,
+    changeUserStatus,
+    changeUserTeam,
+    revokeUserSessions,
+    updateAlertResolution,
+    updateOrganisationPolicy,
+    updateOrganisationRetention,
+    type AdminMutationContext,
+} from "./admin.mutation.service.js";
+import { exportOrganisationAuditCsv } from "../audit/audit.export.service.js";
 
 export async function adminSummary(request: Request, response: Response) {
     const auth = requireAuth(request);
@@ -95,12 +116,84 @@ export async function adminTeams(request: Request, response: Response) {
     sendPage(response, request, page);
 }
 
+export async function adminChangeUserRole(request: Request, response: Response) {
+    const params = parseQuery(adminUserIdParamsSchema.safeParse(request.params));
+    const body = parseQuery(adminUserRoleBodySchema.safeParse(request.body));
+    send(response, request, await changeUserRole(mutationContext(request), params.userId, body.role));
+}
+
+export async function adminChangeUserTeam(request: Request, response: Response) {
+    const params = parseQuery(adminUserIdParamsSchema.safeParse(request.params));
+    const body = parseQuery(adminUserTeamBodySchema.safeParse(request.body));
+    send(response, request, await changeUserTeam(mutationContext(request), params.userId, body.teamId));
+}
+
+export async function adminChangeUserStatus(request: Request, response: Response) {
+    const params = parseQuery(adminUserIdParamsSchema.safeParse(request.params));
+    const body = parseQuery(adminUserStatusBodySchema.safeParse(request.body));
+    send(response, request, await changeUserStatus(mutationContext(request), params.userId, body.status));
+}
+
+export async function adminRevokeUserSessions(request: Request, response: Response) {
+    const params = parseQuery(adminUserIdParamsSchema.safeParse(request.params));
+    parseQuery(adminEmptyBodySchema.safeParse(request.body ?? {}));
+    send(response, request, await revokeUserSessions(mutationContext(request), params.userId));
+}
+
+export async function adminUpdatePolicy(request: Request, response: Response) {
+    const body = parseQuery(adminPolicyBodySchema.safeParse(request.body));
+    send(response, request, await updateOrganisationPolicy(mutationContext(request), {
+        ...(body.maskThreshold === undefined ? {} : { maskThreshold: body.maskThreshold }),
+        ...(body.blockThreshold === undefined ? {} : { blockThreshold: body.blockThreshold }),
+        ...(body.monthlyTokenBudget === undefined ? {} : { monthlyTokenBudget: body.monthlyTokenBudget }),
+    }));
+}
+
+export async function adminUpdateRetention(request: Request, response: Response) {
+    const body = parseQuery(adminRetentionBodySchema.safeParse(request.body));
+    send(response, request, await updateOrganisationRetention(mutationContext(request), body.mode));
+}
+
+export async function adminUpdateAlert(request: Request, response: Response) {
+    const params = parseQuery(adminAlertIdParamsSchema.safeParse(request.params));
+    const body = parseQuery(adminAlertStatusBodySchema.safeParse(request.body));
+    send(response, request, await updateAlertResolution(mutationContext(request), params.alertId, body.resolved));
+}
+
+export async function adminExportAudit(request: Request, response: Response) {
+    const query = parseQuery(adminAuditExportQuerySchema.safeParse(request.query));
+    const result = await exportOrganisationAuditCsv(mutationContext(request), {
+        dateFrom: new Date(query.dateFrom),
+        dateTo: new Date(query.dateTo),
+        ...(query.action === undefined ? {} : { action: query.action }),
+    });
+    response.setHeader("Content-Type", "text/csv; charset=utf-8");
+    response.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("X-Request-ID", request.requestId);
+    response.status(200).send(result.csv);
+}
+
 function requireAuth(request: Request) {
     if (request.auth === undefined) {
         throw new AppError(401, "UNAUTHORIZED", "Authentication required.");
     }
 
     return request.auth;
+}
+
+function mutationContext(request: Request): AdminMutationContext {
+    const auth = requireAuth(request);
+    const userAgent = request.get("user-agent");
+
+    return {
+        orgId: auth.orgId,
+        actorId: auth.userId,
+        actorRole: auth.role,
+        requestId: request.requestId,
+        ipAddress: (request.ip ?? request.socket.remoteAddress ?? "unknown").slice(0, 64),
+        ...(userAgent === undefined ? {} : { userAgent: userAgent.slice(0, 512) }),
+    };
 }
 
 function parseQuery<T>(result: { success: true; data: T } | { success: false; error: { issues: ZodIssue[] } }): T {

@@ -15,6 +15,11 @@ const { model, models, Schema } = mongoose;
 
 const encryptedMessageContentSchema = new Schema<EncryptedMessageContent>(
     {
+        algorithm: {
+            type: String,
+            enum: ["AES-256-GCM"],
+            required: true,
+        },
         ciphertext: {
             type: String,
             minlength: 1,
@@ -73,6 +78,11 @@ const messageSchema = new Schema<Message>(
             immutable: true,
             match: UUID_V4_PATTERN,
             required: true,
+        },
+        requestId: {
+            type: String,
+            immutable: true,
+            maxlength: 128,
         },
         role: {
             type: String,
@@ -150,6 +160,22 @@ messageSchema.index(
     {
         name: "uniq_messages_message_id",
         unique: true,
+    },
+);
+messageSchema.index(
+    {
+        orgId: 1,
+        requestId: 1,
+        role: 1,
+    },
+    {
+        name: "uniq_messages_org_request_role",
+        unique: true,
+        partialFilterExpression: {
+            requestId: {
+                $exists: true,
+            },
+        },
     },
 );
 messageSchema.index(

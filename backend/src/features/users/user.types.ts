@@ -27,6 +27,16 @@ export type UserRole = (typeof USER_ROLES)[number];
 export type UserStatus = (typeof USER_STATUSES)[number];
 export type UserPermission = (typeof USER_PERMISSIONS)[number];
 
+export const USER_PERMISSIONS_BY_ROLE = Object.freeze({
+    EMPLOYEE: Object.freeze(["chat:send", "chat:view_own"] as const),
+    TEAM_LEAD: Object.freeze([
+        "chat:send",
+        "chat:view_own",
+        "team:view_logs",
+    ] as const),
+    ORG_ADMIN: Object.freeze([...USER_PERMISSIONS]),
+}) satisfies Readonly<Record<UserRole, readonly UserPermission[]>>;
+
 export interface User {
     userId: string;
     orgId: string;

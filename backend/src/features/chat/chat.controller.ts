@@ -81,9 +81,11 @@ export function createChatStreamHandler(
             await writeInitialEvents(response, prepared);
 
             let currentChunk: StreamChunk | undefined = prepared.firstChunk;
+            let assistantContent = "";
 
             while (currentChunk !== undefined) {
                 if (currentChunk.type === "token") {
+                    assistantContent += currentChunk.text;
                     const written = await writeSseEvent(
                         response,
                         "token",
@@ -106,6 +108,7 @@ export function createChatStreamHandler(
                             ...(currentChunk.usage === undefined
                                 ? {}
                                 : { usage: currentChunk.usage }),
+                            assistantContent,
                         },
                         dependencies,
                     );

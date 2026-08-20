@@ -9,6 +9,7 @@ export const MESSAGE_ROLES = [
 export type MessageRole = (typeof MESSAGE_ROLES)[number];
 
 export interface EncryptedMessageContent {
+    algorithm: "AES-256-GCM";
     ciphertext: string;
     iv: string;
     authTag: string;
@@ -20,6 +21,7 @@ export interface Message {
     orgId: string;
     conversationId: string;
     userId: string;
+    requestId?: string;
     role: MessageRole;
     contentEnc?: EncryptedMessageContent;
     contentStored: boolean;
@@ -41,7 +43,8 @@ export interface SafeMessageSummary {
     readonly role: ApiMessageRole;
     readonly tokenCount?: number;
     readonly createdAt: Date;
-    readonly contentAvailable: false;
+    readonly contentAvailable: boolean;
+    readonly content?: string;
 }
 
 export interface MessagePage {

@@ -5,11 +5,15 @@ import { connectMongo } from "./shared/lib/mongo.js";
 import { connectRedis } from "./shared/lib/redis.js";
 import { disconnectInfrastructure } from
     "./shared/runtime/infrastructure.js";
+import { initializeEncryption } from "./shared/security/encryption.js";
+import { assertEncryptionStorageReady } from "./shared/security/encryption-readiness.js";
 
 let shutdownStarted = false;
 
 async function startWorker(): Promise<void> {
+    initializeEncryption();
     await Promise.all([connectMongo(), connectRedis()]);
+    await assertEncryptionStorageReady();
     await startWorkerAsyncInfrastructure();
 
     logger.info(

@@ -9,12 +9,16 @@ import { connectMongo } from "./shared/lib/mongo.js";
 import { connectRedis } from "./shared/lib/redis.js";
 import { disconnectInfrastructure } from
     "./shared/runtime/infrastructure.js";
+import { initializeEncryption } from "./shared/security/encryption.js";
+import { assertEncryptionStorageReady } from "./shared/security/encryption-readiness.js";
 
 let server: Server | undefined;
 let shutdownStarted = false;
 
 async function startApi(): Promise<void> {
+    initializeEncryption();
     await Promise.all([connectMongo(), connectRedis()]);
+    await assertEncryptionStorageReady();
     await connectApiAsyncInfrastructure();
 
     if (shutdownStarted) {

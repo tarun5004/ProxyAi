@@ -1,13 +1,16 @@
 import { ConversationModel } from "./conversation.model.js";
+import type { EncryptedPayload } from "../../shared/security/encryption.js";
 import type {
     ConversationDocument,
     ConversationListCursor,
 } from "./conversation.types.js";
 
 export interface NewConversationRecord {
+    readonly conversationId: string;
     readonly orgId: string;
     readonly userId: string;
     readonly title: string;
+    readonly titleEnc?: EncryptedPayload;
 }
 
 export interface ConversationRepository {
@@ -22,6 +25,7 @@ export interface ConversationRepository {
         userId: string,
         conversationId: string,
         title: string,
+        titleEnc?: EncryptedPayload,
     ): Promise<ConversationDocument | null>;
     listOwned(input: {
         orgId: string;
@@ -40,9 +44,9 @@ export const conversationRepository: ConversationRepository = {
             orgId,
             userId,
             conversationId,
-        }).exec();
+        }).select("+titleEnc").exec();
     },
-    async updateTitleOwned(orgId, userId, conversationId, title) {
+    async updateTitleOwned(orgId, userId, conversationId, title, titleEnc) {
         return ConversationModel.findOneAndUpdate(
             {
                 orgId,
@@ -52,20 +56,22 @@ export const conversationRepository: ConversationRepository = {
             {
                 $set: {
                     title,
+                    ...(titleEnc === undefined ? {} : { titleEnc }),
                 },
+                ...(titleEnc === undefined ? { $unset: { titleEnc: 1 } } : {}),
             },
             {
                 returnDocument: "after",
                 runValidators: true,
             },
-        ).exec();
+        ).select("+titleEnc").exec();
     },
     async listOwned(input) {
         return ConversationModel.find({
             orgId: input.orgId,
             userId: input.userId,
             ...createCursorFilter(input.cursor),
-        })
+        }).select("+titleEnc")
             .sort({
                 lastMessageAt: -1,
                 conversationId: -1,

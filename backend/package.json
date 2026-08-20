@@ -9,6 +9,7 @@
     "dev:seed-admin": "tsx src/scripts/seed-dev-admin.ts",
     "seed:demo": "tsx src/scripts/seed-demo-organisation.ts",
     "deploy:indexes": "node dist/scripts/deploy-indexes.js",
+    "migrate:phase9": "node dist/scripts/migrate-phase9.js",
     "build": "tsc",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",

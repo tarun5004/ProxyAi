@@ -39,6 +39,20 @@ const envSchema = runtimeEnvSchema.extend({
     IDEMPOTENCY_COMPLETED_TTL_SECONDS: z.coerce
         .number()
         .pipe(z.literal(3_600)),
+}).superRefine((value, context) => {
+    const hasKeys = value.MESSAGE_ENCRYPTION_KEYS_JSON !== undefined;
+    const hasActiveVersion =
+        value.MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION !== undefined;
+
+    if (hasKeys !== hasActiveVersion) {
+        context.addIssue({
+            code: "custom",
+            path: hasKeys
+                ? ["MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION"]
+                : ["MESSAGE_ENCRYPTION_KEYS_JSON"],
+            message: "Encryption keyring variables must be configured together.",
+        });
+    }
 });
 
 export const env = parseEnvironment(envSchema);

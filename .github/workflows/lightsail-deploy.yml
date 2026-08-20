@@ -188,7 +188,7 @@ jobs:
           umask 077
           secret_json="$(aws secretsmanager get-secret-value --secret-id "${SECRET_ID}" --query SecretString --output text)"
           jq -er '
-            ["MONGO_URI","REDIS_URL","JWT_ACCESS_SECRET","AUTH_RATE_LIMIT_SECRET","GROQ_API_KEY"] as $required
+            ["MONGO_URI","REDIS_URL","JWT_ACCESS_SECRET","AUTH_RATE_LIMIT_SECRET","GROQ_API_KEY","MESSAGE_ENCRYPTION_KEYS_JSON","MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION"] as $required
             | ($required - keys) as $missing
             | if ($missing | length) == 0 then . else error("missing required secret keys") end
           ' <<< "${secret_json}" >/dev/null
@@ -199,6 +199,8 @@ jobs:
             "REDIS_URL=" + .REDIS_URL,
             "JWT_ACCESS_SECRET=" + .JWT_ACCESS_SECRET,
             "AUTH_RATE_LIMIT_SECRET=" + .AUTH_RATE_LIMIT_SECRET,
+            "MESSAGE_ENCRYPTION_KEYS_JSON=" + (.MESSAGE_ENCRYPTION_KEYS_JSON | if type == "string" then . else tojson end),
+            "MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION=" + (.MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION | tostring),
             "GROQ_API_KEY=" + .GROQ_API_KEY,
             "ACCESS_TOKEN_TTL_MINUTES=15",
             "REFRESH_TOKEN_TTL_DAYS=7",

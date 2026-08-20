@@ -218,6 +218,8 @@ Resources:
             - { Name: GROQ_API_KEY, ValueFrom: !Sub "${RuntimeSecretArn}:GROQ_API_KEY::" }
             - { Name: JWT_ACCESS_SECRET, ValueFrom: !Sub "${RuntimeSecretArn}:JWT_ACCESS_SECRET::" }
             - { Name: AUTH_RATE_LIMIT_SECRET, ValueFrom: !Sub "${RuntimeSecretArn}:AUTH_RATE_LIMIT_SECRET::" }
+            - { Name: MESSAGE_ENCRYPTION_KEYS_JSON, ValueFrom: !Sub "${RuntimeSecretArn}:MESSAGE_ENCRYPTION_KEYS_JSON::" }
+            - { Name: MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION, ValueFrom: !Sub "${RuntimeSecretArn}:MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION::" }
           HealthCheck:
             Command:
               - CMD
@@ -264,6 +266,8 @@ Resources:
             - { Name: MONGO_URI, ValueFrom: !Sub "${RuntimeSecretArn}:MONGO_URI::" }
             - { Name: REDIS_URL, ValueFrom: !Sub "${RuntimeSecretArn}:REDIS_URL::" }
             - { Name: GROQ_API_KEY, ValueFrom: !Sub "${RuntimeSecretArn}:GROQ_API_KEY::" }
+            - { Name: MESSAGE_ENCRYPTION_KEYS_JSON, ValueFrom: !Sub "${RuntimeSecretArn}:MESSAGE_ENCRYPTION_KEYS_JSON::" }
+            - { Name: MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION, ValueFrom: !Sub "${RuntimeSecretArn}:MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION::" }
           LogConfiguration:
             LogDriver: awslogs
             Options:

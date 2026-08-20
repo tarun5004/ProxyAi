@@ -2,6 +2,8 @@ import type { Logger } from "pino";
 
 import { AppError } from "../../shared/errors/app-error.js";
 import { verifyPassword } from "../../shared/security/password.js";
+import { appendAudit } from "../audit/audit.service.js";
+import { buildAuditMetadata } from "../audit/audit.metadata.js";
 import type { OrganisationDocument } from "../organisations/organisation.types.js";
 import type { UserDocument } from "../users/user.types.js";
 import {
@@ -75,6 +77,7 @@ function createAuthUnavailableError(): AppError {
 }
 
 interface AuthDependencies {
+    appendAudit: typeof appendAudit;
     claimRefreshTokenForRotation: typeof claimRefreshTokenForRotation;
     createAccessToken: typeof createAccessToken;
     createInitialRefreshTokenMaterial:
@@ -103,6 +106,7 @@ interface AuthDependencies {
 }
 
 const defaultDependencies: AuthDependencies = {
+    appendAudit,
     claimRefreshTokenForRotation,
     createAccessToken,
     createInitialRefreshTokenMaterial,
@@ -307,6 +311,7 @@ export function createAuthService(
         async login(
             input: LoginInput,
             log: Logger,
+            auditContext?: { readonly requestId: string },
         ): Promise<LoginResult> {
             let organisation: OrganisationDocument | null;
 
@@ -341,6 +346,18 @@ export function createAuthService(
                         }
                         : {},
                 );
+                if (organisation !== null) {
+                    await auditBestEffort({
+                        orgId: organisation.orgId,
+                        actorType: "SYSTEM",
+                        action: "auth.login_failed",
+                        outcome: "FAILURE",
+                        resourceType: "AUTH_SESSION",
+                        metadata: buildAuditMetadata("auth.login_failed", {
+                            reasonCode: "ORGANISATION_SUSPENDED",
+                        }),
+                    }, auditContext, log);
+                }
 
                 throw createInvalidCredentialsError();
             }
@@ -377,6 +394,16 @@ export function createAuthService(
                         orgId: organisation.orgId,
                     },
                 );
+                await auditBestEffort({
+                    orgId: organisation.orgId,
+                    actorType: "SYSTEM",
+                    action: "auth.login_failed",
+                    outcome: "FAILURE",
+                    resourceType: "AUTH_SESSION",
+                    metadata: buildAuditMetadata("auth.login_failed", {
+                        reasonCode: "USER_NOT_FOUND",
+                    }),
+                }, auditContext, log);
 
                 throw createInvalidCredentialsError();
             }
@@ -435,6 +462,21 @@ export function createAuthService(
                         userId: user.userId,
                     },
                 );
+                await auditBestEffort({
+                    orgId: organisation.orgId,
+                    actorId: user.userId,
+                    actorType: "USER",
+                    actorRole: user.role,
+                    action: "auth.login_failed",
+                    outcome: "FAILURE",
+                    resourceType: "AUTH_SESSION",
+                    resourceId: user.userId,
+                    metadata: buildAuditMetadata("auth.login_failed", {
+                        reasonCode: user.status === "ACTIVE"
+                            ? "PASSWORD_MISMATCH"
+                            : "USER_INACTIVE",
+                    }),
+                }, auditContext, log);
 
                 throw createInvalidCredentialsError();
             }
@@ -510,6 +552,17 @@ export function createAuthService(
                 },
                 "Login succeeded",
             );
+            await auditBestEffort({
+                orgId: organisation.orgId,
+                actorId: user.userId,
+                actorType: "USER",
+                actorRole: user.role,
+                action: "auth.login_succeeded",
+                outcome: "SUCCESS",
+                resourceType: "AUTH_SESSION",
+                resourceId: refreshTokenMaterial.sessionId,
+                metadata: buildAuditMetadata("auth.login_succeeded", {}),
+            }, auditContext, log);
 
             return {
                 accessToken: accessTokenResult.accessToken,
@@ -539,6 +592,7 @@ export function createAuthService(
         async refreshSession(
             rawRefreshToken: string,
             log: Logger,
+            auditContext?: { readonly requestId: string },
         ): Promise<RefreshSessionResult> {
             const tokenHash =
                 dependencies.hashRefreshToken(rawRefreshToken);
@@ -587,6 +641,18 @@ export function createAuthService(
 
                 await revokeFamilyBestEffort(existingToken, log);
                 logRefreshReuseDetected(log, identifiers);
+                await auditBestEffort({
+                    orgId: existingToken.orgId,
+                    actorId: existingToken.userId,
+                    actorType: "USER",
+                    action: "auth.refresh_reuse_detected",
+                    outcome: "FAILURE",
+                    resourceType: "AUTH_SESSION",
+                    resourceId: existingToken.sessionId,
+                    metadata: buildAuditMetadata("auth.refresh_reuse_detected", {
+                        reasonCode: "REFRESH_TOKEN_REUSE",
+                    }),
+                }, auditContext, log);
 
                 throw createInvalidRefreshTokenError();
             }
@@ -758,6 +824,7 @@ export function createAuthService(
         async logoutSession(
             rawRefreshToken: string | undefined,
             log: Logger,
+            auditContext?: { readonly requestId: string },
         ): Promise<void> {
             if (!rawRefreshToken) {
                 logLogoutSuccess(log, "REFRESH_TOKEN_MISSING");
@@ -812,8 +879,44 @@ export function createAuthService(
                 log,
                 "REFRESH_TOKEN_REVOKED",
             );
+            await auditBestEffort({
+                orgId: existingToken.orgId,
+                actorId: existingToken.userId,
+                actorType: "USER",
+                action: "auth.logout_succeeded",
+                outcome: "SUCCESS",
+                resourceType: "AUTH_SESSION",
+                resourceId: existingToken.sessionId,
+                metadata: buildAuditMetadata("auth.logout_succeeded", {
+                    reasonCode: "REFRESH_TOKEN_REVOKED",
+                }),
+            }, auditContext, log);
         },
     };
+
+    async function auditBestEffort(
+        event: Omit<Parameters<typeof appendAudit>[0], "requestId">,
+        context: { readonly requestId: string } | undefined,
+        log: Logger,
+    ): Promise<void> {
+        if (context === undefined) return;
+
+        try {
+            await dependencies.appendAudit({
+                ...event,
+                requestId: context.requestId,
+            });
+        } catch {
+            log.error(
+                {
+                    event: "auth.audit_write_failed",
+                    errorCode: "AUDIT_UNAVAILABLE",
+                    orgId: event.orgId,
+                },
+                "Authentication audit write failed",
+            );
+        }
+    }
 
     async function revokeFamilyBestEffort(
         token: RefreshTokenDocument,

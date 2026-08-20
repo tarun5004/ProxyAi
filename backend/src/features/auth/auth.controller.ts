@@ -103,6 +103,7 @@ export async function login(
     const result = await authService.login(
         parsedRequest.data,
         request.log,
+        { requestId: request.requestId },
     );
 
     response.cookie(
@@ -155,6 +156,7 @@ export function createRefreshHandler(
             const result = await service.refreshSession(
                 rawRefreshToken,
                 request.log,
+                { requestId: request.requestId },
             );
 
             response.cookie(
@@ -208,6 +210,7 @@ export async function logout(
     await authService.logoutSession(
         rawRefreshToken,
         request.log,
+        { requestId: request.requestId },
     );
 
     response.setHeader("Cache-Control", "no-store");

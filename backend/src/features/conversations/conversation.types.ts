@@ -1,4 +1,5 @@
 import type { HydratedDocument } from "mongoose";
+import type { EncryptedPayload } from "../../shared/security/encryption.js";
 
 export const DEFAULT_CONVERSATION_TITLE = "New conversation";
 
@@ -7,6 +8,7 @@ export interface Conversation {
     orgId: string;
     userId: string;
     title: string;
+    titleEnc?: EncryptedPayload;
     messageCount: number;
     lastMessageAt: Date | null;
     createdAt: Date;

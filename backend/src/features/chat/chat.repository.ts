@@ -3,12 +3,14 @@ import { OrganisationModel } from "../organisations/organisation.model.js";
 import type {
     OrganisationPlan,
     OrganisationPolicy,
+    RetentionMode,
 } from "../organisations/organisation.types.js";
 
 export interface ChatOrganisationContext {
     readonly plan: OrganisationPlan;
     readonly policy: Readonly<OrganisationPolicy>;
     readonly autoRoutingEnabled: boolean;
+    readonly retentionMode: RetentionMode;
 }
 
 interface OrganisationChatRecord {
@@ -16,6 +18,9 @@ interface OrganisationChatRecord {
     readonly policy: OrganisationPolicy;
     readonly featureFlags: {
         readonly autoRouting: boolean;
+    };
+    readonly retention: {
+        readonly mode: RetentionMode;
     };
 }
 
@@ -34,6 +39,7 @@ export async function loadChatOrganisationContext(
                 plan: 1,
                 policy: 1,
                 "featureFlags.autoRouting": 1,
+                "retention.mode": 1,
             })
             .lean<OrganisationChatRecord>()
             .exec();
@@ -60,5 +66,6 @@ export async function loadChatOrganisationContext(
             blockThreshold: organisation.policy.blockThreshold,
         }),
         autoRoutingEnabled: organisation.featureFlags.autoRouting,
+        retentionMode: organisation.retention.mode,
     });
 }

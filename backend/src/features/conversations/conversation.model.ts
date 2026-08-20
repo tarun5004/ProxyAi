@@ -12,6 +12,17 @@ const UUID_V4_PATTERN =
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const { model, models, Schema } = mongoose;
 
+const encryptedTitleSchema = new Schema(
+    {
+        algorithm: { type: String, enum: ["AES-256-GCM"], required: true },
+        ciphertext: { type: String, minlength: 1, required: true },
+        iv: { type: String, minlength: 1, required: true },
+        authTag: { type: String, minlength: 1, required: true },
+        keyVersion: { type: Number, min: 1, required: true },
+    },
+    { _id: false, strict: "throw" },
+);
+
 const conversationSchema = new Schema<Conversation>(
     {
         conversationId: {
@@ -41,6 +52,10 @@ const conversationSchema = new Schema<Conversation>(
             maxlength: 120,
             required: true,
         },
+        titleEnc: {
+            type: encryptedTitleSchema,
+            select: false,
+        },
         messageCount: {
             type: Number,
             default: 0,
@@ -61,6 +76,18 @@ const conversationSchema = new Schema<Conversation>(
         collection: "conversations",
         strict: "throw",
         timestamps: true,
+        toJSON: {
+            transform: (_document, returnedObject) => {
+                const { titleEnc: _titleEnc, ...safeObject } = returnedObject;
+                return safeObject;
+            },
+        },
+        toObject: {
+            transform: (_document, returnedObject) => {
+                const { titleEnc: _titleEnc, ...safeObject } = returnedObject;
+                return safeObject;
+            },
+        },
     },
 );
 

@@ -5,9 +5,17 @@ import { requirePermission } from "../auth/authorization.middleware.js";
 import {
     adminAlerts,
     adminBilling,
+    adminChangeUserRole,
+    adminChangeUserStatus,
+    adminChangeUserTeam,
+    adminExportAudit,
     adminLogs,
+    adminRevokeUserSessions,
     adminSummary,
     adminTeams,
+    adminUpdateAlert,
+    adminUpdatePolicy,
+    adminUpdateRetention,
     adminUsers,
 } from "./admin.controller.js";
 
@@ -20,3 +28,11 @@ adminRouter.get("/billing", requirePermission("admin:view_billing"), adminBillin
 adminRouter.get("/alerts", requirePermission("admin:view_logs"), adminAlerts);
 adminRouter.get("/users", requirePermission("admin:manage_users"), adminUsers);
 adminRouter.get("/teams", requirePermission("admin:manage_users"), adminTeams);
+adminRouter.patch("/users/:userId/role", requirePermission("admin:manage_users"), adminChangeUserRole);
+adminRouter.patch("/users/:userId/team", requirePermission("admin:manage_users"), adminChangeUserTeam);
+adminRouter.patch("/users/:userId/status", requirePermission("admin:manage_users"), adminChangeUserStatus);
+adminRouter.post("/users/:userId/revoke-sessions", requirePermission("admin:manage_users"), adminRevokeUserSessions);
+adminRouter.patch("/policy", requirePermission("admin:configure_policy"), adminUpdatePolicy);
+adminRouter.patch("/retention", requirePermission("admin:configure_policy"), adminUpdateRetention);
+adminRouter.patch("/alerts/:alertId", requirePermission("admin:view_logs"), adminUpdateAlert);
+adminRouter.get("/audit/export", requirePermission("admin:export_audit"), adminExportAudit);

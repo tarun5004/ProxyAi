@@ -15,6 +15,13 @@ export const runtimeEnvSchema = z.object({
         .int()
         .min(1_000)
         .max(120_000),
+    MESSAGE_ENCRYPTION_KEYS_JSON: z.string().trim().min(1).optional(),
+    MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION: z.coerce
+        .number()
+        .int()
+        .positive()
+        .safe()
+        .optional(),
     COMMIT_SHA: z.preprocess(
         (value) =>
             typeof value === "string" && value.trim() === "" ? undefined : value,
