@@ -1010,6 +1010,12 @@ Index used: `{ orgId, conversationId, createdAt }`.
 
 ### 25.3 Admin request log
 
+The Phase 8 admin query may filter only current persisted fields: trusted
+`orgId`, `userId`, `providerId`, `status`, `policyAction`, and bounded
+`createdAt`. Results contain token usage only when known. The current schema has
+no `teamId`, latency, cache, fallback, routing, cost, or PII-risk fields, so
+those filters and projections are prohibited rather than inferred.
+
 ```ts
 RequestLog.find({ orgId, createdAt: { $gte: from, $lte: to } })
   .sort({ createdAt: -1, _id: -1 })

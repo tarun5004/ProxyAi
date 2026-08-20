@@ -404,10 +404,8 @@ enum: [manual, auto, fallback, cache]
 | GET | `/admin/logs` | Bearer | `admin:view_logs` | JSON |
 | GET | `/admin/billing` | Bearer | `admin:view_billing` | JSON |
 | GET | `/admin/alerts` | Bearer | `admin:view_logs` | JSON |
-| PATCH | `/admin/alerts/{alertId}` | Bearer | `admin:view_logs` | JSON |
-| PATCH | `/admin/policy` | Bearer | `admin:configure_policy` | JSON |
-| PATCH | `/admin/retention` | Bearer | `admin:configure_policy` | JSON |
-| GET | `/admin/audit/export` | Bearer | `admin:export_audit` | CSV |
+| GET | `/admin/users` | Bearer | `admin:manage_users` | JSON |
+| GET | `/admin/teams` | Bearer | `admin:manage_users` | JSON |
 | GET | `/health/live` | Public | None | JSON |
 | GET | `/health/ready` | Public | None | JSON |
 | GET | `/health/detailed` | Bearer or disabled | `platform:view_health` | JSON |
@@ -1062,6 +1060,13 @@ When the client disconnects:
 
 # 17. Admin Summary API
 
+> **Phase 8 canonical boundary:** Admin APIs are read-only and organisation
+> scoped. The backend exposes only fields present in current authoritative
+> schemas. Monetary cost, latency, cache, fallback, routing reason, and PII-risk
+> metrics are omitted. Team-lead request-log access, admin mutations, alert
+> resolution, and audit export remain deferred until their trusted ownership or
+> Phase 9 append-only audit prerequisites exist.
+
 ## 17.1 GET `/admin/summary`
 
 Returns organisation-scoped dashboard KPIs for a selected period.
@@ -1095,20 +1100,6 @@ Returns organisation-scoped dashboard KPIs for a selected period.
       "remaining": 105780,
       "remainingPercent": 10.58
     },
-    "cost": {
-      "currency": "USD",
-      "estimatedTotal": "4.82"
-    },
-    "performance": {
-      "averageLatencyMs": 1120,
-      "p50LatencyMs": 860,
-      "p95LatencyMs": 2140,
-      "errorRatePercent": 2.1
-    },
-    "routing": {
-      "cacheHitRatePercent": 12.4,
-      "fallbackRatePercent": 3.2
-    },
     "alerts": {
       "active": 4
     },
@@ -1127,7 +1118,8 @@ Returns organisation-scoped dashboard KPIs for a selected period.
 }
 ```
 
-Cost is returned as a decimal string to avoid floating-point contract ambiguity.
+Unknown usage is represented explicitly and never converted to zero. Cost is
+omitted because provider pricing is not approved and is not persisted.
 
 # 18. Admin Request Log API
 
@@ -1145,13 +1137,11 @@ Returns organisation-scoped request metadata. It never returns raw prompt or res
 |---|---|---:|---|
 | `limit` | integer | 25 | 1–100 |
 | `cursor` | string | none | Opaque cursor |
-| `employee` | string | none | User public ID or email within current organisation |
+| `userId` | UUID | none | User public ID within current organisation |
 | `provider` | string | none | Configured provider enum |
 | `dateFrom` | datetime | none | Inclusive UTC lower bound |
 | `dateTo` | datetime | none | Inclusive UTC upper bound |
-| `piiOnly` | boolean | false | Only risk score greater than zero |
 | `status` | string | none | `COMPLETED`, `BLOCKED`, `FAILED`, `INTERRUPTED` |
-| `fallbackUsed` | boolean | none | Filter fallback routing |
 
 The maximum permitted date range should be bounded in configuration to avoid expensive unbounded queries.
 
@@ -1164,11 +1154,7 @@ The maximum permitted date range should be bounded in configuration to avoid exp
     "items": [
       {
         "requestId": "req_01J...",
-        "user": {
-          "userId": "usr_7dd6...",
-          "email": "employee@example.com"
-        },
-        "conversationId": "conv_2fb...",
+        "userId": "d7dd6154-d0a3-4c27-b28c-bf332ac3219a",
         "provider": "groq",
         "model": "configured-model",
         "routingReason": "fallback",
@@ -1178,13 +1164,7 @@ The maximum permitted date range should be bounded in configuration to avoid exp
           "output": 142,
           "total": 160
         },
-        "estimatedCostUsd": "0.0008",
-        "latencyMs": 1480,
-        "piiRiskScore": 0,
-        "piiCategories": [],
         "policyAction": "ALLOW",
-        "cacheHit": false,
-        "fallbackUsed": true,
         "createdAt": "2026-07-23T10:16:02.000Z"
       }
     ]
@@ -1199,8 +1179,7 @@ The maximum permitted date range should be bounded in configuration to avoid exp
 ### Tenant and team scope
 
 - An organisation admin receives organisation-wide results.
-- A team lead, when supported by the route guard, receives only assigned-team results.
-- Employee identity lookup must occur inside the authenticated organisation.
+- Team-lead access is not exposed until a trusted RequestLog-to-team ownership contract exists.
 - Cross-tenant IDs must behave as not found, not as permission-disclosure errors.
 
 # 19. Admin Billing API
@@ -1240,20 +1219,19 @@ Returns pre-aggregated billing and token usage.
       "inputTokens": 384220,
       "outputTokens": 510000,
       "totalTokens": 894220,
-      "estimatedCostUsd": "4.82"
+      "knownUsageRequestCount": 1239,
+      "unknownUsageRequestCount": 1
     },
     "byProvider": [
       {
         "providerId": "groq",
         "requestCount": 820,
-        "totalTokens": 520000,
-        "estimatedCostUsd": "0.75"
+        "totalTokens": 520000
       },
       {
         "providerId": "gemini",
         "requestCount": 420,
-        "totalTokens": 374220,
-        "estimatedCostUsd": "4.07"
+        "totalTokens": 374220
       }
     ]
   },
@@ -1263,7 +1241,8 @@ Returns pre-aggregated billing and token usage.
 }
 ```
 
-Amounts are estimates derived from configured provider pricing. The API must not present them as provider-issued invoices. No pricing snapshot is currently approved, so Phase 7 jobs omit cost instead of reporting zero. Before the Phase 8 billing API is implemented, its nullable/omission response schema must be finalized against the approved pricing configuration.
+Pricing is not approved, so the API omits cost instead of reporting a fabricated
+zero or estimate. Unknown usage remains visible separately from known totals.
 
 # 20. Admin Alerts APIs
 
@@ -1288,7 +1267,7 @@ to the authenticated organisation.
 |---|---|---:|---|
 | `limit` | integer | 25 | 1–100 |
 | `cursor` | string | none | Opaque cursor |
-| `type` | string | none | `anomaly`, `pii`, `budget`, or `system` when implemented |
+| `type` | string | `ANOMALY` | Only `ANOMALY` exists in the current MVP |
 | `resolved` | boolean | false | Filter resolution state |
 
 ### Success — `200 OK`
@@ -1300,13 +1279,11 @@ to the authenticated organisation.
     "items": [
       {
         "alertId": "alt_91c...",
-        "type": "budget",
-        "severity": "warning",
-        "message": "Monthly token usage has reached 80% of the configured budget.",
-        "userId": null,
-        "normalUsage": null,
-        "observedUsage": 800000,
-        "percentageIncrease": null,
+        "type": "ANOMALY",
+        "severity": "HIGH",
+        "message": "Daily token usage exceeded the approved rolling baseline.",
+        "userId": "d7dd6154-d0a3-4c27-b28c-bf332ac3219a",
+        "observedDay": "2026-07-20",
         "resolved": false,
         "createdAt": "2026-07-20T08:00:00.000Z",
         "resolvedAt": null
@@ -1320,7 +1297,7 @@ to the authenticated organisation.
 }
 ```
 
-## 20.2 PATCH `/admin/alerts/{alertId}`
+## 20.2 PATCH `/admin/alerts/{alertId}` — deferred
 
 Marks an alert resolved or reopens it.
 
@@ -1356,11 +1333,12 @@ resolution reuse that record and do not create duplicate same-day alerts.
 }
 ```
 
-The change must create an audit event. The alert lookup must include authenticated `orgId`.
+This route is not implemented before Phase 9 because the required durable audit
+write does not yet exist.
 
 # 21. Admin Policy API
 
-## 21.1 PATCH `/admin/policy`
+## 21.1 PATCH `/admin/policy` — deferred to Phase 9 audit prerequisite
 
 Updates approved organisation policy thresholds and monthly token budget.
 
@@ -1412,7 +1390,7 @@ Write old and new safe configuration values. Do not include unrelated organisati
 
 # 22. Admin Retention API
 
-## 22.1 PATCH `/admin/retention`
+## 22.1 PATCH `/admin/retention` — deferred to Phase 9 audit prerequisite
 
 Updates the organisation retention mode.
 
@@ -1428,7 +1406,7 @@ Updates the organisation retention mode.
 }
 ```
 
-### Request — encrypted storage
+### Future request — encrypted storage after Phase 9
 
 ```json
 {
@@ -1436,20 +1414,10 @@ Updates the organisation retention mode.
 }
 ```
 
-### Request — custom retention
-
-```json
-{
-  "mode": "CUSTOM_RETENTION",
-  "retentionDays": 30
-}
-```
-
 ### Validation
 
-- `retentionDays` is required only for `CUSTOM_RETENTION`.
-- `retentionDays` must be a positive integer within a configured maximum.
-- `NO_STORAGE` is rejected because it is roadmap-only.
+- `CUSTOM_RETENTION` and `NO_STORAGE` are not MVP modes.
+- `ENCRYPTED_STORAGE` cannot be selected before Phase 9 encryption exists.
 - The update applies prospectively. It does not silently decrypt, rewrite, or restore historical content.
 
 ### Success — `200 OK`
@@ -1459,8 +1427,7 @@ Updates the organisation retention mode.
   "success": true,
   "data": {
     "retention": {
-      "mode": "CUSTOM_RETENTION",
-      "retentionDays": 30
+      "mode": "METADATA_ONLY"
     },
     "effectiveAt": "2026-07-23T10:25:00.000Z"
   },
@@ -1474,7 +1441,7 @@ The policy is enforced before future message persistence.
 
 # 23. Audit Export API
 
-## 23.1 GET `/admin/audit/export`
+## 23.1 GET `/admin/audit/export` — Phase 9
 
 Exports append-only audit records for the current organisation as CSV.
 

@@ -902,6 +902,18 @@ No machine learning is used.
 
 ## 8.21 Admin Component
 
+Phase 8 is a read-only organisation administration surface backed only by the
+implemented `RequestLog`, `AnalyticsDailyAggregate`, `BillingRollup`, `Alert`,
+`User`, `Team`, `Organisation`, and Redis provider-health contracts. It does
+not expose cost, latency, cache, fallback, routing, or PII-risk metrics that are
+not authoritatively persisted. Team-lead logs remain deferred because current
+request records have no trusted team ownership.
+
+Security-critical mutations for users, teams, policy, budget, retention, and
+alert state remain unavailable until Phase 9 can atomically require a durable
+append-only admin audit record. Audit export is also Phase 9. The Phase 8 UI
+must not render enabled mutation controls for these deferred operations.
+
 ### MVP dashboard data
 
 - Requests today and this month

@@ -4,12 +4,11 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
-- **Task:** P12-09A — Cost-Optimized Lightsail Live-Demo Migration
-- **Status:** Verified autopsy P0/P1 runtime fixes and deployment-policy/rollback
-  corrections are complete. Lightsail provisioning, canary, public cutover,
-  and rollback proof remain active; the existing ECS deployment remains live
-  and unchanged, and Phase 8 remains deferred.
+- **Phase:** Phase 8 — Admin Dashboard and RBAC
+- **Task:** Phase 8 — Admin Dashboard and RBAC
+- **Status:** In progress. The approved implementation boundary is read-only,
+  tenant-scoped administration backed only by authoritative persisted fields.
+  Phase 9-dependent mutations remain unavailable.
 
 ## Completed Tasks
 
@@ -86,6 +85,20 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P12-01 through P12-08 — AWS contracts, immutable frontend configuration, split API/worker runtimes, production images, local Compose, create-only indexes, parameterized AWS infrastructure, and GitHub Actions release/rollback automation completed on 2026-08-19
 
 ## Important Decisions
+
+- Phase 8 admin APIs use trusted authenticated `orgId` only and expose no
+  client-controlled tenant scope.
+- Phase 8 implements read-only summary, request logs, billing usage, anomaly
+  alerts, users, and teams. Cost, latency, cache, fallback, routing, and
+  PII-risk metrics are omitted because current persistence does not support
+  them authoritatively.
+- Team-lead logs are deferred because `RequestLog` has no trusted team
+  ownership field. Role/team/status, policy/budget/retention, alert resolution,
+  and audit export are blocked by the Phase 9 durable append-only audit
+  prerequisite.
+- `ENCRYPTED_STORAGE` cannot be enabled before Phase 9, `CUSTOM_RETENTION` is
+  not an MVP mode, and alert email delivery remains deferred pending an
+  approved provider/configuration/template contract.
 
 - `docs/15_PHASE.md` is the official PHASE document; no duplicate root `PHASE.md` will be created.
 - P1-02 is limited to `NODE_ENV`, `PORT`, `MONGO_URI`, and `REDIS_URL`.

@@ -1713,15 +1713,33 @@ Redis rate limiting is unavailable.
 
 ## 34. Admin API Design
 
+### 34.0 Phase 8 canonical implementation boundary
+
+Phase 8 implements read-only organisation administration over authoritative
+persisted fields only. Permissions use the existing lowercase namespaced
+allowlist. Every repository query receives trusted `req.auth.orgId`; ordinary
+client input never supplies tenant scope.
+
+Supported routes are `GET /admin/summary`, `GET /admin/logs`,
+`GET /admin/billing`, `GET /admin/alerts`, `GET /admin/users`, and
+`GET /admin/teams`. Results omit raw prompts, responses, message ciphertext,
+credentials, prices/cost, latency, cache, fallback, and PII-risk fields because
+the current authoritative schemas do not persist those values.
+
+Team-lead log access is deferred because `RequestLog` has no trusted `teamId`.
+Role/team/status, policy/budget/retention, and alert-resolution mutations are
+not exposed before the Phase 9 append-only admin-audit guarantee. Audit export
+also remains Phase 9 work. `ENCRYPTED_STORAGE` cannot be enabled before Phase 9,
+and `CUSTOM_RETENTION` is not an MVP mode.
+
 | Method | Path | Permission | Notes |
 |---|---|---|---|
-| GET | `/admin/summary` | `ADMIN_VIEW_LOGS` | KPI summary |
-| GET | `/admin/logs` | `ADMIN_VIEW_LOGS` | Cursor pagination and filters |
-| GET | `/admin/billing` | `ADMIN_VIEW_BILLING` | Monthly rollups |
-| GET | `/admin/alerts` | `ADMIN_VIEW_LOGS` | Unresolved/resolved alerts |
-| PATCH | `/admin/policy` | `ADMIN_CONFIGURE_POLICY` | Thresholds and budget |
-| PATCH | `/admin/retention` | `ADMIN_CONFIGURE_POLICY` | Metadata/encrypted mode |
-| GET | `/admin/audit/export` | `ADMIN_EXPORT_AUDIT` | CSV export |
+| GET | `/admin/summary` | `admin:view_logs` | Persisted request, usage, alert, budget, and provider-health summary |
+| GET | `/admin/logs` | `admin:view_logs` | Cursor pagination and persisted-field filters |
+| GET | `/admin/billing` | `admin:view_billing` | Authoritative token accounting |
+| GET | `/admin/alerts` | `admin:view_logs` | Read-only anomaly alerts |
+| GET | `/admin/users` | `admin:manage_users` | Read-only organisation users |
+| GET | `/admin/teams` | `admin:manage_users` | Read-only organisation teams and member counts |
 
 Every query must apply `orgId` from `req.auth`. Team-lead routes use separate endpoints or explicit team-scoped query logic.
 

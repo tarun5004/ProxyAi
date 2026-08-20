@@ -606,6 +606,17 @@ An audit record shall include organisation, actor, action, resource, timestamp, 
 
 ## 9.15 Admin dashboard
 
+The Phase 8 MVP admin dashboard is read-only and organisation-scoped. It shows
+only authoritative request outcomes, known/unknown token usage,
+provider/model request counts, budget configuration, anomaly alerts, provider
+health, users, and teams that current persistence supports. It does not invent
+cost, latency, cache, fallback, routing, or PII-risk metrics.
+
+Admin mutations, alert resolution, encrypted retention enablement, and audit
+export require the Phase 9 append-only audit/encryption guarantees and remain
+unavailable in Phase 8. Team-lead logs remain deferred until request ownership
+can be mapped to a trusted team.
+
 ### FR-ADMIN-001 — KPI summary
 
 The dashboard shall display:

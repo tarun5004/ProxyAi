@@ -738,23 +738,27 @@ response, PII, credential, or secret is stored or logged.
 
 **Effort:** High
 
-- [ ] Dashboard summary: requests, tokens, cost, provider use, fallback rate, cache hit ratio, alerts, budget, health.
-- [ ] Request-log filters by employee, provider, date, and PII flag.
-- [ ] Stable cursor pagination.
-- [ ] Metadata-only admin results.
-- [ ] User listing, role assignment, team assignment, activation, and deactivation.
-- [ ] Revoke sessions when deactivating user.
-- [ ] Policy and retention settings UI.
-- [ ] Alert listing and resolution.
-- [ ] Implement `alert.created` ORG_ADMIN email delivery only after provider, validated configuration, sender, error mapping, and template content are approved.
-- [ ] Audit all admin changes.
+- [ ] P8-01 — Add organisation-scoped dashboard summary backed only by persisted analytics, billing, anomaly-alert, and provider-health data.
+- [ ] P8-02 — Add stable cursor-paginated metadata-only request logs with filters supported by the current `RequestLog` schema.
+- [ ] P8-03 — Add read-only organisation user and team listings.
+- [ ] P8-04 — Add authoritative billing/token usage and explicit known/unknown accounting visibility.
+- [ ] P8-05 — Add read-only anomaly alert listing.
+- [ ] P8-06 — Add the permission-aware responsive admin frontend for the supported read APIs.
+- [ ] P8-07 — Verify tenant isolation, permission denial, bounded pagination, unsupported-metric omission, and sensitive-data exclusion.
+- [ ] Team-lead request-log access is deferred until request ownership can be mapped to a trusted team without weakening scope.
+- [ ] User role/team/status mutations and refresh-session revocation are blocked by the Phase 9 durable admin-audit guarantee.
+- [ ] Policy, budget, retention, and alert-resolution mutations are blocked by the Phase 9 durable admin-audit guarantee.
+- [ ] Audit export is Phase 9 work because the append-only `AuditLog` does not exist yet.
+- [ ] `ENCRYPTED_STORAGE` remains unavailable until Phase 9 encryption is implemented; `CUSTOM_RETENTION` is not an MVP mode.
+- [ ] `alert.created` email delivery remains deferred until provider, configuration, sender, error mapping, and allowlisted template content are approved.
+- [ ] Cost, latency, cache, fallback, and PII-risk dashboard metrics remain omitted until authoritative persistence and approved contracts exist.
 
 ## Exit Criteria
 
 - [ ] Admin sees only their organisation.
-- [ ] Team lead sees only their team.
+- [ ] Employee and unauthorised users receive `403` for admin routes.
 - [ ] Admin does not automatically receive decrypted employee prompts.
-- [ ] Dashboard values are correct.
+- [ ] Dashboard values match authoritative persisted records and unknown usage remains explicit.
 
 ---
 
@@ -1043,7 +1047,7 @@ Do not randomly change several files.
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
 | Phase 7 | Completed | Provider health and durable billing/analytics enqueue recovery verified; email delivery waived to Phase 8 |
-| Phase 8 | Deferred | Planned after first live deployment; not cancelled |
+| Phase 8 | In Progress | Read-only tenant admin contract approved; Phase 9-dependent mutations explicitly blocked/deferred |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
@@ -1054,14 +1058,13 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## P12-09 — Staging and Production-Like Release Verification
+## Phase 8 — Complete Read-Only Tenant Administration
 
-**Effort:** Medium
+**Effort:** High
 
-Provision approved environment parameters/secrets, run the complete CI/CD
-workflow against staging, verify authenticated application/worker/accounting
-smoke, promote the same digests after approval, and execute rollback proof.
-Do not start Phase 8 product work.
+Implement only authoritative organisation-scoped summary, request-log,
+billing, alerts, users, teams, and frontend views. Do not start Phase 9 or
+expose audit-dependent mutations.
 
 ### Active cost-cut migration
 

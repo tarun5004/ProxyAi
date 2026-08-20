@@ -1179,6 +1179,17 @@ persistence remains Phase 9.
 
 ### 21.4 Administrative access
 
+Phase 8 exposes read-only tenant administration. Every query uses the current
+authenticated `orgId`; client tenant scope is ignored/rejected. Request logs
+remain metadata-only and never reveal prompt, response, encrypted message
+content, credentials, or sensitive headers. Team-lead logs are deferred until
+trusted team ownership exists on the queried resource.
+
+User/team/status, policy/budget/retention, and alert-state mutations remain
+blocked until Phase 9 provides the required durable append-only admin audit
+guarantee. Hiding controls in the frontend is not authorization; deferred
+routes are absent from the backend.
+
 - Production console access is restricted.
 - Avoid shared accounts.
 - Record deployment and configuration changes in source control or change notes without secrets.
