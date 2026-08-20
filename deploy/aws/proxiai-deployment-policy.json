@@ -199,6 +199,8 @@
       "Action": [
         "logs:CreateLogGroup",
         "logs:CreateLogStream",
+        "logs:FilterLogEvents",
+        "logs:GetLogEvents",
         "logs:PutLogEvents",
         "logs:PutRetentionPolicy"
       ],
