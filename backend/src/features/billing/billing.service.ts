@@ -1,5 +1,6 @@
 import { AppError } from "../../shared/errors/app-error.js";
 import type { BudgetStatus } from "../policy/policy.types.js";
+import { getProviderModelCapability } from "../providers/provider-capability.registry.js";
 import {
     billingRepository,
     type BillingRepository,
@@ -7,6 +8,7 @@ import {
 import type {
     BillingJobOutcome,
     NewRequestUsageRecord,
+    PeriodUsageAggregate,
     RequestUsageDocument,
 } from "./billing.types.js";
 
@@ -46,22 +48,23 @@ export async function readAuthoritativeBudgetStatus(
             end,
         );
 
-        if (aggregate.knownUsageCount !== aggregate.sourceRequestCount) {
-            throw accountingUnavailable(
-                "Token usage accounting is incomplete.",
-            );
-        }
+        const reservedTokens = calculateUnresolvedUsageReservation(
+            aggregate.unresolvedUsageGroups,
+        );
 
-        await repository.upsertRollup({
-            orgId,
-            period,
-            usedTokens: aggregate.usedTokens,
-            sourceRequestCount: aggregate.sourceRequestCount,
-        });
+        if (reservedTokens === 0) {
+            await repository.upsertRollup({
+                orgId,
+                period,
+                usedTokens: aggregate.usedTokens,
+                sourceRequestCount: aggregate.sourceRequestCount,
+            });
+        }
 
         return createBudgetStatus(
             organisation.monthlyTokenBudget,
             aggregate.usedTokens,
+            reservedTokens,
         );
     } catch (error: unknown) {
         if (
@@ -127,9 +130,18 @@ function getUtcBillingPeriodBounds(date: Date): {
 function createBudgetStatus(
     monthlyBudgetTokens: number,
     usedTokens: number,
+    reservedTokens = 0,
 ): Readonly<BudgetStatus> {
+    const budgetedTokens = usedTokens + reservedTokens;
+
+    if (!Number.isSafeInteger(budgetedTokens)) {
+        throw accountingUnavailable(
+            "Token budget accounting is unavailable.",
+        );
+    }
+
     const remainingTokens = Math.max(
-        monthlyBudgetTokens - usedTokens,
+        monthlyBudgetTokens - budgetedTokens,
         0,
     );
     const remainingPercent = monthlyBudgetTokens === 0
@@ -139,10 +151,36 @@ function createBudgetStatus(
     return Object.freeze({
         monthlyBudgetTokens,
         usedTokens,
+        ...(reservedTokens === 0
+            ? {}
+            : { reservedTokens, budgetedTokens }),
         remainingTokens,
         remainingPercent,
-        exceeded: usedTokens >= monthlyBudgetTokens,
+        exceeded: budgetedTokens >= monthlyBudgetTokens,
     });
+}
+
+function calculateUnresolvedUsageReservation(
+    groups: PeriodUsageAggregate["unresolvedUsageGroups"],
+): number {
+    return groups.reduce((total, group) => {
+        const capability = getProviderModelCapability(
+            group.providerId,
+            group.model,
+        );
+        const perRequestReservation =
+            capability.maxInputTokens + capability.maxOutputTokens;
+        const nextTotal = total
+            + perRequestReservation * group.requestCount;
+
+        if (!Number.isSafeInteger(nextTotal)) {
+            throw accountingUnavailable(
+                "Token budget accounting is unavailable.",
+            );
+        }
+
+        return nextTotal;
+    }, 0);
 }
 
 function accountingUnavailable(message: string): AppError {

@@ -46,6 +46,11 @@ export interface PeriodUsageAggregate {
     readonly usedTokens: number;
     readonly sourceRequestCount: number;
     readonly knownUsageCount: number;
+    readonly unresolvedUsageGroups: readonly {
+        readonly providerId: ProviderId;
+        readonly model: string;
+        readonly requestCount: number;
+    }[];
 }
 
 export const BILLING_JOB_LEDGER_STATES = [

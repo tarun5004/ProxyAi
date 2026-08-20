@@ -17,6 +17,13 @@ interface OrganisationBudgetRecord {
 }
 
 interface UsageAggregationRow {
+    readonly _id: {
+        readonly model: string;
+        readonly providerId: NonNullable<
+            NewRequestUsageRecord["providerId"]
+        >;
+        readonly usageKnown: boolean;
+    };
     readonly usedTokens: number;
     readonly sourceRequestCount: number;
     readonly knownUsageCount: number;
@@ -112,7 +119,17 @@ export const billingRepository: BillingRepository = {
             },
             {
                 $group: {
-                    _id: null,
+                    _id: {
+                        model: "$model",
+                        providerId: "$providerId",
+                        usageKnown: {
+                            $and: [
+                                { $isNumber: "$inputTokens" },
+                                { $isNumber: "$outputTokens" },
+                                { $isNumber: "$totalTokens" },
+                            ],
+                        },
+                    },
                     usedTokens: {
                         $sum: {
                             $ifNull: ["$totalTokens", 0],
@@ -139,19 +156,31 @@ export const billingRepository: BillingRepository = {
                 },
             },
         ]).exec();
-        const row = rows[0];
-
-        return row === undefined
-            ? {
+        return rows.reduce<PeriodUsageAggregate>(
+            (aggregate, row) => ({
+                usedTokens: aggregate.usedTokens + row.usedTokens,
+                sourceRequestCount:
+                    aggregate.sourceRequestCount + row.sourceRequestCount,
+                knownUsageCount:
+                    aggregate.knownUsageCount + row.knownUsageCount,
+                unresolvedUsageGroups: row._id.usageKnown
+                    ? aggregate.unresolvedUsageGroups
+                    : [
+                        ...aggregate.unresolvedUsageGroups,
+                        {
+                            providerId: row._id.providerId,
+                            model: row._id.model,
+                            requestCount: row.sourceRequestCount,
+                        },
+                    ],
+            }),
+            {
                 usedTokens: 0,
                 sourceRequestCount: 0,
                 knownUsageCount: 0,
-            }
-            : {
-                usedTokens: row.usedTokens,
-                sourceRequestCount: row.sourceRequestCount,
-                knownUsageCount: row.knownUsageCount,
-            };
+                unresolvedUsageGroups: [],
+            },
+        );
     },
     async upsertRollup(input) {
         return BillingRollupModel.findOneAndUpdate(

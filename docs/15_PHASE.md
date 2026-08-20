@@ -1071,6 +1071,14 @@ Current ECS remains the rollback environment until Lightsail canary HTTPS,
 public DNS cutover, authenticated application smoke, worker/accounting smoke,
 and rollback proof pass. Cleanup is planning-only until explicit approval.
 
+Critical pre-cutover autopsy gates:
+
+- [x] Unknown usage uses a conservative provider/model liability reservation
+  without synthesizing actual tokens or unconditionally locking the tenant.
+- [x] RequestLog append failure cannot falsely close idempotency as completed.
+- [ ] Complete remaining verified P0/P1 runtime fixes and full regression.
+- [ ] Pass Lightsail canary, public smoke, and rollback proof.
+
 ---
 
 # 27. Self-Audit

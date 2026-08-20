@@ -686,7 +686,8 @@ The exact prompt limit may be adjusted after provider testing. The server must a
 15. Fall back only before streaming if another approved adapter exists
 16. Stream chunks to client
 17. Persist known usage or an explicit unknown-usage accounting record
-18. Reconcile the billing rollup when usage is known
+18. Reconcile the billing rollup when usage is known; otherwise apply the
+    conservative provider/model capability reservation during budget reads
 19. Mark idempotency result completed
 20. Close SSE connection
 ```
@@ -1179,7 +1180,10 @@ Once the first token has been delivered, provider switching is not attempted. If
 
 1. Send terminal SSE event `error` with code `STREAM_INTERRUPTED`.
 2. Persist an unknown-usage accounting record when final usage is unavailable.
-3. Mark the idempotency reservation completed so the same client request ID cannot create another paid call.
+3. Mark the idempotency reservation completed only after the append-only
+   RequestLog commit succeeds. If persistence fails after provider execution,
+   retain `PROCESSING` until its approved TTL instead of falsely recording a
+   durable completion.
 4. Do not automatically splice a second provider response.
 5. Let the user retry with the same visible prompt and a new client request ID.
 
@@ -1504,7 +1508,7 @@ Use UTC month in `YYYY-MM` format.
 
 ### 29.2 Update
 
-The implemented authoritative MVP rollup remains one organisation-month record containing `usedTokens` and `sourceRequestCount`. The billing worker deterministically aggregates trusted `{ orgId, period }` `RequestLog` records and upserts those totals with `$set`. Missing usage does not add zero tokens; it leaves accounting unavailable and is recorded as terminal `USAGE_UNAVAILABLE` in the async ledger.
+The implemented authoritative MVP rollup remains one organisation-month record containing `usedTokens` and `sourceRequestCount`. The billing worker deterministically aggregates trusted `{ orgId, period }` `RequestLog` records and upserts those totals with `$set`. Missing usage does not add zero tokens and is recorded as terminal `USAGE_UNAVAILABLE` in the async ledger. During a synchronous budget read, each unresolved record for a currently approved provider/model contributes a separate conservative liability reservation equal to that model contract's maximum input plus maximum output tokens. This reservation is not actual usage, is not written into `usedTokens`, and prevents one unresolved request from causing an unconditional organisation-wide outage while preserving fail-closed budget arithmetic. Unknown or unsupported historical provider/model contracts still return `BUDGET_ACCOUNTING_UNAVAILABLE`.
 
 Richer user/provider/cost reporting rollups are separate Phase 7 projections. They must not replace or weaken the current authoritative budget source until their schemas, idempotent contribution rules, and pricing configuration are approved.
 

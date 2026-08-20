@@ -129,8 +129,8 @@ test("budget aggregation is isolated by trusted organisation ID", async () => {
     assert.equal(firstStatus.exceeded, false);
 });
 
-test("unknown provider usage fails closed instead of assuming zero", async () => {
-    const organisation = await createOrganisation(500);
+test("unknown provider usage reserves liability without tenant lockout", async () => {
+    const organisation = await createOrganisation(100_000);
 
     await appendRequestUsage({
         requestId: randomUUID(),
@@ -139,14 +139,40 @@ test("unknown provider usage fails closed instead of assuming zero", async () =>
         status: "INTERRUPTED",
         policyAction: "ALLOW",
         providerId: "groq",
-        model: "test-model",
+        model: process.env.GROQ_MODEL,
+    });
+
+    const status = await readAuthoritativeBudgetStatus(organisation.orgId);
+
+    assert.equal(status.usedTokens, 0);
+    assert.equal(status.reservedTokens, 24_096);
+    assert.equal(status.budgetedTokens, 24_096);
+    assert.equal(status.exceeded, false);
+    assert.equal(
+        await BillingRollupModel.countDocuments({
+            orgId: organisation.orgId,
+        }),
+        0,
+    );
+});
+
+test("unknown usage for unsupported model remains fail closed", async () => {
+    const organisation = await createOrganisation(100_000);
+
+    await appendRequestUsage({
+        requestId: randomUUID(),
+        orgId: organisation.orgId,
+        userId: randomUUID(),
+        status: "FAILED",
+        policyAction: "ALLOW",
+        providerId: "groq",
+        model: "retired-model",
     });
 
     await assert.rejects(
         readAuthoritativeBudgetStatus(organisation.orgId),
         (error) => error?.statusCode === 503
-            && error?.code === "BUDGET_ACCOUNTING_UNAVAILABLE"
-            && !JSON.stringify(error).includes(organisation.orgId),
+            && error?.code === "BUDGET_ACCOUNTING_UNAVAILABLE",
     );
 });
 

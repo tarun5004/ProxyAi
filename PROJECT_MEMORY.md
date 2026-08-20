@@ -353,7 +353,7 @@ npm run dev
 - Minimal `RequestLog` records are tenant-scoped, append-only provider-usage records containing trusted request, organisation, and user IDs plus canonical provider/model metadata. Token fields are persisted only as a complete known input/output/total set.
 - RequestLog persistence contains no prompt, response, PII value, credential, secret, pricing, or cost field. All persisted identifiers and usage fields are immutable, and normal update/delete operations are rejected.
 - The current UTC-month BillingRollup is deterministically reconciled from persisted tenant-scoped RequestLog records before BudgetStatus is returned; Redis is never used as the budget source of truth.
-- Any persisted provider-usage record with unavailable token usage makes budget accounting operationally unavailable and fails closed with `BUDGET_ACCOUNTING_UNAVAILABLE`; it never becomes `exceeded: false`.
+- Persisted unknown provider usage remains immutable and never becomes zero. Budget reads apply a separate conservative liability equal to the approved provider/model maximum input plus output capability; actual `usedTokens` remains provider-reported only. Unsupported historical provider/model contracts still fail closed with `BUDGET_ACCOUNTING_UNAVAILABLE`.
 - Budget status reads the current `Organisation.monthlyTokenBudget` and uses the approved boundary `usedTokens >= monthlyTokenBudget`; therefore a zero-token budget is exhausted even when persisted usage is zero.
 - The synchronous reconciliation is intentionally minimal. Full idempotent workers, replay protection, user/provider rollups, pricing, invoices, alerts, and generalized billing infrastructure remain Phase 7 work.
 - Phase 7 queue payloads use `requestId` as the canonical correlation ID and contain only allowlisted identifiers, optional complete provider-reported usage, optional approved cost, job type, schema version, and timestamp.
@@ -610,7 +610,7 @@ npm run dev
 - **Status:** Completed; P5-06 chat endpoint not started
 - **Files changed:** `backend/src/features/billing/billing.types.ts`, `backend/src/features/billing/request-log.model.ts`, `backend/src/features/billing/billing-rollup.model.ts`, `backend/src/features/billing/billing.repository.ts`, `backend/src/features/billing/billing.service.ts`, `backend/tests/billing.accounting.integration.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
 - **Accounting:** Adds append-only tenant RequestLog usage records, organisation-month BillingRollup reconciliation, UTC period boundaries, and deterministic BudgetStatus from current organisation budget plus persisted known usage.
-- **Fail closed:** Missing organisation accounting, database failures, incomplete token usage, or rollup persistence failures return safe `503 BUDGET_ACCOUNTING_UNAVAILABLE`; Redis and invented zero usage are never accepted.
+- **Fail closed:** Missing organisation accounting, database failures, unsupported unresolved provider/model contracts, or required rollup persistence failures return safe `503 BUDGET_ACCOUNTING_UNAVAILABLE`; Redis and invented zero usage are never accepted. Supported unresolved records use a separate conservative capability reservation rather than synthetic actual usage.
 - **Focused tests:** Four real-Mongo tests cover persisted usage status, exact exhausted boundary, tenant isolation, and unknown usage fail-closed behavior.
 - **Verification:** `node --test tests/billing.accounting.integration.mjs` passed 4/4; `npm run typecheck`, `npm run build`, and `git diff --check` passed.
 - **Scope:** No chat route, provider call, idempotency, Redis rate limit, billing worker, pricing, invoice, alert, or Phase 7 expansion was added.
@@ -1056,6 +1056,12 @@ npm run dev
 - **Next action:** Complete repo-side Lightsail provisioning/deployment/CI
   automation, attach the scoped IAM update manually, then provision in
   parallel. Do not start Phase 8 or Phase 9.
+- **Autopsy accounting hardening:** Unknown Groq usage now remains unknown while
+  synchronous budget checks reserve the approved model's maximum input/output
+  liability separately. One interrupted request no longer creates an
+  unconditional tenant lock when budget remains after that reservation.
+  RequestLog append failure no longer falsely marks idempotency `COMPLETED`;
+  the post-provider `PROCESSING` tombstone remains until its approved TTL.
 
 ## Do Not Forget
 

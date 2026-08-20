@@ -443,6 +443,8 @@ async function recordUsageAndComplete(
     },
     dependencies: ChatPipelineDependencies,
 ): Promise<void> {
+    let usagePersisted = false;
+
     try {
         const occurredAt = new Date().toISOString();
 
@@ -458,6 +460,7 @@ async function recordUsageAndComplete(
                 ? {}
                 : { usage: outcome.usage }),
         });
+        usagePersisted = true;
 
         try {
             await dependencies.enqueueBillingJob({
@@ -538,7 +541,9 @@ async function recordUsageAndComplete(
         }
 
     } finally {
-        await input.reservation.markCompleted();
+        if (usagePersisted) {
+            await input.reservation.markCompleted();
+        }
     }
 }
 

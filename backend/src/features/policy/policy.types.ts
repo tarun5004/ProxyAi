@@ -30,6 +30,8 @@ export type BlockReasonCode = (typeof BLOCK_REASON_CODES)[number];
 export interface BudgetStatus {
     readonly monthlyBudgetTokens: number;
     readonly usedTokens: number;
+    readonly reservedTokens?: number;
+    readonly budgetedTokens?: number;
     readonly remainingTokens: number;
     readonly remainingPercent: number;
     readonly exceeded: boolean;

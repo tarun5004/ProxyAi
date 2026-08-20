@@ -1020,6 +1020,12 @@ The prompt-cache HMAC input binds trusted `orgId`, exact approved `providerPromp
   `ALLOW` or `ALLOW_WITH_MASK`; provider/model identifiers are required and
   optional usage remains actual-provider data only.
 - Usage and cost remain optional; unknown values are omitted and never synthesized as zero.
+- Unknown provider usage remains visible and immutable. Budget checks reserve
+  the approved provider/model maximum token liability separately from actual
+  `usedTokens`; unsupported historical contracts fail closed.
+- Post-provider idempotency becomes `COMPLETED` only after RequestLog
+  persistence. A failed append retains the short-lived `PROCESSING` tombstone
+  and never releases it for an immediate duplicate paid call.
 - Each side effect has an idempotency key, and retry count is bounded to approved transient failures.
 - Invalid payloads, unknown usage, and unavailable pricing are terminal outcomes rather than retry loops.
 - Exhausted jobs remain visible in BullMQ's failed set, which is the MVP dead-letter mechanism.

@@ -661,7 +661,7 @@ billingRollupSchema.index({ orgId: 1, period: -1 });
 
 ### 17.4 Deterministic authoritative update
 
-The current billing worker contract aggregates all trusted `RequestLog` records for `{ orgId, period }` and upserts `usedTokens` plus `sourceRequestCount` with `$set`. Reprocessing the same request therefore recomputes the same authoritative totals instead of incrementing them twice. Unknown usage never contributes a synthetic zero and keeps authoritative budget accounting unavailable.
+The current billing worker contract aggregates all trusted `RequestLog` records for `{ orgId, period }` and upserts `usedTokens` plus `sourceRequestCount` with `$set`. Reprocessing the same request therefore recomputes the same authoritative totals instead of incrementing them twice. Unknown usage never contributes synthetic actual tokens. Synchronous budget enforcement derives a separate conservative liability from the approved provider/model maximum input and output capability; it does not persist that liability as `usedTokens`. A rollup is not overwritten while unresolved usage exists, and an unsupported historical provider/model remains fail closed.
 
 Future user/provider/cost projections may use incremental contributions only after a separate atomic contribution or processing-ledger contract is implemented. They are not part of the current minimal budget rollup.
 

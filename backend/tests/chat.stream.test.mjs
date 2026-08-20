@@ -322,7 +322,7 @@ test("ALLOW streams output and records known provider usage", async () => {
     );
 });
 
-test("pre-provider failures release safely and post-provider accounting failure completes", async () => {
+test("pre-provider failures release and accounting failure stays processing", async () => {
     const foreignRuntime = createRuntime({
         ownershipError: new AppError(
             404,
@@ -371,7 +371,7 @@ test("pre-provider failures release safely and post-provider accounting failure 
     assert.match(usageStream, /event: error/);
     assert.deepEqual(
         usageRuntime.reservationEvents,
-        ["provider-started", "completed"],
+        ["provider-started"],
     );
 });
 
