@@ -4,14 +4,15 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 8 — Admin Dashboard and RBAC
-- **Task:** Phase 8 — Admin Dashboard and RBAC
-- **Status:** Completed and verified on 2026-08-21. The implemented boundary is
-  read-only, tenant-scoped administration backed only by authoritative
-  persisted fields. Phase 9-dependent mutations remain unavailable.
+- **Phase:** Phase 9 — Retention, Encryption, and Audit
+- **Task:** P9-01 — Versioned AES-256-GCM Foundation
+- **Status:** P9-00 contract and architecture audit completed on 2026-08-21.
+  No Phase 9 production code has started. Await explicit approval before P9-01.
 
 ## Completed Tasks
 
+- P9-00 — Phase 9 encryption, retention, audit, migration, export, session, and
+  admin-mutation contracts resolved on 2026-08-21; no production code added.
 - Phase 8 — Read-only organisation dashboard APIs and permission-aware admin
   frontend completed on 2026-08-21. Real Mongo verification proves request-log,
   user, team, and alert queries cannot return another organisation's records.
@@ -89,6 +90,49 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P12-01 through P12-08 — AWS contracts, immutable frontend configuration, split API/worker runtimes, production images, local Compose, create-only indexes, parameterized AWS infrastructure, and GitHub Actions release/rollback automation completed on 2026-08-19
 
 ## Important Decisions
+
+- Phase 9 implementation order is fixed as P9-01 encryption keyring/service,
+  P9-02 append-only AuditLog, P9-03 auth/policy durable events, P9-04 retained
+  Message writes, P9-05 owner decryption, P9-06 title encryption/migration,
+  P9-07 user/session mutations, P9-08 policy/budget/retention, P9-09 alert
+  state, P9-10 export, and P9-11 closure verification.
+- Encryption uses AES-256-GCM with fresh 12-byte IVs, 16-byte tags, unpadded
+  base64url fields, and versioned tenant/resource-bound AAD. Plaintext fallback
+  is forbidden.
+- The MVP keyring uses `MESSAGE_ENCRYPTION_KEYS_JSON` and
+  `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION`. Keys decode to exactly 32 bytes,
+  remain outside MongoDB/frontend/logs/images, and old versions remain until a
+  verified re-encryption migration finishes.
+- `METADATA_ONLY` and `ENCRYPTED_STORAGE` are the only MVP retention modes.
+  Changes are prospective. Custom TTL, no-storage mode, automated deletion,
+  automatic rotation, per-organisation keys, and BYOK remain deferred.
+- Successful streams may persist one idempotent user/assistant Message pair.
+  Metadata-only stores no content; encrypted mode encrypts the original user
+  message and assistant response. Blocked, failed, and interrupted streams
+  persist no message content.
+- Owner reads prove trusted Conversation ownership before selecting encrypted
+  Messages. They return decrypted `content` only as `contentAvailable=true` and
+  never expose the envelope. Admin dashboard paths never decrypt content.
+- Manual custom Conversation titles become encrypted at rest in Phase 9; only
+  the fixed `New conversation` fallback remains plaintext. Existing custom
+  titles require an idempotent encrypt-verify-replace migration.
+- AuditLog is tenant-scoped, append-only, action-allowlisted, and stores only
+  bounded action-specific safe metadata. All update/replace/delete operations
+  are rejected; historical structured logs are not backfilled.
+- Every admin mutation and its AuditLog append must commit in one MongoDB
+  transaction. Audit failure returns `503 AUDIT_UNAVAILABLE` and leaves no
+  partial mutation.
+- Role changes derive exact canonical permissions: EMPLOYEE chat permissions,
+  TEAM_LEAD plus `team:view_logs`, and ORG_ADMIN all current tenant permissions.
+  Clients never submit permissions or trusted `orgId`.
+- User deactivation and explicit session revocation target trusted
+  `{ orgId, userId }`. Disabling revokes all active refresh sessions; the last
+  active ORG_ADMIN cannot be disabled or demoted.
+- Audit export requires `admin:export_audit`, the `auditExport` feature flag,
+  a maximum 90-day range and 10,000 rows, formula neutralization, and a durable
+  `audit.exported` record before response headers.
+- RequestLog remains append-only and is never used to reconstruct historical
+  prompt/response content or historical audit events.
 
 - Phase 8 admin APIs use trusted authenticated `orgId` only and expose no
   client-controlled tenant scope.
@@ -291,7 +335,10 @@ npm run dev
 ## Documentation Gaps
 
 - The missing `docs/07_DEPLOYMENT_ARCHITECTURE.md` gap is resolved with the canonical AWS ECS/Fargate deployment contract.
-- The origin-variable and authentication token-TTL naming mismatches are resolved. Future encryption-key names still require reconciliation before their PHASE task.
+- The origin-variable, authentication token-TTL, and Phase 9 encryption-key
+  names are resolved. The canonical keyring variables are
+  `MESSAGE_ENCRYPTION_KEYS_JSON` and
+  `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION`.
 - The OpenAPI readiness example includes `providerAvailable`, while P1-06 explicitly requires only MongoDB and Redis readiness. P1-06 follows the active phase scope; provider readiness remains deferred until provider abstraction exists.
 - The tenant login contract is reconciled around organisation slug plus per-organisation email. Platform-level identity remains a separate future design and must not be represented as a tenant `SUPER_ADMIN` User.
 
@@ -436,7 +483,8 @@ npm run dev
 - BullMQ's failed set plus safe structured logs are the Phase 7 failure-
   visibility source. Bull Board and manual replay UI move to Phase 10 controlled
   observability tooling and must never be public.
-- Alert listing, resolution, and reopening remain Phase 8 admin work.
+- Alert listing is Phase 8 admin work; audited resolution and reopening are
+  Phase 9 work.
 - BullMQ producers reuse the shared fail-fast Redis client. Managed workers obtain dedicated clients through the same central Redis factory with `maxRetriesPerRequest: null`; Redis connection configuration is not duplicated.
 - The initial `billing-queue` validates `request.completed` payloads before enqueue and uses three exponential-backoff attempts, 100 completed-job retention, and 500 failed-job retention.
 - Runtime validation is repeated at the worker boundary. Malformed payloads become terminal `UnrecoverableError` failures without logging job data or validation input.
@@ -800,6 +848,39 @@ npm run dev
 - **Recommended completed commits:** `feat(auth): add permission and scope authorization`, `docs(progress): record P2-07 completion`.
 
 ## Latest Task
+
+- **Task:** P9-00 — Phase 9 Contract and Architecture Audit
+- **Status:** Completed on 2026-08-21; docs-only, with no production feature
+  code, schema migration, runtime configuration, or API behavior changed.
+- **Scope resolved:** Message/title encryption, versioned keyring and AAD,
+  owner-only decryption, prospective retention, append-only AuditLog, durable
+  auth/policy events, audit-atomic admin mutations, deterministic roles,
+  deactivation/session revocation, alert state, audit export, migration, and
+  failure/recovery behavior.
+- **Classification:** Encryption, AuditLog, approved admin mutations, alert
+  state, and export are `IMPLEMENT_PHASE9`; existing refresh-family primitives
+  and fresh active-user checks are `ALREADY_COMPLETE`; custom retention,
+  automatic/per-org key management, onboarding/team CRUD, cache/replay, email,
+  and team-lead logs are `DEFER`; no contract blocker remains.
+- **Migration boundary:** Existing metadata messages remain unavailable and are
+  not reconstructed. Audit coverage begins at Phase 9 deployment. Existing
+  custom plaintext titles use an idempotent encrypt-verify-replace migration.
+- **Security:** No plaintext persistence, no client-trusted orgId or permission
+  arrays, no admin mutation without a committed audit, no RequestLog mutation,
+  and no key/ciphertext/audit-sensitive value in logs or exports.
+- **Files changed:** `docs/01_PRD.md`, `docs/02_SDD.md`, `docs/03_TDD.md`,
+  `docs/04_DATABASE_DESIGN.md`, `docs/05_OPENAPI_SPEC.md`,
+  `docs/06_SECURITY_THREAT_MODEL.md`, `docs/07_DEPLOYMENT_ARCHITECTURE.md`,
+  `docs/08_TESTING_STRATEGY.md`, `docs/09_README.md`,
+  `docs/12_SEQUENCE_DIAGRAMS.md`, `docs/13_CICD_DOCUMENTATION.md`,
+  `docs/15_PHASE.md`, `deploy/aws/MANUAL_ACTIONS.md`, and
+  `PROJECT_MEMORY.md`.
+- **Verification:** Stale contract, canonical contract, production-code-diff,
+  concrete-secret, Markdown fence, OpenAPI YAML parser, and sensitive-term scans
+  passed. `git diff --check` passed. No runtime tests/typecheck/build were run
+  because this task changes documentation only.
+- **Next task:** P9-01 — Versioned AES-256-GCM Foundation, only after explicit
+  implementation approval. Do not combine P9-02.
 
 - **Task:** Phase 8 — Admin Dashboard and RBAC
 - **Status:** Completed and verified on 2026-08-21; Phase 9 not started.

@@ -738,9 +738,9 @@ sequenceDiagram
 
     API->>RetentionService: Build persistence payload
     RetentionService-->>API: ENCRYPTED_STORAGE
-    API->>EncryptionService: Encrypt approved user prompt
+    API->>EncryptionService: Encrypt original user prompt with trusted AAD
     EncryptionService-->>API: Ciphertext, IV, auth tag, key version
-    API->>EncryptionService: Encrypt provider response
+    API->>EncryptionService: Encrypt provider response with trusted AAD
     EncryptionService-->>API: Ciphertext, IV, auth tag, key version
     API->>MongoDB: Save encrypted Message documents
     MongoDB-->>API: Stored
@@ -757,6 +757,8 @@ sequenceDiagram
 - AES-256-GCM is used.
 - Plaintext must never be stored as fallback.
 - Key material is not stored in MongoDB.
+- New writes use the validated active key version; old versions remain for reads.
+- Successful user/assistant writes are idempotently linked by trusted requestId.
 - Full-text search over ciphertext is unavailable.
 
 ---
@@ -1049,10 +1051,11 @@ sequenceDiagram
         Validation-->>API: FEATURE_NOT_AVAILABLE
         API-->>Browser: 400/403 response
     else Supported mode
-        API->>MongoDB: Update organisation retention
-        MongoDB-->>API: Updated
-        API->>AuditService: Record retention change
+        API->>MongoDB: Begin transaction
+        API->>MongoDB: Update organisation retention by trusted orgId
+        API->>AuditService: Append retention change in transaction
         AuditService->>MongoDB: Append audit event
+        API->>MongoDB: Commit transaction
         API-->>Browser: Updated retention settings
     end
 ```
@@ -1062,7 +1065,8 @@ sequenceDiagram
 - MVP supports metadata-only and encrypted storage.
 - Existing stored data is not silently transformed unless a migration is explicitly run.
 - Retention change affects new persistence behavior.
-- Custom retention requires a valid TTL value when enabled.
+- Custom retention, TTL deletion, and no-storage mode are deferred.
+- Audit failure rolls back the retention update.
 
 ---
 
@@ -1079,19 +1083,21 @@ sequenceDiagram
     participant AuditService
 
     Admin->>Browser: Deactivate user
-    Browser->>API: PATCH /admin/users/{id}/deactivate
+    Browser->>API: PATCH /api/v1/admin/users/{userId}/status
     API->>RBAC: Require ADMIN_MANAGE_USERS
     RBAC-->>API: Allowed
-    API->>MongoDB: Find user by _id and orgId
+    API->>MongoDB: Find user by trusted userId and orgId
 
     alt User belongs to another organisation
         MongoDB-->>API: Not found
         API-->>Browser: 404 NOT_FOUND
     else User belongs to same organisation
-        API->>MongoDB: Mark user inactive
-        API->>MongoDB: Revoke active refresh-token families
-        API->>AuditService: Record user deactivation
+        API->>MongoDB: Begin transaction
+        API->>MongoDB: Mark user DISABLED
+        API->>MongoDB: Revoke all active refresh sessions
+        API->>AuditService: Record user status/session change in transaction
         AuditService->>MongoDB: Append audit event
+        API->>MongoDB: Commit transaction
         API-->>Browser: User deactivated
     end
 ```
@@ -1100,7 +1106,9 @@ sequenceDiagram
 
 - Cross-organisation IDs must appear not found.
 - Existing refresh sessions are revoked.
-- Access tokens expire naturally or may be checked against active-user status.
+- Access tokens fail the existing fresh active-user check on the next request.
+- The last active organisation admin cannot be disabled.
+- Audit failure rolls back both status and session mutations.
 - The action is audited.
 
 ---
@@ -1119,13 +1127,14 @@ sequenceDiagram
     participant AuditService
 
     Admin->>Browser: Request CSV export
-    Browser->>API: GET /admin/audit/export?dateFrom&dateTo
+    Browser->>API: GET /api/v1/admin/audit/export?dateFrom&dateTo
     API->>RBAC: Require ADMIN_EXPORT_AUDIT
     RBAC-->>API: Allowed
     API->>Validation: Validate bounded date range
     Validation-->>API: Valid
     API->>MongoDB: Read org-scoped audit records
     MongoDB-->>API: Audit metadata
+    API->>API: Enforce 90-day and 10,000-row bounds
     API->>API: Escape CSV cells and generate file
     API->>AuditService: Record data export
     AuditService->>MongoDB: Append export audit event
@@ -1135,9 +1144,9 @@ sequenceDiagram
 ## Key Rules
 
 - Export is organisation-scoped.
-- Date range should be bounded.
+- Date range is limited to 90 days and output to 10,000 rows.
 - CSV formula injection must be prevented.
-- Export action itself is audited.
+- Export action is audited before response headers are committed.
 - Raw prompt content is not included.
 
 ---

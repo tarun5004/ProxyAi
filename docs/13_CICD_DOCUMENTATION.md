@@ -116,6 +116,13 @@ Protected GitHub Environment secrets are `SMOKE_EMAIL` and `SMOKE_PASSWORD`.
 Application runtime secrets remain referenced by ECS task definitions from
 Secrets Manager and are never copied into GitHub.
 
+Phase 9 adds `MESSAGE_ENCRYPTION_KEYS_JSON` and
+`MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` to the existing environment-scoped
+runtime secret before encrypted storage is enabled. CI validates only the
+presence/selector contract and never reads, prints, transforms, or passes key
+material as a Docker build argument. Old key versions remain available during
+rotation until a separately verified re-encryption migration completes.
+
 GitHub OIDC configuration requires an approved AWS role ARN and trust policy;
 no long-lived AWS access key is stored in GitHub.
 

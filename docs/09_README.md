@@ -491,6 +491,8 @@ REDIS_URL=redis://localhost:6379
 
 JWT_ACCESS_SECRET=replace-with-base64url-encoded-32-byte-random-secret
 AUTH_RATE_LIMIT_SECRET=replace-with-a-different-base64url-encoded-32-byte-random-secret
+MESSAGE_ENCRYPTION_KEYS_JSON={"1":"replace-with-base64url-encoded-exactly-32-byte-key"}
+MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION=1
 ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=7
 DEV_ADMIN_PASSWORD=proxiai-local-admin-only
@@ -534,7 +536,9 @@ BACKEND_INTERNAL_ORIGIN=http://localhost:8080
 - never use production credentials locally;
 - validate environment variables when the application starts;
 - fail startup when a required variable is missing or malformed;
-- document the exact key format expected by encryption code;
+- use a JSON version-to-key map of canonical base64url-encoded exactly 32-byte
+  keys and a positive active key version;
+- retain old encryption key versions until verified re-encryption completes;
 - use different secrets for local, staging, and production.
 
 ---

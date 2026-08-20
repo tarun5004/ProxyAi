@@ -304,22 +304,21 @@ findConversationById(conversationId)
 
 ### Roles
 
-- `employee`
-- `team_lead`
-- `org_admin`
-- `super_admin`
+- `EMPLOYEE`
+- `TEAM_LEAD`
+- `ORG_ADMIN`
 
 ### MVP permissions
 
-| Permission | Employee | Team Lead | Org Admin | Super Admin |
-|---|---:|---:|---:|---:|
-| Send chat | Yes | Yes | Yes | Optional |
-| View own conversations | Yes | Yes | Yes | No default |
-| View team request logs | No | Yes | Yes | No default |
-| View organisation dashboard | No | No | Yes | No default |
-| Manage organisation users | No | No | Yes | No default |
-| Configure policy and budget | No | No | Yes | No default |
-| Export audit data | No | No | Yes | No default |
+| Permission | Employee | Team Lead | Org Admin |
+|---|---:|---:|---:|
+| Send chat | Yes | Yes | Yes |
+| View own conversations | Yes | Yes | Yes |
+| View team request logs | No | Yes | Yes |
+| View organisation dashboard | No | No | Yes |
+| Manage organisation users | No | No | Yes |
+| Configure policy and budget | No | No | Yes |
+| Export audit data | No | No | Yes |
 | View platform provider health | No | No | No | Yes |
 
 The super-administrator role must not automatically read organisation prompt content.
@@ -576,24 +575,27 @@ The chat orchestration service coordinates the synchronous request path.
 
 ### Ordered flow
 
-1. Validate user, organisation, conversation, and request body.
-2. Acquire idempotency state.
-3. Run PII pipeline.
-4. Evaluate policy.
-5. When blocked, append one safe `BLOCKED` RequestLog, publish the
+1. Authenticate and resolve current User, Organisation, permissions, and owned Conversation.
+2. Validate the strict request body.
+3. Acquire tenant/user idempotency state.
+4. Enforce tenant/user rate limits and load authoritative budget status.
+5. Run PII/classification/risk and evaluate policy.
+6. Append the safe durable policy AuditLog before any provider path.
+7. When blocked, append one safe `BLOCKED` RequestLog, publish the
    analytics-only `request.blocked` event, and return the block response
    without routing.
-6. Determine effective prompt.
-7. Check eligible prompt cache when the approved secure-storage and accounting prerequisites exist.
-8. Build routing decision.
-9. Call providers in fallback order.
-10. Stream chunks to the client.
-11. Finalize only actual usage details returned by the provider.
-12. Persist the authoritative append-only `RequestLog` record.
-13. Mark idempotency result completed.
-14. Publish the safe `request.completed` job/event with explicit outcome
+8. Determine the approved provider prompt.
+9. Check eligible prompt cache only after its deferred prerequisites exist.
+10. Build routing decision and call providers in fallback order.
+11. Stream chunks to the client.
+12. Finalize only actual usage details returned by the provider.
+13. Persist the authoritative append-only `RequestLog` record.
+14. Apply the retention writer: metadata-only Message records or encrypted
+    user/assistant Messages only after successful provider completion.
+15. Mark idempotency result completed.
+16. Publish the safe `request.completed` job/event with explicit outcome
     status and policy action.
-15. Apply retention writer.
+17. Emit terminal SSE completion/error honestly.
 
 The API waits for the authoritative request record and queue publication attempt, but it does not wait for billing, analytics, anomaly, email, or provider-health workers. Queue publication failure must be surfaced operationally without inventing usage or reversing an already delivered provider response.
 
@@ -714,7 +716,7 @@ The MVP may use direct BullMQ job publication instead of implementing two separa
 | `email-queue` | Alert created | Deferred to Phase 8 pending provider/configuration/template approval |
 | `health-check-queue` | Repeating schedule | Check provider availability and latency |
 | `recovery-queue` | Repeating schedule | Reconcile persisted RequestLogs whose required billing/analytics publication did not complete |
-| `retention-queue` | Daily schedule | Optional cleanup support; MongoDB TTL remains primary for custom expiry |
+| `retention-queue` | Deferred | No custom TTL or automated content deletion in the MVP |
 
 ### Common job fields
 
@@ -768,7 +770,7 @@ the already determined HTTP/SSE outcome.
 1. `METADATA_ONLY`
 2. `ENCRYPTED_STORAGE`
 
-Custom TTL may be enabled only after these two work reliably.
+Custom TTL, `CUSTOM_RETENTION`, and automated content deletion are deferred.
 
 ### Metadata-only behaviour
 
@@ -794,6 +796,8 @@ In addition to metadata:
 - Store initialization vector, authentication tag, and ciphertext
 - Keep master key outside MongoDB
 - Never log decrypted content
+- Bind ciphertext to trusted tenant/resource context through versioned AAD
+- Use the active version from the validated application keyring for new writes
 
 ### Enforcement point
 
@@ -805,7 +809,8 @@ Retention is applied before constructing the persistence document. The system mu
 - When `contentAvailable` is `false`, `content` is omitted. `contentEnc` and all encryption metadata are never API fields.
 - `METADATA_ONLY` never persists message content. `ENCRYPTED_STORAGE` message persistence and authorised decryption are Phase 9 responsibilities using AES-256-GCM.
 - Successful stream-completion persistence begins only in Phase 9. Partial or interrupted assistant output is never persisted.
-- Conversation titles are renamed manually through authenticated `PATCH /api/v1/conversations/:conversationId`; prompt-derived and LLM-generated titles are prohibited.
+- Phase 9 encrypts manual custom conversation titles at rest and keeps only the fixed `New conversation` fallback plaintext; owner list/read/rename paths decrypt after scope checks.
+- Conversation titles remain manual through authenticated `PATCH /api/v1/conversations/:conversationId`; prompt-derived and LLM-generated titles are prohibited.
 - Attachments are deferred from the current MVP. No upload endpoint, multipart request, storage reference, or paperclip/upload UI is approved until storage, MIME and size allowlists, malware scanning, tenant ownership, provider capability, retention, and deletion are specified.
 
 ## 8.18 Audit Component
@@ -843,6 +848,20 @@ userAgent
 requestId
 occurredAt
 ```
+
+`metadata` is action-specific, field-by-field, and bounded to 8 KiB after
+serialization. It never receives raw request objects. The Audit repository
+exposes append and tenant-scoped reads only; model middleware rejects all
+updates, replacements, and deletes.
+
+Admin state changes and their audit entries execute in one MongoDB transaction.
+Audit/transaction failure rolls back the mutation and returns
+`503 AUDIT_UNAVAILABLE`. Policy decisions write their safe durable event before
+provider execution; audit failure therefore cannot allow a provider call.
+
+Authentication/session events keep safety ordering: a required session
+revocation is not reversed by a later audit failure, and login attempts without
+a trusted organisation never invent tenant scope for an AuditLog.
 
 ## 8.19 Billing and Usage Component
 
@@ -913,6 +932,12 @@ Security-critical mutations for users, teams, policy, budget, retention, and
 alert state remain unavailable until Phase 9 can atomically require a durable
 append-only admin audit record. Audit export is also Phase 9. The Phase 8 UI
 must not render enabled mutation controls for these deferred operations.
+
+Phase 9 enables only the approved mutation set: deterministic role/permission
+changes, same-tenant team assignment, active/disabled status changes, explicit
+refresh-session revocation, policy/budget changes, retention-mode changes, and
+alert resolution/reopening. User invitation/creation, team CRUD, custom
+retention, email delivery, and arbitrary permission editing remain deferred.
 
 ### MVP dashboard data
 

@@ -187,7 +187,8 @@ CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM
 CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM
 IDEMPOTENCY_PROCESSING_TTL_SECONDS
 IDEMPOTENCY_COMPLETED_TTL_SECONDS
-APP_ENCRYPTION_KEY
+MESSAGE_ENCRYPTION_KEYS_JSON
+MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION
 GROQ_API_KEY
 GEMINI_API_KEY
 THIRD_PROVIDER_API_KEY
@@ -222,7 +223,8 @@ const EnvSchema = z.object({
   CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM: z.coerce.number().int().min(1),
   IDEMPOTENCY_PROCESSING_TTL_SECONDS: z.coerce.number().pipe(z.literal(300)),
   IDEMPOTENCY_COMPLETED_TTL_SECONDS: z.coerce.number().pipe(z.literal(3600)),
-  APP_ENCRYPTION_KEY: z.string().min(32),
+  MESSAGE_ENCRYPTION_KEYS_JSON: z.string().min(1).optional(),
+  MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION: z.coerce.number().int().min(1).optional(),
   FRONTEND_ORIGIN: z.string().url(),
 });
 ```
@@ -458,7 +460,7 @@ The database update should use a transaction when available. For the MVP, a guar
 ### 11.1 Roles
 
 ```ts
-type Role = 'employee' | 'team_lead' | 'org_admin' | 'super_admin';
+type Role = 'EMPLOYEE' | 'TEAM_LEAD' | 'ORG_ADMIN';
 ```
 
 ### 11.2 Permissions
@@ -506,7 +508,6 @@ interface Organisation {
   plan: 'free' | 'pro' | 'enterprise';
   monthlyTokenBudget: number;
   retentionMode: 'METADATA_ONLY' | 'ENCRYPTED_STORAGE';
-  retentionDays?: number;
   policyThresholds: {
     maskScore: number;
     blockScore: number;
@@ -592,7 +593,10 @@ interface MessageSummary {
 }
 ```
 
-`contentAvailable: false` requires `content` to be omitted. `contentEnc` and encryption metadata are never exposed. Phase 9 may add a separate `contentAvailable: true` response variant containing authorised decrypted `content`, while `METADATA_ONLY` continues to return no content.
+`contentAvailable: false` requires `content` to be omitted. `contentEnc` and
+encryption metadata are never exposed. Phase 9 adds a
+`contentAvailable: true` variant containing authorised decrypted `content`
+after owner scope checks, while `METADATA_ONLY` continues to return no content.
 
 ## 12.5 RequestLog
 
@@ -628,15 +632,19 @@ Primary index: `{ orgId: 1, createdAt: -1 }`.
 
 ```ts
 interface AuditLog {
-  orgId: ObjectId;
-  actorId?: ObjectId;
-  actorType: 'user' | 'system' | 'super_admin';
-  action: string;
-  resourceType: string;
+  auditId: string;
+  orgId: string;
+  actorId?: string;
+  actorType: 'USER' | 'SYSTEM';
+  actorRole?: UserRole;
+  action: AuditAction;
+  outcome: 'SUCCESS' | 'FAILURE';
+  resourceType: AuditResourceType;
   resourceId?: string;
-  metadata: Record<string, unknown>;
+  metadata: SafeAuditMetadata;
   ipAddress?: string;
   userAgent?: string;
+  requestId: string;
   occurredAt: Date;
 }
 ```
@@ -688,18 +696,21 @@ The exact prompt limit may be adjusted after provider testing. The server must a
 7. Detect and classify PII
 8. Calculate risk score
 9. Evaluate policy
-10. If BLOCK: write safe policy event, complete idempotency, and return JSON `403 POLICY_BLOCKED` before SSE headers
-11. Build masked or original approved provider prompt
-12. Check prompt cache only after Phase 9 provides the approved encrypted or safe-reference storage prerequisite
-13. Load provider health and select the eligible provider order
-14. Call primary through retry and circuit breaker
-15. Fall back only before streaming if another approved adapter exists
-16. Stream chunks to client
-17. Persist known usage or an explicit unknown-usage accounting record
-18. Reconcile the billing rollup when usage is known; otherwise apply the
+10. Append the safe durable policy AuditLog; failure returns `503 AUDIT_UNAVAILABLE` with no provider call
+11. If BLOCK: append the safe blocked RequestLog/event, complete idempotency, and return JSON `403 POLICY_BLOCKED` before SSE headers
+12. Build masked or original approved provider prompt
+13. Check prompt cache only after the approved encrypted or safe-reference storage prerequisite
+14. Load provider health and select the eligible provider order
+15. Call primary through retry and circuit breaker
+16. Fall back only before streaming if another approved adapter exists
+17. Stream chunks to client
+18. Persist known usage or an explicit unknown-usage accounting record
+19. Persist retention-aware Message records only for a successfully completed provider stream
+20. Reconcile the billing rollup when usage is known; otherwise apply the
     conservative provider/model capability reservation during budget reads
-19. Mark idempotency result completed
-20. Close SSE connection
+21. Mark idempotency result completed
+22. Publish safe background jobs
+23. Close SSE connection
 ```
 
 The sequence above is the mandatory order. Policy checks must never be moved after routing or provider selection.
@@ -1279,7 +1290,7 @@ Persist message content using AES-256-GCM before writing to MongoDB.
 
 ```ts
 interface EncryptedPayload {
-  algorithm: 'aes-256-gcm';
+  algorithm: 'AES-256-GCM';
   iv: string;
   authTag: string;
   ciphertext: string;
@@ -1289,16 +1300,43 @@ interface EncryptedPayload {
 
 Use a random 12-byte IV for every encryption operation. Never reuse an IV with the same key.
 
-## 26.3 Encryption service
+All binary fields use canonical unpadded base64url. The authentication tag is
+exactly 16 bytes and ciphertext is non-empty. Encryption and decryption use
+deterministic UTF-8 AAD built from a version marker plus trusted `orgId`, entity
+type, entity ID, field name, and the immutable conversation/message context
+required by that entity. Moving ciphertext to another tenant, resource, or
+field must fail authentication.
+
+## 26.3 Encryption service and keyring
 
 ```ts
 interface EncryptionService {
-  encrypt(plainText: string): EncryptedPayload;
-  decrypt(payload: EncryptedPayload): string;
+  encrypt(input: EncryptionInput): EncryptedPayload;
+  decrypt(input: DecryptionInput): string;
 }
 ```
 
-The MVP uses one application master key from the environment. This is acceptable for the local/demo MVP only. AWS Secrets Manager injection is required before encrypted storage is deployed; per-organisation keys remain roadmap items.
+The MVP uses one application-level versioned keyring. Runtime configuration is:
+
+- `MESSAGE_ENCRYPTION_KEYS_JSON`: a JSON object mapping positive integer
+  versions to canonical base64url-encoded, exactly 32-byte AES keys;
+- `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION`: the version used for new writes.
+
+Both values are absent together or present together. The active version must
+exist in the validated keyring. Key material is never stored in MongoDB,
+returned by APIs, logged, placed in Docker build arguments, or exposed to the
+frontend. Production injects both values through the canonical runtime secret.
+Old key versions remain available for reads until an explicit verified
+re-encryption migration completes. Automatic rotation and per-organisation
+keys are deferred.
+
+The application may run in metadata-only mode without a keyring only when no
+active organisation uses `ENCRYPTED_STORAGE` and no encrypted title/content
+operation is requested. Startup/readiness validation fails safely when
+persisted encrypted-storage configuration requires a missing key version.
+Startup performs an in-memory non-sensitive encrypt/decrypt canary for every
+configured key version. The canary is never persisted or logged. Failure stops
+encrypted-storage readiness; it does not remove or replace key material.
 
 ## 26.4 Persistence enforcement
 
@@ -1319,7 +1357,55 @@ function buildMessageWrite(
 
 The code must not construct a plain-content MongoDB document and remove content later.
 
-Phase 5 does not call this persistence path. Phase 9 may persist user and assistant content only after a successful stream completion. Partial or interrupted assistant output is not persisted. Attachments remain outside the current MVP: there is no multipart request, upload endpoint, file reference, or provider attachment contract.
+Phase 5 does not call this persistence path. Phase 9 may persist user and
+assistant content only after a successful stream completion. Partial or
+interrupted assistant output is not persisted. Attachments remain outside the
+current MVP: there is no multipart request, upload endpoint, file reference, or
+provider attachment contract.
+
+For a successful `ALLOW` or `ALLOW_WITH_MASK` stream, Phase 9 writes two
+append-oriented Message records after provider completion: the original user
+message and the assistant response. `METADATA_ONLY` writes metadata records
+with `contentStored=false`; `ENCRYPTED_STORAGE` encrypts each content value
+before constructing the MongoDB write and stores `contentStored=true`. A
+blocked, failed, or interrupted stream stores no message content. RequestLog
+usage remains append-only and independent from retained content.
+
+The two Message inserts and Conversation `messageCount`/`lastMessageAt` update
+commit in one MongoDB transaction. The unique tenant/request/role index makes a
+retry idempotent. Encryption or transaction failure stores no plaintext and no
+partial message pair, preserves the authoritative RequestLog outcome, and emits
+only a safe persistence error. If SSE tokens were already delivered, the
+server sends a terminal error rather than a false `done` event; it does not
+repeat the paid provider call automatically.
+
+The owner message-read path requires authentication plus current
+`chat:view_own`, then proves Conversation ownership with trusted
+`{ orgId, userId, conversationId }`, then reads Messages with trusted
+`{ orgId, conversationId }`. A metadata-only item returns
+`contentAvailable=false` and omits `content`. A successfully decrypted item
+returns `contentAvailable=true` plus `content`; the encryption envelope is
+never an API field. A missing key, tag mismatch, or malformed envelope fails
+the whole read safely and never returns partial plaintext or ciphertext.
+
+Canonical safe failures are `503 ENCRYPTION_UNAVAILABLE` when required runtime
+key material, a referenced key version, or encryption-service readiness is
+unavailable, and `500 MESSAGE_CONTENT_UNAVAILABLE` for malformed envelopes or
+authentication-tag failure. Client responses contain no key
+version, envelope field, database identifier, stack, or crypto-library error.
+
+Conversation titles are also Phase 9 encrypted-at-rest work. The persisted
+plain title becomes a fixed non-sensitive fallback (`New conversation`), while
+an optional encrypted title envelope stores a manual custom title. Owner list,
+read, and `chat:send` rename paths decrypt only after trusted ownership checks. Prompt-
+derived and LLM-generated titles remain prohibited.
+
+`METADATA_ONLY` and `ENCRYPTED_STORAGE` are the only MVP retention modes. A
+retention change is prospective: switching to metadata-only stops future
+content writes but does not silently delete or rewrite existing ciphertext;
+switching to encrypted storage does not reconstruct historical content.
+Custom TTL, `CUSTOM_RETENTION`, `NO_STORAGE`, and automated retention deletion
+remain deferred.
 
 ## 27. Audit Logging
 
@@ -1330,18 +1416,24 @@ MVP audit actions include:
 - `auth.login_succeeded`
 - `auth.login_failed`
 - `auth.login_operational_error`
-- `auth.logout`
+- `auth.logout_succeeded`
 - `auth.refresh_reuse_detected`
 - `policy.allow`
 - `policy.mask`
 - `policy.block`
-- `admin.user_created`
-- `admin.user_role_changed`
-- `admin.user_deactivated`
-- `admin.policy_changed`
-- `admin.budget_changed`
-- `admin.retention_changed`
+- `user.role_changed`
+- `user.team_changed`
+- `user.status_changed`
+- `user.sessions_revoked`
+- `organisation.policy_changed`
+- `organisation.budget_changed`
+- `organisation.retention_changed`
+- `alert.resolved`
+- `alert.reopened`
 - `audit.exported`
+
+User creation and invitation remain deferred because no approved onboarding
+contract exists.
 
 ### 27.2 Repository
 
@@ -1356,11 +1448,91 @@ No `update`, `delete`, or generic save method is allowed once the durable audit
 repository is implemented in Phase 9. P2-04 emits structured authentication
 security events only and does not create the MongoDB audit collection.
 
+`AuditLog` uses backend-generated UUID `auditId`, immutable trusted `orgId`,
+optional trusted actor ID and role, allowlisted actor type/action/resource
+type/outcome, optional resource ID, canonical `requestId`, bounded IP address
+and user agent fields, action-specific safe metadata, and `occurredAt` only.
+Metadata is built field-by-field through an action-specific Zod contract,
+cannot exceed 8 KiB after serialization, and never accepts arbitrary request
+objects. The model and repository reject every update, replace, and delete
+operation.
+
+Declared indexes are limited to:
+
+- unique `{ auditId: 1 }`;
+- `{ orgId: 1, occurredAt: -1, auditId: -1 }` for export/pagination;
+- `{ orgId: 1, actorId: 1, occurredAt: -1 }`;
+- `{ orgId: 1, action: 1, occurredAt: -1 }`;
+- `{ orgId: 1, resourceType: 1, resourceId: 1, occurredAt: -1 }`.
+
 ### 27.3 Failure handling
 
 - Policy blocks and admin actions should fail closed when their audit write fails because these are compliance-relevant actions.
 - Login-success audit failure may log an operational error and continue only if the product would otherwise become unavailable. This exception must be clearly logged.
 - Raw prompts, responses, tokens, passwords, cookies, and API keys must never be included.
+
+Every Phase 9 admin mutation runs the tenant-scoped state change and its audit
+append in one MongoDB transaction. If a transaction or audit append fails, the
+mutation rolls back and returns `503 AUDIT_UNAVAILABLE`. No queue or best-effort
+fallback is allowed for admin mutations. Atlas/production must support MongoDB
+transactions; an unsupported standalone deployment cannot enable these routes.
+
+Policy decisions append durable safe audit metadata before provider execution.
+Audit failure returns `503 AUDIT_UNAVAILABLE` and therefore still produces zero
+provider calls. Authentication and session-security operations keep their
+availability/safety ordering: session revocation is never rolled back because
+an audit append fails, while a safe operational event records the audit
+failure. A login attempt without a trusted organisation never invents an
+`orgId`; it remains a structured operational security event only.
+
+### 27.4 Phase 9 admin mutation contract
+
+- `PATCH /admin/users/:userId/role` accepts strict `{ role }`, requires
+  `admin:manage_users`, scopes by trusted `orgId`, and derives the exact
+  permission set from the role. Client permission arrays are rejected.
+- `PATCH /admin/users/:userId/team` accepts strict `{ teamId: uuid | null }`,
+  verifies the Team through `{ orgId, teamId }`, and preserves the active
+  `TEAM_LEAD` team requirement.
+- `PATCH /admin/users/:userId/status` accepts only `ACTIVE` or `DISABLED`.
+  Disabling a user revokes every active refresh session for trusted
+  `{ orgId, userId }` in the same transaction; access-token middleware already
+  rejects the now-disabled user on the next request.
+- `POST /admin/users/:userId/revoke-sessions` has an empty body and revokes all
+  active refresh sessions without changing user status.
+- `PATCH /admin/policy` updates only approved thresholds and/or monthly token
+  budget after validating the complete resulting policy.
+- `PATCH /admin/retention` accepts only `METADATA_ONLY` or
+  `ENCRYPTED_STORAGE`; encrypted mode requires a validated active keyring.
+- `PATCH /admin/alerts/:alertId` accepts strict `{ resolved: boolean }` and
+  updates the existing tenant-scoped alert rather than creating a duplicate.
+
+The canonical role mapping is deterministic:
+
+```text
+EMPLOYEE  -> chat:send, chat:view_own
+TEAM_LEAD -> chat:send, chat:view_own, team:view_logs
+ORG_ADMIN -> every current tenant UserPermission
+```
+
+Role/status changes that would leave an organisation without an active
+`ORG_ADMIN` return `409 LAST_ACTIVE_ORG_ADMIN`. An active `TEAM_LEAD` without a
+trusted same-organisation team returns `409 TEAM_ASSIGNMENT_REQUIRED`.
+Foreign-tenant and nonexistent resources return the same generic `404`.
+
+### 27.5 Audit CSV export
+
+`GET /admin/audit/export` requires both `admin:export_audit` and the current
+organisation's `auditExport` feature flag. `dateFrom` and `dateTo` are required
+UTC timestamps, `dateTo` must not precede `dateFrom`, and the inclusive range
+is limited to 90 days. The MVP exports at most 10,000 rows ordered by
+`occurredAt` then `auditId`; a larger result returns `413 EXPORT_TOO_LARGE`
+instead of truncating silently.
+
+The server builds the bounded CSV, neutralizes cells beginning with `=`, `+`,
+`-`, or `@`, appends `audit.exported` with safe range/filter/row-count metadata,
+and only then commits response headers. Audit append failure returns
+`503 AUDIT_UNAVAILABLE`. The CSV includes no prompt, response, password, token,
+cookie, key, ciphertext, IV, authentication tag, or arbitrary metadata field.
 
 ## 28. BullMQ Design
 
@@ -1375,7 +1547,9 @@ security events only and does not create the MongoDB audit collection.
 | `health-check-queue` | `provider.health_check` | Repeat scheduler | Health worker |
 | `recovery-queue` | `async.enqueue_recovery_scan` | Repeat scheduler | Enqueue-recovery worker |
 
-The architecture source mentions an archive queue. For the simplified MVP, retention deletion is handled through MongoDB TTL where applicable, so a separate archive worker is not required unless custom retention is implemented later.
+The architecture source mentions an archive queue. Custom retention, MongoDB
+TTL message deletion, and an archive/retention worker are deferred and are not
+implemented in the MVP.
 
 ## 28.2 Shared job options
 

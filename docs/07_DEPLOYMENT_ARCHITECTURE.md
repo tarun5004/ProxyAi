@@ -175,10 +175,19 @@ promotion. This exception does not redefine the final isolation architecture.
 - `AUTH_RATE_LIMIT_SECRET`
 - `GROQ_API_KEY`
 
+Before Phase 9 encrypted titles/content or `ENCRYPTED_STORAGE` is enabled, the
+same environment-scoped secret must also contain:
+
+- `MESSAGE_ENCRYPTION_KEYS_JSON`
+- `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION`
+
 These keys are stored in one environment-scoped AWS Secrets Manager JSON
 secret. Production uses `proxiai/production`; ECS injects only the keys required
 by each task. Secret values never enter Docker build arguments, image layers,
 GitHub logs, frontend bundles, or committed environment files.
+The application may remain metadata-only without these Phase 9 keys only while
+no active organisation uses encrypted storage. Removing an old key version
+before verified re-encryption is prohibited.
 
 ### Runtime configuration
 

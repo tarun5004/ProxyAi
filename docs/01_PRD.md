@@ -17,7 +17,7 @@
 
 ProxiAI is a multi-tenant AI gateway that sits between employees and external Large Language Model providers. Instead of employees directly sending prompts to different AI vendors, ProxiAI receives the prompt, checks it for sensitive information, applies organisation policy, selects an eligible provider, streams the response, and records usage and audit information.
 
-The MVP is intentionally limited for a beginner solo developer. It focuses on a working end-to-end flow rather than full enterprise scale. The first version includes authentication, organisation isolation, chat, provider abstraction, deterministic PII detection, policy decisions, routing resilience, Server-Sent Events streaming, Redis-based idempotency, MongoDB persistence, background jobs, Docker-based local setup, and an AWS ECS/Fargate deployment path. The Phase 8 admin dashboard remains planned after first deployment. Secure prompt-cache and response-replay contracts are documented, but their implementation is deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
+The MVP is intentionally limited for a beginner solo developer. It focuses on a working end-to-end flow rather than full enterprise scale. The first version includes authentication, organisation isolation, chat, provider abstraction, deterministic PII detection, policy decisions, routing resilience, Server-Sent Events streaming, Redis-based idempotency, MongoDB persistence, background jobs, a read-only tenant administration dashboard, Docker-based local setup, and an AWS deployment path. Phase 9 adds approved encrypted retention, append-only audit, and audit-atomic administration mutations. Secure prompt-cache and response-replay contracts are documented, but their implementation remains deferred until separate post-Phase-9 storage/accounting contracts are approved.
 
 The MVP will not include advanced machine-learning classification, Kafka, SAML/SSO, multi-region deployment, sophisticated approval workflows, distributed circuit-breaker state, or seamless mid-stream provider splicing.
 
@@ -216,7 +216,7 @@ The MVP should keep this role minimal and should not create a full platform-mana
 | Routing | Manual selection and simple intent/budget/latency/health score |
 | Resilience | Retry, backoff, jitter, circuit breaker, fallback chain |
 | Redis | Idempotency and provider health state; prompt-cache implementation deferred to Phase 9 prerequisites |
-| Retention | Metadata Only and Encrypted Storage; custom TTL support if practical |
+| Retention | Metadata Only and Encrypted Storage; custom TTL deferred |
 | Background jobs | Billing, analytics, anomaly, provider health, and failed-enqueue recovery; email delivery remains deferred pending provider approval |
 | Audit | Append-only audit records for important actions |
 | Dashboard | Basic KPIs, logs, filters, cursor pagination, alerts |
@@ -519,15 +519,19 @@ The system shall store provider, model, token usage, cost, latency, PII score, r
 
 The system shall store prompt and response content only in encrypted form.
 
-### FR-RET-003 — Custom retention
+### FR-RET-003 — Custom retention (deferred)
 
-When custom retention is enabled, the stored record shall include an expiry date suitable for a MongoDB TTL index.
+`CUSTOM_RETENTION`, TTL-based message deletion, and `NO_STORAGE` are not MVP
+modes. They require a separate deletion/recovery contract and must not be
+claimed by Phase 9.
 
 ### FR-RET-004 — Enforce before write
 
 Retention mode shall determine the persistence payload before the database write is constructed.
 
-`NO_STORAGE` is documented as a future production mode and is not required for the first beginner MVP.
+Retention changes are prospective. Metadata-only stops future content writes;
+encrypted storage does not reconstruct missing historical content; neither
+mode silently deletes or rewrites existing ciphertext.
 
 ## 9.12 Billing and budget
 
@@ -577,8 +581,9 @@ duplicate. P7-07 does not enqueue email or notification work.
 
 An organisation admin shall be able to mark an alert as resolved.
 
-Alert listing, resolution, and reopening are Phase 8 administration work. They
-are not part of the Phase 7 anomaly worker.
+Alert listing is Phase 8 administration work. Resolution and reopening require
+the Phase 9 audit-atomic mutation guarantee. None is part of the Phase 7
+anomaly worker.
 
 ## 9.14 Audit logging
 
@@ -595,14 +600,20 @@ The MVP shall audit:
 - Refresh-token reuse detection.
 - Policy allow, mask, and block decisions.
 - User and role changes.
+- User team/status changes and refresh-session revocation.
 - Budget changes.
 - Retention changes.
 - Policy-threshold changes.
 - Audit export.
+- Alert resolution and reopening.
 
 ### FR-AUDIT-003 — Audit metadata
 
-An audit record shall include organisation, actor, action, resource, timestamp, IP address, user agent, and safe metadata.
+An audit record shall include trusted organisation scope, actor, allowlisted
+action/resource/outcome, canonical request ID, timestamp, bounded IP address
+and user agent, and action-specific safe metadata. Metadata must never contain
+raw prompts, responses, passwords, tokens, cookies, keys, ciphertext, or
+arbitrary request objects.
 
 ## 9.15 Admin dashboard
 
@@ -616,6 +627,11 @@ Admin mutations, alert resolution, encrypted retention enablement, and audit
 export require the Phase 9 append-only audit/encryption guarantees and remain
 unavailable in Phase 8. Team-lead logs remain deferred until request ownership
 can be mapped to a trusted team.
+
+Phase 9 admin mutations are tenant-scoped and audit-atomic. Role determines the
+canonical permission set; clients cannot submit permissions. Disabling a user
+revokes all of that tenant user's refresh sessions, and mutations that would
+remove the last active organisation admin are rejected.
 
 ### FR-ADMIN-001 — KPI summary
 

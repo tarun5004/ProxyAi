@@ -152,25 +152,12 @@ interface OrganisationDocument {
   status: 'ACTIVE' | 'SUSPENDED';
   plan: 'FREE' | 'PRO' | 'ENTERPRISE';
   monthlyTokenBudget: number;
-  currentBillingPeriod: string;
   retention: {
-    mode: 'METADATA_ONLY' | 'ENCRYPTED_STORAGE' | 'CUSTOM_RETENTION';
-    retentionDays?: number;
+    mode: 'METADATA_ONLY' | 'ENCRYPTED_STORAGE';
   };
   policy: {
     maskThreshold: number;
     blockThreshold: number;
-  };
-  routing: {
-    autoRoutingEnabled: boolean;
-    allowedProviders: string[];
-    defaultProvider?: string;
-    weights: {
-      capability: number;
-      latency: number;
-      cost: number;
-      health: number;
-    };
   };
   featureFlags: {
     autoRouting: boolean;
@@ -191,10 +178,9 @@ interface OrganisationDocument {
 - `maskThreshold` is between 0 and 100.
 - `blockThreshold` is between 0 and 100.
 - `blockThreshold` must be greater than `maskThreshold`.
-- `retentionDays` is required only for `CUSTOM_RETENTION`.
-- `retentionDays` must be a positive integer.
-- Routing weights must each be between 0 and 1.
-- Routing weights should total 1.0. The service must normalize them if minor decimal variance exists.
+- `retention.mode` is only `METADATA_ONLY` or `ENCRYPTED_STORAGE` in the MVP.
+- `CUSTOM_RETENTION`, `NO_STORAGE`, and routing configuration are deferred and
+  rejected as unknown organisation fields.
 
 ### 9.4 Indexes
 
@@ -259,7 +245,7 @@ interface UserDocument {
   emailNormalized: string;
   passwordHash: string;
   displayName: string;
-  role: 'EMPLOYEE' | 'TEAM_LEAD' | 'ORG_ADMIN' | 'SUPER_ADMIN';
+  role: 'EMPLOYEE' | 'TEAM_LEAD' | 'ORG_ADMIN';
   permissions: string[];
   teamId?: string;
   status: 'INVITED' | 'ACTIVE' | 'DISABLED';
@@ -290,7 +276,8 @@ userSchema.index({ orgId: 1, role: 1, status: 1 });
 ### 11.4 Rules
 
 - Email uniqueness is enforced per organisation for MVP.
-- `SUPER_ADMIN` users are platform-level and must not be created through normal organisation routes.
+- Tenant User records never contain `SUPER_ADMIN`; any future platform identity
+  requires a separate non-tenant contract.
 - A disabled user cannot authenticate or refresh a session.
 - Role changes revoke active refresh-token families.
 - User deletion is not required for MVP. Disable the user and preserve audit history.
@@ -362,7 +349,13 @@ interface ConversationDocument {
 
 ### 13.2 Title handling
 
-- Phase 5 stores a plain manual title with the safe default `New conversation`; title encryption remains Phase 9 work.
+- Phase 9 keeps only the fixed non-sensitive fallback `New conversation` in
+  the plaintext `title` field and stores a manual custom title in optional
+  `titleEnc`, using the same strict versioned encrypted envelope and
+  conversation-bound AAD as message content.
+- `titleEnc` is `select:false` and never serialized directly. Owner list/read
+  repositories select and decrypt it only after trusted tenant/owner scope is
+  established.
 - Titles may be changed only by the authenticated owner through the scoped rename API.
 - Prompt-derived and LLM-generated titles are prohibited. The title must be trimmed and contain 1–120 characters.
 
@@ -387,6 +380,7 @@ Stores conversation messages independently from request metadata.
 
 ```ts
 interface EncryptedValue {
+  algorithm: 'AES-256-GCM';
   ciphertext: string;
   iv: string;
   authTag: string;
@@ -399,15 +393,12 @@ interface MessageDocument {
   conversationId: string;
   orgId: string;
   userId: string;
-  requestId?: string;
+  requestId: string;
   role: 'USER' | 'ASSISTANT' | 'SYSTEM';
   contentEnc?: EncryptedValue;
   contentStored: boolean;
   tokenCount?: number;
-  provider?: string;
-  model?: string;
   createdAt: Date;
-  expiresAt?: Date;
 }
 ```
 
@@ -417,7 +408,6 @@ interface MessageDocument {
 |---|---|
 | `METADATA_ONLY` | Store no `contentEnc`; `contentStored = false` |
 | `ENCRYPTED_STORAGE` | Store encrypted content; no expiry |
-| `CUSTOM_RETENTION` | Store encrypted content with `expiresAt` |
 
 Phase 5 uses only metadata-only message records: no plaintext content is stored and `contentEnc` is absent. Phase 9 owns encrypted user/assistant content persistence for `ENCRYPTED_STORAGE`.
 
@@ -426,8 +416,10 @@ Phase 5 uses only metadata-only message records: no plaintext content is stored 
 ```ts
 messageSchema.index({ messageId: 1 }, { unique: true });
 messageSchema.index({ orgId: 1, conversationId: 1, createdAt: 1 });
-messageSchema.index({ orgId: 1, requestId: 1 });
-messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+messageSchema.index(
+  { orgId: 1, requestId: 1, role: 1 },
+  { unique: true, partialFilterExpression: { requestId: { $exists: true } } },
+);
 ```
 
 ### 14.4 Rules
@@ -438,6 +430,8 @@ messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
 - Audit and application logs must never include `contentEnc` values.
 - Token count can remain stored in metadata-only mode.
 - Phase 9 may persist content only after successful stream completion. Partial or interrupted assistant output is not persisted.
+- `requestId` links the user/assistant pair and the compound unique index makes
+  the successful-stream write idempotent without mutating existing messages.
 - Attachments have no approved collection, upload reference, or content field in the current MVP.
 
 ## 15. Request Log Collection
@@ -551,16 +545,17 @@ interface AuditLogDocument {
   _id: Types.ObjectId;
   auditId: string;
   orgId: string;
-  actorId: string;
-  actorType: 'USER' | 'SYSTEM' | 'SUPER_ADMIN';
-  action: string;
-  result: 'SUCCESS' | 'FAILURE';
-  resourceType: string;
+  actorId?: string;
+  actorType: 'USER' | 'SYSTEM';
+  actorRole?: 'EMPLOYEE' | 'TEAM_LEAD' | 'ORG_ADMIN';
+  action: AuditAction;
+  outcome: 'SUCCESS' | 'FAILURE';
+  resourceType: AuditResourceType;
   resourceId?: string;
-  metadata: Record<string, unknown>;
+  metadata: SafeAuditMetadata;
   ipAddress?: string;
   userAgent?: string;
-  requestId?: string;
+  requestId: string;
   occurredAt: Date;
 }
 ```
@@ -571,19 +566,21 @@ interface AuditLogDocument {
 auth.login_succeeded
 auth.login_failed
 auth.login_operational_error
-auth.logout
+auth.logout_succeeded
 auth.refresh_reuse_detected
 policy.allow
 policy.mask
 policy.block
-user.invited
 user.role_changed
-user.disabled
+user.team_changed
+user.status_changed
+user.sessions_revoked
 organisation.policy_changed
 organisation.retention_changed
 organisation.budget_changed
+alert.resolved
+alert.reopened
 audit.exported
-provider.config_changed
 ```
 
 P2-04 emits these authentication actions as structured security logs only.
@@ -593,9 +590,10 @@ The durable append-only `audit_logs` implementation remains Phase 9.
 
 ```ts
 auditLogSchema.index({ auditId: 1 }, { unique: true });
-auditLogSchema.index({ orgId: 1, occurredAt: -1 });
+auditLogSchema.index({ orgId: 1, occurredAt: -1, auditId: -1 });
 auditLogSchema.index({ orgId: 1, actorId: 1, occurredAt: -1 });
 auditLogSchema.index({ orgId: 1, action: 1, occurredAt: -1 });
+auditLogSchema.index({ orgId: 1, resourceType: 1, resourceId: 1, occurredAt: -1 });
 ```
 
 ### 16.4 Append-only enforcement
@@ -604,7 +602,14 @@ auditLogSchema.index({ orgId: 1, action: 1, occurredAt: -1 });
 - No normal update or delete routes exist.
 - Mongoose middleware rejects `updateOne`, `updateMany`, `findOneAndUpdate`, and delete operations for this model.
 - Production database role should omit update/delete privileges for this collection when operationally practical.
-- Metadata must contain safe identifiers, categories, scores, and changed values only. Never store raw prompts, responses, tokens, passwords, or keys.
+- Metadata uses an action-specific allowlisted Zod shape, is assembled
+  field-by-field, and is limited to 8 KiB after serialization. It must never
+  receive request objects or store raw prompts, responses, tokens, cookies,
+  passwords, ciphertext, IVs, authentication tags, or keys.
+- Admin mutations and their audit append run in one MongoDB transaction. Audit
+  failure rolls back the mutation; no best-effort admin mutation is permitted.
+- User creation/invitation and provider configuration changes are deferred and
+  are not claimed by the Phase 9 AuditAction allowlist.
 
 ## 17. Billing Rollup Collection
 
@@ -853,9 +858,10 @@ Use AES-256-GCM with a unique random 96-bit IV per encrypted value.
 
 ```ts
 interface EncryptedValue {
-  ciphertext: string; // base64
-  iv: string;         // base64
-  authTag: string;    // base64
+  algorithm: 'AES-256-GCM';
+  ciphertext: string; // unpadded base64url
+  iv: string;         // unpadded base64url, exactly 12 decoded bytes
+  authTag: string;    // unpadded base64url, exactly 16 decoded bytes
   keyVersion: number;
 }
 ```
@@ -865,17 +871,22 @@ interface EncryptedValue {
 Bind ciphertext to tenant and entity context using AAD:
 
 ```text
-orgId:entityType:entityId:fieldName
+proxiai:v1|orgId|entityType|entityId|fieldName|immutable-context
 ```
 
 This helps prevent moving ciphertext between organisations or fields without detection.
 
 ### 22.4 Key handling
 
-- The master encryption key comes from environment configuration for MVP and from AWS Secrets Manager when encrypted storage is deployed.
+- `MESSAGE_ENCRYPTION_KEYS_JSON` provides a validated version-to-key map and
+  `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` selects the key for new writes.
+- Each key is exactly 32 decoded bytes and both settings must be absent or
+  present together.
 - The key is never stored in MongoDB.
 - `keyVersion` allows future rotation.
 - The MVP may use one application-level master key, but the design must not claim per-organisation cryptographic isolation.
+- Old key versions remain until a verified re-encryption migration completes;
+  automatic rotation is not part of Phase 9.
 
 ### 22.5 Failure behaviour
 
@@ -896,11 +907,11 @@ This helps prevent moving ciphertext between organisations or fields without det
 - User and assistant message content is encrypted and retained.
 - Request logs remain metadata-only.
 
-### 23.3 Custom Retention
+### 23.3 Custom Retention (deferred)
 
-- Encrypted message records include `expiresAt`.
-- MongoDB TTL index removes expired message content documents.
-- TTL deletion is asynchronous and may occur after the exact expiry time.
+`CUSTOM_RETENTION`, `expiresAt`, TTL indexes, and automated retention deletion
+are not implemented in the MVP. They require a separate deletion and recovery
+contract.
 
 ### 23.4 Deletion boundaries
 
@@ -916,6 +927,23 @@ These records must not contain raw prompt or response text.
 ### 23.5 User deactivation
 
 User deactivation preserves request and audit history. A later privacy-delete workflow is outside the MVP unless legally required for the deployment context.
+
+### 23.6 Phase 9 migration rules
+
+- Existing metadata-only Message records remain `contentStored=false`; prompt
+  or response content is never reconstructed from RequestLog, logs, or provider
+  systems.
+- Before enabling encrypted reads, a preflight scans for any pre-contract
+  `contentStored=true` envelope that lacks the canonical algorithm/AAD contract
+  and stops instead of guessing a conversion.
+- Existing custom plaintext Conversation titles are migrated idempotently:
+  encrypt and verify first, then replace plaintext with the fixed fallback.
+  Encryption/verification failure leaves the original row unchanged.
+- Durable AuditLog coverage begins at deployment. Historical structured logs
+  are not backfilled because actor, tenant, and outcome evidence cannot be
+  reconstructed authoritatively.
+- New indexes use explicit model initialization or a reviewed migration.
+  Destructive `syncIndexes` is prohibited.
 
 ## 24. Redis Data Design
 
@@ -1329,7 +1357,7 @@ The database design is implemented for MVP when:
 1. Should the same email be allowed in multiple organisations, or should one identity belong to multiple organisations through a membership model?
 2. Which third provider will be used in the MVP?
 3. Will the hosted MongoDB environment support transactions from the first deployment?
-4. Is `CUSTOM_RETENTION` required in the first five-week build, or can it follow immediately after encrypted storage?
+4. What future deletion/recovery contract will govern deferred custom retention?
 5. What exact cost precision is required for provider estimates?
 6. Should organisation admins be allowed to view decrypted employee conversations? The current beginner-safe baseline says no.
 7. How long should audit logs be retained for the portfolio/demo deployment?

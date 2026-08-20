@@ -464,7 +464,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | I, T |
 | Risk | Critical |
 | Scenario | Static IV reuse, unauthenticated encryption, wrong key handling, or plaintext fallback exposes stored content. |
-| Prevention | AES-256-GCM; fresh random 96-bit IV per value; authentication tag; versioned ciphertext envelope; key from runtime secret; fail closed. |
+| Prevention | AES-256-GCM; fresh random 96-bit IV per value; 128-bit authentication tag; versioned ciphertext envelope; tenant/resource-bound AAD; validated runtime keyring; fail closed. |
 | Detection | Encryption round-trip and tamper tests; reject modified tag/ciphertext. |
 | Residual risk | A single MVP master key has broad impact; managed per-org keys are roadmap only. |
 
@@ -475,7 +475,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | D |
 | Risk | High |
 | Scenario | Existing encrypted messages become undecryptable. |
-| Prevention | Version key identifiers; document backup and rotation procedure; never overwrite old key before data migration. |
+| Prevention | `MESSAGE_ENCRYPTION_KEYS_JSON` preserves versioned 32-byte keys; `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` selects new writes; never remove an old key before verified re-encryption. |
 | Detection | Startup configuration check and scheduled decrypt health test using a non-sensitive canary. |
 | MVP note | Do not implement automatic rotation without a tested migration path. |
 
@@ -631,6 +631,14 @@ Risk ratings are qualitative for the MVP:
 | Detection | Monitor unexpected mutation operations; backup strategy. |
 | Residual risk | Application-level append-only storage is not cryptographically tamper-proof. |
 
+Phase 9 also rejects model-level replace/update/delete operations and uses one
+MongoDB transaction for each admin mutation plus audit append. A failed audit
+write returns `503 AUDIT_UNAVAILABLE` and leaves the target unchanged. The
+AuditLog contains only trusted tenant scope, allowlisted action/resource fields,
+bounded request metadata, and action-specific safe values. Historical
+structured logs are not backfilled into AuditLog because they cannot be
+reconstructed authoritatively.
+
 ### TM-028 — Audit export data leakage
 
 | Field | Value |
@@ -638,7 +646,7 @@ Risk ratings are qualitative for the MVP:
 | STRIDE | I |
 | Risk | High |
 | Scenario | Unauthorised user exports tenant audit data, or spreadsheet formula injection executes when CSV opens. |
-| Prevention | Explicit export permission; org-scoped query; date/size limits; audit the export; prefix dangerous CSV cells beginning with `=`, `+`, `-`, or `@`; safe filename. |
+| Prevention | Explicit permission plus `auditExport` feature flag; org-scoped query; 90-day/10,000-row limits; audit before response headers; prefix dangerous CSV cells beginning with `=`, `+`, `-`, or `@`; safe filename. |
 | Detection | Export audit records and volume monitoring. |
 
 ### TM-029 — Forged webhook
@@ -810,6 +818,12 @@ unless an immediate, unavoidable, and tested tenant check follows before any dat
 - Frontend route guards are convenience only.
 - Role assignment, budget changes, retention changes, policy changes, audit exports, and alert resolution require explicit permissions.
 - A user must not assign a role or permission greater than their own authority.
+- Client permission arrays are never accepted. Role changes replace permissions
+  through the canonical deterministic role map.
+- Admin mutations and their append-only audit record commit in one MongoDB
+  transaction. Audit failure rolls back the mutation.
+- Deactivation and explicit session revocation use trusted `{ orgId, userId }`;
+  disabling the last active organisation admin is prohibited.
 
 ## 15. Prompt Security and Data-Egress Controls
 
@@ -863,9 +877,12 @@ For encrypted content:
 - Algorithm: AES-256-GCM.
 - Unique random IV for every encrypted value.
 - Store ciphertext, IV, authentication tag, and key version.
-- Use canonical encoding such as Base64.
-- Include stable additional authenticated data where practical, for example organisation and record identifiers, to make ciphertext swapping detectable.
+- Use canonical unpadded base64url with exact decoded IV/tag/key lengths.
+- Include versioned AAD containing trusted organisation, entity, field, and
+  immutable resource context so ciphertext swapping is detected.
 - Do not silently return empty content when authentication fails; treat it as a data-integrity/security error.
+- Keep all old key versions required by retained ciphertext; automatic
+  rotation and per-organisation keys remain deferred.
 
 ### 16.3 Retention enforcement
 
@@ -873,8 +890,8 @@ Retention is enforced before content persistence:
 
 - `METADATA_ONLY`: no prompt or response ciphertext is constructed.
 - `ENCRYPTED_STORAGE`: approved content is encrypted before writing.
-- `CUSTOM_RETENTION`, only if implemented from the approved plan: encrypted content has validated expiry and TTL index.
-- `NO_STORAGE`, if later enabled: content write is not constructed at all.
+- `CUSTOM_RETENTION`, `NO_STORAGE`, TTL deletion, and automated content cleanup
+  are deferred and are not accepted by the MVP API.
 
 ### 16.4 Deletion limitations
 
@@ -886,7 +903,9 @@ MongoDB TTL deletion is asynchronous and not guaranteed at the exact expiry seco
 - `contentAvailable: false` omits `content`; `contentEnc`, ciphertext, IVs, authentication tags, and key versions are never returned by the message API.
 - Phase 9 owns AES-256-GCM content persistence and authorised decryption for `ENCRYPTED_STORAGE`. `METADATA_ONLY` continues to expose no content.
 - Only a successfully completed stream may become eligible for Phase 9 persistence. Partial or interrupted assistant output is not persisted.
-- Conversation title changes are manual, owner-scoped, and permission-checked. Prompt-derived and LLM-generated titles are prohibited.
+- Phase 9 encrypts manual custom conversation titles at rest; only the fixed
+  `New conversation` fallback remains plaintext. Title decryption is owner-
+  scoped and prompt-derived/LLM-generated titles remain prohibited.
 - Attachments are deferred. No file ingestion, multipart parsing, storage, preview, or provider forwarding is allowed until MIME/size allowlists, malware scanning, tenant ownership, provider capability, retention, and deletion are approved.
 
 ## 17. Secrets Management

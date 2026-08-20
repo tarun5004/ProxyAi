@@ -340,7 +340,7 @@ Provider-specific internal errors are normalized before they reach controllers.
 
 ```yaml
 type: string
-enum: [employee, team_lead, org_admin, super_admin]
+enum: [EMPLOYEE, TEAM_LEAD, ORG_ADMIN]
 ```
 
 ### 12.2 Retention mode
@@ -349,10 +349,10 @@ MVP-supported values:
 
 ```yaml
 type: string
-enum: [METADATA_ONLY, ENCRYPTED_STORAGE, CUSTOM_RETENTION]
+enum: [METADATA_ONLY, ENCRYPTED_STORAGE]
 ```
 
-`CUSTOM_RETENTION` is implemented only after the base retention modes are stable. `NO_STORAGE` remains roadmap-only and is intentionally not exposed in the MVP API.
+`CUSTOM_RETENTION` and `NO_STORAGE` are deferred and are not exposed in the MVP API.
 
 ### 12.3 Provider ID
 
@@ -406,6 +406,14 @@ enum: [manual, auto, fallback, cache]
 | GET | `/admin/alerts` | Bearer | `admin:view_logs` | JSON |
 | GET | `/admin/users` | Bearer | `admin:manage_users` | JSON |
 | GET | `/admin/teams` | Bearer | `admin:manage_users` | JSON |
+| PATCH | `/admin/users/{userId}/role` | Bearer | `admin:manage_users` | JSON |
+| PATCH | `/admin/users/{userId}/team` | Bearer | `admin:manage_users` | JSON |
+| PATCH | `/admin/users/{userId}/status` | Bearer | `admin:manage_users` | JSON |
+| POST | `/admin/users/{userId}/revoke-sessions` | Bearer | `admin:manage_users` | JSON |
+| PATCH | `/admin/policy` | Bearer | `admin:configure_policy` | JSON |
+| PATCH | `/admin/retention` | Bearer | `admin:configure_policy` | JSON |
+| PATCH | `/admin/alerts/{alertId}` | Bearer | `admin:view_logs` | JSON |
+| GET | `/admin/audit/export` | Bearer | `admin:export_audit` | CSV |
 | GET | `/health/live` | Public | None | JSON |
 | GET | `/health/ready` | Public | None | JSON |
 | GET | `/health/detailed` | Bearer or disabled | `platform:view_health` | JSON |
@@ -416,8 +424,8 @@ Phase 7 closure adds no public HTTP route. Provider-health scheduling and
 failed-enqueue recovery are internal worker contracts. The current provider
 state is Redis-only and uses `HEALTHY`, `UNHEALTHY`, or `UNKNOWN`; any future
 admin/provider-health response remains Phase 8/10 work. Alert listing,
-resolution, reopening, and the deferred `alert.created` email delivery remain
-Phase 8 responsibilities.
+resolution, reopening, and email delivery are not Phase 7 worker work: listing
+is Phase 8, audited state changes are Phase 9, and email remains deferred.
 
 # 14. Authentication APIs
 
@@ -464,7 +472,7 @@ missing-user timing equalization remain pending authentication work.
       "userId": "usr_7dd6...",
       "email": "employee@example.com",
       "displayName": "Example Employee",
-      "role": "employee",
+      "role": "EMPLOYEE",
       "permissions": ["chat:send", "chat:view_own"],
       "teamId": "team_21f...",
       "organisation": {
@@ -643,7 +651,8 @@ The title is optional. The API uses the safe default `New conversation`. Prompt-
 
 - `orgId` and owner `userId` come from authenticated context.
 - A client cannot create a conversation for another user or tenant.
-- Phase 5 titles are client-entered only. Title encryption remains Phase 9 work.
+- Titles are client-entered only. Phase 9 stores manual custom titles encrypted
+  at rest and keeps only the fixed `New conversation` fallback plaintext.
 
 ## 15.2 GET `/conversations`
 
@@ -756,7 +765,7 @@ Returns retained messages for a conversation owned by the authenticated user.
 | `limit` | integer | 50 | 1–100 |
 | `cursor` | string | none | Opaque message cursor |
 
-### Success — Phase 5 safe message summaries
+### Success — retention-aware message summaries
 
 ```json
 {
@@ -786,12 +795,12 @@ Returns retained messages for a conversation owned by the authenticated user.
 }
 ```
 
-Phase 5 returns metadata summaries only. `contentAvailable` is always `false`,
-so `content` is omitted. It never returns `contentEnc` or encryption metadata.
-Phase 9 may add a separate `contentAvailable: true` variant containing decrypted
-`content` only after tenant and ownership authorization; `METADATA_ONLY`
-continues to expose no content. Successful stream-completion persistence is
-also Phase 9 work, and partial or interrupted assistant output is not persisted.
+`contentAvailable=false` omits `content`. For an encrypted record successfully
+decrypted after tenant and owner authorization, the same item uses
+`contentAvailable=true` and includes string `content`. The API never returns
+`contentEnc`, algorithm, ciphertext, IV, authentication tag, key version, or a
+partially decrypted page. `METADATA_ONLY` continues to expose no content.
+Partial or interrupted assistant output is not persisted.
 
 # 16. Chat Streaming API
 
@@ -1336,9 +1345,58 @@ resolution reuse that record and do not create duplicate same-day alerts.
 This route is not implemented before Phase 9 because the required durable audit
 write does not yet exist.
 
+## 20.3 Admin User Mutation APIs — Phase 9
+
+All routes require `admin:manage_users`, trusted authenticated `orgId`, strict
+Zod bodies, generic `404` for foreign/missing resources, and a MongoDB
+transaction containing both the mutation and append-only audit record. Clients
+cannot submit `orgId`, permissions, or arbitrary user fields.
+
+## PATCH `/admin/users/{userId}/role`
+
+```json
+{ "role": "TEAM_LEAD" }
+```
+
+`role` is one of `EMPLOYEE`, `TEAM_LEAD`, or `ORG_ADMIN`. The backend replaces
+permissions with the canonical role mapping; it never merges client-provided
+permission strings. An active `TEAM_LEAD` requires a trusted same-organisation
+team. Removing the last active `ORG_ADMIN` returns
+`409 LAST_ACTIVE_ORG_ADMIN`.
+
+## PATCH `/admin/users/{userId}/team`
+
+```json
+{ "teamId": "d7dd6154-d0a3-4c27-b28c-bf332ac3219a" }
+```
+
+`teamId` is a UUID or `null`. A non-null Team is loaded through trusted
+`{ orgId, teamId }`. Removing an active team lead's assignment returns
+`409 TEAM_ASSIGNMENT_REQUIRED`.
+
+## PATCH `/admin/users/{userId}/status`
+
+```json
+{ "status": "DISABLED" }
+```
+
+Only `ACTIVE` and `DISABLED` are accepted. Disabling revokes all active refresh
+sessions for trusted `{ orgId, userId }` in the same transaction. Reactivation
+does not issue or restore a session. The last active `ORG_ADMIN` cannot be
+disabled.
+
+## POST `/admin/users/{userId}/revoke-sessions`
+
+The request has no JSON body. It revokes every active refresh session for the
+tenant-scoped user and returns a standard success envelope containing only
+`userId`, `revokedSessionCount`, and `effectiveAt`.
+
+All four routes return `503 AUDIT_UNAVAILABLE` without a partial admin mutation
+when the transaction/audit append cannot commit.
+
 # 21. Admin Policy API
 
-## 21.1 PATCH `/admin/policy` — deferred to Phase 9 audit prerequisite
+## 21.1 PATCH `/admin/policy` — Phase 9
 
 Updates approved organisation policy thresholds and monthly token budget.
 
@@ -1390,7 +1448,7 @@ Write old and new safe configuration values. Do not include unrelated organisati
 
 # 22. Admin Retention API
 
-## 22.1 PATCH `/admin/retention` — deferred to Phase 9 audit prerequisite
+## 22.1 PATCH `/admin/retention` — Phase 9
 
 Updates the organisation retention mode.
 
@@ -1406,7 +1464,7 @@ Updates the organisation retention mode.
 }
 ```
 
-### Future request — encrypted storage after Phase 9
+### Request — encrypted storage
 
 ```json
 {
@@ -1417,7 +1475,7 @@ Updates the organisation retention mode.
 ### Validation
 
 - `CUSTOM_RETENTION` and `NO_STORAGE` are not MVP modes.
-- `ENCRYPTED_STORAGE` cannot be selected before Phase 9 encryption exists.
+- `ENCRYPTED_STORAGE` requires a validated active encryption keyring.
 - The update applies prospectively. It does not silently decrypt, rewrite, or restore historical content.
 
 ### Success — `200 OK`
@@ -1449,6 +1507,8 @@ Exports append-only audit records for the current organisation as CSV.
 
 `admin:export_audit`
 
+The organisation's `auditExport` feature flag must also be enabled.
+
 ### Query parameters
 
 | Parameter | Required | Rules |
@@ -1457,7 +1517,9 @@ Exports append-only audit records for the current organisation as CSV.
 | `dateTo` | Yes | Inclusive UTC date/time; must be after `dateFrom` |
 | `action` | No | Optional exact/prefix action filter |
 
-The date range must be bounded, for example a maximum of 90 days per export in MVP.
+The inclusive date range is limited to 90 days. At most 10,000 rows may be
+exported; larger results return `413 EXPORT_TOO_LARGE` and are never silently
+truncated.
 
 ### Success — `200 OK`
 
@@ -1476,7 +1538,10 @@ occurredAt,actorId,actorType,action,resourceType,resourceId,ipAddress,userAgent,
 
 `metadata` should be safe JSON escaped as a CSV field. It must never contain raw prompts, responses, passwords, credentials, refresh tokens, or detected sensitive values.
 
-The export itself must create an audit event such as `audit.exported`.
+The bounded CSV is generated first, formula-dangerous cells beginning with
+`=`, `+`, `-`, or `@` are neutralized, then `audit.exported` is appended with
+safe range/filter/row-count metadata before response headers are committed.
+Audit failure returns `503 AUDIT_UNAVAILABLE`.
 
 # 24. Health APIs
 
@@ -2048,6 +2113,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
+  /admin/alerts/{alertId}:
+    patch:
+      tags: [Admin]
+      operationId: updateAdminAlertState
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [resolved]
+              properties:
+                resolved: { type: boolean }
+      responses:
+        '200': { description: Alert state updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { description: Audit transaction unavailable }
+  /admin/policy:
+    patch:
+      tags: [Admin]
+      operationId: updateAdminPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePolicyRequest' }
+      responses:
+        '200': { description: Policy or budget updated }
+        '503': { description: Audit transaction unavailable }
+  /admin/retention:
+    patch:
+      tags: [Admin]
+      operationId: updateAdminRetention
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateRetentionRequest' }
+      responses:
+        '200': { description: Prospective retention mode updated }
+        '503': { description: Audit or encryption unavailable }
+  /admin/audit/export:
+    get:
+      tags: [Admin]
+      operationId: exportAdminAudit
+      parameters:
+        - name: dateFrom
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: dateTo
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: action
+          in: query
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200': { description: Formula-safe tenant audit CSV }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { description: Export exceeds 10,000 rows }
+        '503': { description: Audit append unavailable }
   /admin/users:
     get:
       tags: [Admin]
@@ -2073,6 +2206,76 @@ paths:
                 $ref: '#/components/schemas/SuccessEnvelope'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /admin/users/{userId}/role:
+    patch:
+      tags: [Admin]
+      operationId: updateAdminUserRole
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRoleRequest' }
+      responses:
+        '200': { description: Role and canonical permissions updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Last active admin or team invariant conflict }
+        '503': { description: Audit transaction unavailable }
+  /admin/users/{userId}/team:
+    patch:
+      tags: [Admin]
+      operationId: updateAdminUserTeam
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserTeamRequest' }
+      responses:
+        '200': { description: Team assignment updated }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Active team lead assignment conflict }
+        '503': { description: Audit transaction unavailable }
+  /admin/users/{userId}/status:
+    patch:
+      tags: [Admin]
+      operationId: updateAdminUserStatus
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserStatusRequest' }
+      responses:
+        '200': { description: User status updated and sessions revoked when disabled }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Last active admin conflict }
+        '503': { description: Audit transaction unavailable }
+  /admin/users/{userId}/revoke-sessions:
+    post:
+      tags: [Admin]
+      operationId: revokeAdminUserSessions
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Active refresh sessions revoked }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { description: Audit transaction unavailable }
   /admin/teams:
     get:
       tags: [Admin]
@@ -2172,10 +2375,25 @@ components:
       properties:
         mode:
           type: string
-          enum: [METADATA_ONLY, ENCRYPTED_STORAGE, CUSTOM_RETENTION]
-        retentionDays:
-          type: integer
-          minimum: 1
+          enum: [METADATA_ONLY, ENCRYPTED_STORAGE]
+    UpdateUserRoleRequest:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role: { type: string, enum: [EMPLOYEE, TEAM_LEAD, ORG_ADMIN] }
+    UpdateUserTeamRequest:
+      type: object
+      additionalProperties: false
+      required: [teamId]
+      properties:
+        teamId: { type: [string, 'null'], format: uuid }
+    UpdateUserStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [ACTIVE, DISABLED] }
     ProviderId:
       type: string
       enum: [groq, gemini, third]
@@ -2334,8 +2552,8 @@ For MVP:
 
 - Policy PATCH preserves omitted fields.
 - Invalid threshold ordering is rejected.
-- Retention PATCH rejects unsupported `NO_STORAGE`.
-- Custom retention requires `retentionDays`.
+- Retention PATCH rejects unsupported `CUSTOM_RETENTION` and `NO_STORAGE`.
+- `ENCRYPTED_STORAGE` requires the validated active keyring.
 - Updates create audit entries.
 
 ### 33.6 Error safety

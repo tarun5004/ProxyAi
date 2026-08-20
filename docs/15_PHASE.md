@@ -706,8 +706,8 @@ jobs from append-only RequestLog records, uses deterministic queue IDs, and
 relies on existing worker ledgers for side-effect idempotency. Three failed
 publication attempts or a terminal BullMQ failed job stops automatic recovery.
 BullMQ's failed set and safe logs are the Phase 7 visibility source; Bull Board
-is deferred to optional controlled Phase 10 tooling. Alert listing/resolution
-and email delivery remain Phase 8 responsibilities.
+is deferred to optional controlled Phase 10 tooling. Alert listing is Phase 8,
+audited resolution/reopening is Phase 9, and email delivery remains deferred.
 
 P7-11 implements that contract through the strict `async_enqueue_recovery`
 MongoDB ledger with `PENDING`, `ENQUEUED`, `COMPLETED`, and `FAILED` states.
@@ -766,27 +766,132 @@ response, PII, credential, or secret is stored or logged.
 
 **Effort:** ⭐ Ultra
 
-- [ ] Central AES-256-GCM service.
-- [ ] Random IV and authentication tag.
-- [ ] Key versioning.
-- [ ] No key stored in MongoDB.
-- [ ] No plaintext fallback.
-- [ ] Metadata-only mode stores no prompt or response content.
-- [ ] Encrypted mode encrypts user and assistant messages.
-- [ ] Decrypt only in authorized user flow.
-- [ ] Append-only audit schema.
-- [ ] No audit update or delete API.
-- [ ] Audit CSV export with bounded date range.
-- [ ] Prevent CSV formula injection.
-- [ ] Audit the export itself.
+## Contract Resolution
+
+- [x] P9-00 — Resolve encryption, retention, append-only audit, migration,
+  export, session-revocation, and Phase 8 mutation contracts before coding.
+- [x] Classify message encryption, versioned key handling, owner decryption,
+  durable AuditLog, admin mutation auditing, role/status/team changes, session
+  revocation integration, alert resolution, and audit export as
+  `IMPLEMENT_PHASE9`.
+- [x] Classify existing refresh-token family/session revocation primitives and
+  fresh active User/Organisation authentication checks as `ALREADY_COMPLETE`;
+  Phase 9 adds the tenant-scoped admin transaction/audit integration.
+- [x] Classify custom retention/TTL deletion, automatic key rotation,
+  per-organisation keys/BYOK, user invitation/creation, team CRUD, email,
+  team-lead logs, prompt cache, and response replay as `DEFER`.
+- [x] No unresolved `CONTRACT_BLOCKER` remains. Encrypted storage stays disabled
+  until the validated keyring and deployment secret selectors exist.
+
+| Contract item | Classification | Resolution |
+|---|---|---|
+| Message encryption at rest | `IMPLEMENT_PHASE9` | AES-256-GCM retention writer |
+| Encryption key/version strategy | `IMPLEMENT_PHASE9` | Validated application keyring and active version |
+| Owner-authorized message decryption | `IMPLEMENT_PHASE9` | Existing owner route gains safe content variant |
+| Retention behavior | `IMPLEMENT_PHASE9` | Two prospective MVP modes; custom TTL deferred |
+| Append-only AuditLog | `IMPLEMENT_PHASE9` | Strict immutable model/repository/indexes |
+| Admin mutation auditing | `IMPLEMENT_PHASE9` | Mutation plus audit in one MongoDB transaction |
+| User role changes | `IMPLEMENT_PHASE9` | Deterministic role-to-permission replacement |
+| User deactivation | `IMPLEMENT_PHASE9` | Status change, last-admin guard, session revocation |
+| Refresh-session revocation | `ALREADY_COMPLETE` + `IMPLEMENT_PHASE9` | Existing token primitives; add scoped admin integration/audit |
+| Alert resolution/reopening | `IMPLEMENT_PHASE9` | Tenant-scoped audited state transition |
+| Audit export | `IMPLEMENT_PHASE9` | Bounded formula-safe tenant CSV and self-audit |
+| Phase 8 blocked mutations | `IMPLEMENT_PHASE9` | Approved user/session/policy/budget/retention/alert set only |
+
+## Implementation Order
+
+- [ ] P9-01 — Add validated versioned encryption keyring, AES-256-GCM service,
+  exact base64url envelope validation, trusted AAD, and tamper/failure tests.
+- [ ] P9-02 — Add the strict tenant-scoped append-only `AuditLog` model,
+  action-specific safe metadata builders, repository, indexes, and MongoDB
+  transaction helper.
+- [ ] P9-03 — Persist approved auth/session and policy decision audit events
+  with the documented fail-safe ordering and zero sensitive values.
+- [ ] P9-04 — Add idempotent retention-aware successful-stream Message
+  persistence: metadata-only records or encrypted user/assistant content, never
+  partial/interrupted content.
+- [ ] P9-05 — Add owner-authorized retained-message decryption through the
+  existing Message read route without exposing encryption metadata.
+- [ ] P9-06 — Add encrypted manual Conversation titles plus an idempotent
+  controlled migration that removes pre-Phase-9 custom plaintext titles.
+- [ ] P9-07 — Add audited tenant-scoped user role, team, status, explicit
+  refresh-session revocation, deterministic role permissions, and last-active-
+  admin protections.
+- [ ] P9-08 — Add audited policy, monthly-token-budget, and prospective
+  retention-mode mutations with complete-result validation.
+- [ ] P9-09 — Add audited tenant-scoped alert resolution/reopening.
+- [ ] P9-10 — Add tenant-scoped, 90-day/10,000-row, formula-safe audit CSV
+  export that audits itself before response headers.
+- [ ] P9-11 — Run migration/preflight, cross-tenant, crypto-tamper,
+  append-only, transaction-rollback, session-revocation, export, source-scan,
+  full test/typecheck/build, and deployed encrypted-storage readiness gates.
+
+## Canonical Rules
+
+- [x] Encryption uses `AES-256-GCM`, a fresh 12-byte IV, a 16-byte tag,
+  unpadded base64url fields, immutable tenant/resource-bound AAD, and no
+  plaintext fallback.
+- [x] Runtime keys use `MESSAGE_ENCRYPTION_KEYS_JSON` plus
+  `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION`; keys are exactly 32 bytes, absent or
+  present as a pair, stored outside MongoDB, and old versions remain for reads.
+- [x] `METADATA_ONLY` and `ENCRYPTED_STORAGE` are the only MVP modes. Changes
+  are prospective and never reconstruct, silently rewrite, or silently delete
+  historical content.
+- [x] Durable audit metadata is action-specific and bounded; AuditLog exposes
+  append/read only and rejects all update/replace/delete operations.
+- [x] Every admin mutation and its AuditLog append commit in one MongoDB
+  transaction. Failure returns `503 AUDIT_UNAVAILABLE` with no partial change.
+- [x] Role claims/records remain uppercase and permissions remain the canonical
+  lowercase namespaced allowlist; clients never control permissions or trusted
+  `orgId`.
+- [x] RequestLog remains append-only and independent from Message/AuditLog
+  storage.
+
+## Migration and Recovery
+
+- [x] Existing metadata-only messages remain content-unavailable; prompt or
+  response content is never reconstructed from RequestLog or provider output.
+- [x] Historical structured logs are not backfilled into AuditLog because a
+  trustworthy tenant/action record cannot be reconstructed; durable audit
+  coverage begins at the Phase 9 deployment boundary.
+- [x] Before schema rollout, preflight for any existing `contentStored=true`
+  record that lacks the canonical envelope/AAD contract and stop rather than
+  guessing a migration.
+- [x] Existing custom plaintext Conversation titles are migrated idempotently:
+  encrypt first, verify decryptability, then replace plaintext with the fixed
+  fallback. Failure leaves the original title intact and aborts that migration.
+- [x] Index creation uses explicit model initialization/migration; destructive
+  `syncIndexes`, automatic key rotation, and unreviewed backfills are forbidden.
 
 ## Exit Criteria
 
 - [ ] Modified ciphertext fails authentication.
 - [ ] Metadata-only mode writes no content.
 - [ ] Encryption failure stores no plaintext.
+- [ ] Successful encrypted streams persist exactly one user/assistant pair and
+  interrupted streams persist no content.
+- [ ] Owner reads decrypt only after trusted tenant/user ownership checks;
+  admin dashboards never decrypt content.
 - [ ] Audit records cannot be modified through API.
+- [ ] Model/repository update, replace, and delete attempts against AuditLog fail.
+- [ ] Every admin mutation rolls back when its audit append fails.
+- [ ] User deactivation revokes active refresh sessions and fresh auth rejects
+  the disabled user.
 - [ ] Export is tenant-scoped.
+- [ ] Export range/row limits and CSV formula neutralization are verified, and
+  export audit failure prevents file delivery.
+- [ ] Encryption keys/plaintext/ciphertext envelopes never appear in logs,
+  errors, queue payloads, frontend responses, Git diffs, or built images.
+
+## Explicit Deferrals
+
+- [ ] **DEFERRED —** `CUSTOM_RETENTION`, `NO_STORAGE`, expiry/TTL indexes,
+  deletion jobs, and cryptographic deletion claims require a separate contract.
+- [ ] **DEFERRED —** Prompt-cache values, completed-response replay, and durable
+  post-provider recovery require follow-up contracts after Phase 9 safe storage.
+- [ ] **DEFERRED —** Per-organisation keys, BYOK, HSM/KMS envelope encryption,
+  automatic key rotation/re-encryption, and cryptographically immutable audit
+  storage are roadmap work.
 
 ---
 
@@ -1048,7 +1153,7 @@ Do not randomly change several files.
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
 | Phase 7 | Completed | Provider health and durable billing/analytics enqueue recovery verified; email delivery waived to Phase 8 |
 | Phase 8 | Completed | Read-only tenant admin APIs/UI verified; audit-dependent mutations explicitly blocked/deferred to Phase 9 |
-| Phase 9 | Not Started | |
+| Phase 9 | Contract Resolved | P9-00 complete; implementation starts with P9-01 only after approval |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
 | Phase 12 | In Progress | P12-01 through P12-08 implementation complete; live AWS rollout/rollback gates remain P12-09 |
@@ -1058,13 +1163,13 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## Phase 9 — Retention, Encryption, and Audit Planning
+## P9-01 — Versioned AES-256-GCM Foundation
 
 **Effort:** High
 
-Audit and resolve the Phase 9 encryption, key management, retained message,
-append-only audit, export, and admin-mutation contracts before implementation.
-Do not implement Phase 9 without explicit approval.
+Implement only the validated versioned keyring and central AES-256-GCM service
+with strict envelope/AAD validation, tamper tests, no MongoDB persistence, and
+no admin mutation work. Do not start P9-02 without explicit approval.
 
 ### Active cost-cut migration
 

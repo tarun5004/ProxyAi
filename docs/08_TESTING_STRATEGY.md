@@ -784,7 +784,7 @@ Verify required indexes exist for:
 |---|---:|---:|---:|---|
 | Metadata Only | No | No | Yes | No content fields present |
 | Encrypted Storage | Encrypted | Encrypted | Yes | Ciphertext exists; plaintext absent |
-| Custom Retention, if implemented | Encrypted | Encrypted | Yes | `expiresAt` set and TTL index present |
+| Custom Retention | Deferred | Deferred | Deferred | Must not be claimed by Phase 9 |
 | No Storage | Roadmap unless explicitly implemented | Roadmap | Minimal billing event only | Must not be claimed as MVP-complete |
 
 ## 15.3 Encryption
@@ -812,6 +812,30 @@ Verify:
 - metadata excludes raw prompt and response;
 - export is permission-protected;
 - CSV values beginning with `=`, `+`, `-`, or `@` are neutralised.
+
+## 15.5 Phase 9 Integration Gates
+
+Verify with focused unit tests plus real MongoDB transaction tests:
+
+- strict keyring parsing, active/old version lookup, exact decoded lengths,
+  unique IVs, trusted-AAD mismatch, ciphertext/tag tampering, and no plaintext
+  in errors/logs;
+- `METADATA_ONLY` writes no content, `ENCRYPTED_STORAGE` writes exactly one
+  request-linked user/assistant pair, retry is idempotent, and interrupted
+  streams persist no content;
+- foreign tenant/user message reads return generic `404` before encrypted
+  content selection; malformed or unknown-key envelopes return only a safe
+  content-unavailable error;
+- AuditLog insert succeeds while update, replace, and delete operations fail;
+  cross-tenant listing/export returns no foreign rows;
+- each admin mutation rolls back when audit append fails, deterministic role
+  permissions replace stale values, last-active-admin and active-team-lead
+  invariants hold, and deactivation revokes all scoped refresh sessions;
+- alert resolve/reopen is tenant-scoped and audit-atomic;
+- audit export enforces permission/feature/range/row bounds, neutralizes formula
+  cells, omits sensitive fields, and sends no file when export auditing fails;
+- title migration is rerunnable, never deletes plaintext before verified
+  encryption, and leaves failed rows unchanged.
 
 ---
 
