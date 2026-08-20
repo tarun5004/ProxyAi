@@ -400,7 +400,7 @@ test("reused refresh token revokes the complete existing family", async () => {
     );
 });
 
-test("concurrent refresh attempts allow only one successful rotation", async () => {
+test("concurrent refresh attempts preserve a usable winning rotation", async () => {
     const organisation = await OrganisationModel.create(
         organisationInput(),
     );
@@ -436,4 +436,15 @@ test("concurrent refresh attempts allow only one successful rotation", async () 
         ).length <= 1,
         true,
     );
+
+    const successfulResponse = responses.find(
+        (response) => response.status === 200,
+    );
+    const replacementCookie = successfulResponse?.headers
+        .get("set-cookie")
+        ?.match(/proxiai_refresh=([^;]+)/)?.[1];
+
+    assert.ok(replacementCookie);
+    const followUpResponse = await postRefresh(replacementCookie);
+    assert.equal(followUpResponse.status, 200);
 });

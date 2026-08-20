@@ -258,7 +258,8 @@ test("valid refresh claims old token before reloading current state", async () =
 
 test("used token revokes the trusted family and fails generically", async () => {
     const token = createRefreshToken({
-        usedAt: new Date(),
+        replacedByTokenId: randomUUID(),
+        usedAt: new Date(Date.now() - 10_000),
     });
     const harness = createHarness({ token });
 
@@ -281,6 +282,34 @@ test("used token revokes the trusted family and fails generically", async () => 
     assert.equal(
         harness.entries.some(
             (entry) => entry.event === "auth.refresh_reuse_detected",
+        ),
+        true,
+    );
+});
+
+test("concurrent rotation failure preserves the winning token family", async () => {
+    const harness = createHarness({
+        dependencies: {
+            async claimRefreshTokenForRotation() {
+                return null;
+            },
+        },
+    });
+
+    const error = await captureError(
+        harness.service.refreshSession(
+            SENTINELS.rawRefreshToken,
+            harness.logger,
+        ),
+    );
+
+    assertInvalidRefresh(error);
+    assert.equal(harness.calls.revokedFamilies.length, 0);
+    assert.equal(
+        harness.entries.some(
+            (entry) =>
+                entry.event === "auth.refresh_failed"
+                && entry.reasonCode === "REFRESH_ROTATION_CONCURRENT",
         ),
         true,
     );

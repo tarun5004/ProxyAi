@@ -37,6 +37,18 @@ import type { RefreshTokenDocument } from "./refresh-token.types.js";
 
 const DUMMY_PASSWORD_HASH =
     "$argon2id$v=19$m=19456,p=1,t=2$tctGzLy+e7DPgILRdtqpEQ$IN0OAhhfqdOcZ/4l+bvHt/+XDLBsOv5q/+pQ+EEJxak";
+const REFRESH_CONCURRENCY_GRACE_MS = 5_000;
+
+export class RefreshConcurrencyError extends AppError {
+    public constructor() {
+        super(
+            401,
+            "INVALID_REFRESH_TOKEN",
+            "Session is invalid or expired.",
+        );
+        this.name = "RefreshConcurrencyError";
+    }
+}
 
 function createInvalidCredentialsError(): AppError {
     return new AppError(
@@ -559,6 +571,20 @@ export function createAuthService(
             const now = new Date();
 
             if (existingToken.usedAt) {
+                if (
+                    existingToken.replacedByTokenId !== undefined
+                    && now.getTime() - existingToken.usedAt.getTime()
+                        <= REFRESH_CONCURRENCY_GRACE_MS
+                ) {
+                    logRefreshFailed(
+                        log,
+                        "REFRESH_ROTATION_CONCURRENT",
+                        identifiers,
+                    );
+
+                    throw new RefreshConcurrencyError();
+                }
+
                 await revokeFamilyBestEffort(existingToken, log);
                 logRefreshReuseDetected(log, identifiers);
 
@@ -617,10 +643,13 @@ export function createAuthService(
             }
 
             if (!claimedToken) {
-                await revokeFamilyBestEffort(existingToken, log);
-                logRefreshReuseDetected(log, identifiers);
+                logRefreshFailed(
+                    log,
+                    "REFRESH_ROTATION_CONCURRENT",
+                    identifiers,
+                );
 
-                throw createInvalidRefreshTokenError();
+                throw new RefreshConcurrencyError();
             }
 
             let organisation: OrganisationDocument | null;
