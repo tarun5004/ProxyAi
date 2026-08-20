@@ -425,12 +425,22 @@ revocation, and replacement links remain P2-05 behavior.
 2. Hash it using SHA-256.
 3. Find the token record.
 4. Reject when missing, expired, or revoked.
-5. When `usedAt` is already set, revoke every token in the same `familyId`, emit `auth.refresh_reuse_detected`, and return the generic refresh failure response.
-6. Mark the current token as used.
-7. Generate a new random refresh token.
-8. Store only its hash in the same token family.
-9. Issue a new access token.
-10. Replace the refresh cookie.
+5. When `usedAt` is already set outside the bounded five-second concurrency
+   grace, revoke every token in the same `familyId`, emit
+   `auth.refresh_reuse_detected`, and return the generic refresh failure
+   response.
+6. Treat an already-used predecessor inside the concurrency grace, or a loser
+   of the guarded atomic claim, as a concurrent rotation conflict. Return the
+   generic refresh failure without revoking the family or clearing the browser
+   cookie, so the winning replacement remains usable.
+7. Mark the current token as used through the guarded atomic update.
+8. Generate a new random refresh token.
+9. Store only its hash in the same token family.
+10. Issue a new access token and replace the refresh cookie.
+
+Operational `5xx` refresh failures do not clear the refresh cookie. Cookie
+clearing is reserved for terminal invalid-token failures where retaining the
+credential cannot recover the session.
 
 The database update should use a transaction when available. For the MVP, a guarded atomic update on the current token is acceptable if MongoDB transactions are difficult to configure locally.
 
@@ -908,7 +918,11 @@ When Redis is unavailable, the chat write fails closed with `503 IDEMPOTENCY_UNA
 
 The reservation handle must mark the provider-execution boundary immediately before the first provider iterator/network attempt. After that marker, `releaseBeforeExecution` must fail closed with `IDEMPOTENCY_UNAVAILABLE` instead of deleting the Redis record. There is no in-memory or local fail-open fallback when Redis restarts or becomes unavailable.
 
-If accounting or budget reconciliation fails after provider execution may have started, the request path must still attempt to convert the matching `PROCESSING` record to the `COMPLETED` tombstone in a `finally` boundary. The operational error still propagates safely; tombstone failure also remains fail closed.
+After provider execution may have started, convert the matching `PROCESSING`
+record to `COMPLETED` only after the authoritative append-only `RequestLog`
+write succeeds. If that write fails, propagate the safe operational error and
+leave `PROCESSING` until its approved TTL rather than falsely recording a
+completed request with no durable accounting evidence.
 
 The key and record contain no prompt, response, email, raw tenant/user identifiers, PII, provider secret, token, final API status/code, or provider usage. `COMPLETED` is a non-replayable tombstone; response replay/storage remains deferred until Phase 9 provides approved encrypted payload or access-checked safe-reference storage.
 
@@ -998,6 +1012,9 @@ class ProviderError extends Error {
 ```
 
 Provider adapters must translate all SDK-specific exceptions into `ProviderError` before returning control to routing or retry code.
+For Groq streaming, terminal `x_groq.error` metadata is a provider failure,
+never a successful iterator end. Missing terminal usage remains unavailable
+and must not be synthesized as zero.
 
 ## 20. Intent Classification
 
@@ -1689,8 +1706,9 @@ Rate-limit errors return `429 RATE_LIMITED` with a safe retry-after value.
 
 Login rate-limit keys must not contain raw IP, email, or organisation slug.
 Derive IP and account key components with HMAC-SHA-256 using the dedicated
-`AUTH_RATE_LIMIT_SECRET`. Do not trust forwarded IP headers without explicit
-trusted-proxy configuration. Login fails closed with a generic `503` when
+`AUTH_RATE_LIMIT_SECRET`. Trust forwarded IP headers only through the approved
+loopback, link-local, or private-network reverse-proxy boundary; public peers
+cannot supply a trusted forwarding chain. Login fails closed with a generic `503` when
 Redis rate limiting is unavailable.
 
 ## 34. Admin API Design

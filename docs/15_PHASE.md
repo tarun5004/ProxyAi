@@ -1076,8 +1076,16 @@ Critical pre-cutover autopsy gates:
 - [x] Unknown usage uses a conservative provider/model liability reservation
   without synthesizing actual tokens or unconditionally locking the tenant.
 - [x] RequestLog append failure cannot falsely close idempotency as completed.
-- [ ] Complete remaining verified P0/P1 runtime fixes and full regression.
+- [x] Complete remaining verified P0/P1 runtime fixes and full regression.
 - [ ] Pass Lightsail canary, public smoke, and rollback proof.
+
+Autopsy closure classification: unknown-usage lockout, Groq terminal stream
+errors, accounting/idempotency ordering, refresh concurrency, transient refresh
+cookie preservation, trusted proxy handling, deployment IAM/ECR alignment,
+functional ECS smoke rollback, and terminal SSE EOF handling are fixed and
+regression-tested. Historical message content remains intentionally superseded
+by the approved metadata-only Phase 5 contract; encrypted persistence remains
+Phase 9 work and plaintext storage is prohibited.
 
 ---
 

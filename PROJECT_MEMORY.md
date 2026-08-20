@@ -6,7 +6,10 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 - **Phase:** Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
 - **Task:** P12-09A — Cost-Optimized Lightsail Live-Demo Migration
-- **Status:** Repository-side Lightsail provisioning, deployment, CI/CD, and rollback automation is under verification. The existing ECS deployment remains live and unchanged; Phase 8 remains deferred.
+- **Status:** Verified autopsy P0/P1 runtime fixes and deployment-policy/rollback
+  corrections are complete. Lightsail provisioning, canary, public cutover,
+  and rollback proof remain active; the existing ECS deployment remains live
+  and unchanged, and Phase 8 remains deferred.
 
 ## Completed Tasks
 
@@ -151,7 +154,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Known-user authentication failures increment `failedLoginCount` best-effort. Successful login resets it and updates `lastLoginAt` best-effort after critical token work succeeds.
 - Login has no account lockout. Redis enforces fixed-window IP and account limits of 10 attempts per 15 minutes and fails closed with generic `503` when unavailable.
 - Redis rate-limit identifiers are HMAC-SHA-256 digests using dedicated `AUTH_RATE_LIMIT_SECRET`; raw IP, organisation slug, and email never enter Redis keys.
-- Express forwarded-header trust remains disabled, so ordinary `X-Forwarded-For` values cannot change the rate-limit IP identity.
+- Express trusts forwarded client IP only from loopback, link-local, and
+  private-network reverse-proxy peers; public direct peers cannot forge the
+  login rate-limit identity through `X-Forwarded-For`.
 - Access tokens use `jose`, HS256, protected-header `typ: at+jwt`, issuer `proxiai`, audience `proxiai-api`, type `access`, and validated `ACCESS_TOKEN_TTL_MINUTES`.
 - JWT role claims serialize uppercase `UserRole` values. Permission claims serialize canonical lowercase namespaced `UserPermission` values without transformation.
 - P2-06 must allow only HS256, validate the complete token contract, reload current User and Organisation state, and validate every current permission against the existing allowlist.
@@ -167,8 +172,13 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - Successful refresh preserves `orgId`, `userId`, `sessionId`, and `familyId`; it changes `tokenId`, raw token, token hash, and expiry.
 - Refresh access tokens are signed from current active User and Organisation state, not from stale JWT claims.
 - Refresh failures for absent, unknown, expired, used, revoked, disabled-User, and suspended-Organisation states return the same public `401 INVALID_REFRESH_TOKEN` response.
-- Used-token replay and concurrent atomic-gate losers revoke the trusted token family and emit `auth.refresh_reuse_detected`.
-- Refresh operational failures after old-token consumption revoke the family, clear the cookie, emit `auth.refresh_operational_error`, and return generic `503 AUTH_TEMPORARILY_UNAVAILABLE`.
+- Confirmed used-token replay outside the five-second concurrency grace revokes
+  the trusted token family and emits `auth.refresh_reuse_detected`; a recent
+  predecessor or concurrent atomic-gate loser returns the same safe public
+  failure without revoking the winning family.
+- Refresh operational failures emit `auth.refresh_operational_error` and return
+  generic `503 AUTH_TEMPORARILY_UNAVAILABLE` without clearing the refresh
+  cookie. Terminal invalid-token `401` responses may clear it.
 - P2-05 emits only `auth.refresh_succeeded`, `auth.refresh_failed`, `auth.refresh_reuse_detected`, and `auth.refresh_operational_error`; durable audit persistence remains Phase 9.
 - P2-06 verifies bearer access tokens with `jose`, HS256, protected-header `typ: at+jwt`, issuer `proxiai`, audience `proxiai-api`, valid signature, expiry, and `type: access`.
 - P2-06 treats JWT claims as identity hints only. It reloads the current User with `{ orgId, userId }` and the current Organisation with `{ orgId }` before attaching context.
@@ -1062,6 +1072,32 @@ npm run dev
   unconditional tenant lock when budget remains after that reservation.
   RequestLog append failure no longer falsely marks idempotency `COMPLETED`;
   the post-provider `PROCESSING` tombstone remains until its approved TTL.
+- **Autopsy provider/stream hardening:** Groq terminal `x_groq.error` metadata
+  becomes a normalized provider failure, missing usage is omitted rather than
+  synthesized, and frontend SSE EOF without `done`/`error` becomes a safe
+  `STREAM_INTERRUPTED` state while preserving partial output.
+- **Autopsy auth hardening:** The five-second refresh concurrency grace and
+  guarded atomic claim preserve the winning token family. Confirmed older
+  replay still revokes the family. Operational refresh `5xx` preserves the
+  cookie and frontend session for retry; terminal invalid-token `401` may
+  clear it.
+- **Autopsy proxy hardening:** Express trusts forwarding only from loopback,
+  link-local, and private-network proxy peers. Login rate-limit tests prove
+  trusted private forwarding and reject public-peer spoofing.
+- **Autopsy deployment hardening:** ECR templates now use canonical
+  `proxiai/frontend` and `proxiai/backend` names, the deployment policy scopes
+  required repository/listener operations to ProxiAI resources, and ECS
+  staging/production workflows retain previous task definitions with
+  `if: always()` and automatically roll back failed functional smoke releases.
+- **Autopsy classification:** Historical readable message persistence is not a
+  current defect under the approved metadata-only Phase 5 contract. Plaintext
+  storage remains prohibited; Phase 9 owns encrypted history.
+- **Verification (2026-08-20):** Backend full suite passed 203/203 with the
+  configured local Redis dependency; backend lint/typecheck/build passed.
+  Frontend passed 12/12 tests with a non-semantic 30-second test timeout for a
+  slow dynamic import, plus lint/typecheck/production build. Actionlint,
+  ShellCheck, JSON parsing, diff checks, and focused secret scans passed for
+  the deployment correction.
 
 ## Do Not Forget
 

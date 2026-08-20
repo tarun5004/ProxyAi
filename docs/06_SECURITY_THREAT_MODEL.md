@@ -392,7 +392,7 @@ Risk ratings are qualitative for the MVP:
 | Scenario | An attacker steals a refresh cookie and exchanges it. |
 | Prevention | Store only hash in MongoDB; `HttpOnly`, `Secure`, `SameSite` cookie; seven-day expiry; one-time rotation. |
 | Detection | Reuse detection when an already-used token appears. |
-| Response | Revoke the entire token family, clear cookies, force login, write audit event. |
+| Response | Confirmed replay outside the bounded concurrency grace revokes the entire token family, clears cookies, forces login, and writes an audit event. A concurrent atomic-claim loser does not revoke the winning family. Operational `5xx` failures preserve the refresh cookie for safe retry. |
 
 ### TM-005 — Password compromise
 
@@ -1208,7 +1208,9 @@ persistence remains Phase 9.
 3. Team lead cannot access another team's records.
 4. Employee cannot call admin endpoints.
 5. Disabled user cannot continue using a still-valid access token.
-6. Used refresh token revokes its family when reused.
+6. Confirmed used refresh-token replay outside the concurrency grace revokes
+   its family, while two legitimate concurrent refreshes leave the winning
+   replacement usable.
 7. Blocked sentinel secret never reaches fake provider.
 8. Masked sentinel secret reaches fake provider only as redacted text.
 9. PII request does not create prompt-cache key.

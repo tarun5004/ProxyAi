@@ -534,6 +534,12 @@ A replacement refresh cookie is set.
 | 401 | `INVALID_REFRESH_TOKEN` | Missing, unknown, expired, used, revoked, or linked to an inactive User or Organisation |
 | 503 | `AUTH_TEMPORARILY_UNAVAILABLE` | Refresh cannot be completed because a required auth dependency failed |
 
+Confirmed replay outside the bounded concurrency window revokes the token
+family. A concurrent loser inside that window returns the same safe public
+authentication failure without revoking the winning family. Operational `5xx`
+responses do not clear the refresh cookie; the client may retry after the
+dependency recovers.
+
 ## 14.3 POST `/auth/logout`
 
 Revokes the current session and clears the refresh cookie.
