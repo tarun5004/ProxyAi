@@ -190,6 +190,73 @@ test("Groq adapter maps streaming chunks", async () => {
     ]);
 });
 
+test("Groq adapter rejects terminal stream errors without a done chunk", async () => {
+    async function* streamChunks() {
+        yield {
+            id: "chunk_1",
+            object: "chat.completion.chunk",
+            created: 1,
+            model: "openai/gpt-oss-20b",
+            choices: [
+                {
+                    index: 0,
+                    finish_reason: null,
+                    delta: { content: "Partial" },
+                },
+            ],
+        };
+        yield {
+            id: "chunk_error",
+            object: "chat.completion.chunk",
+            created: 1,
+            model: "openai/gpt-oss-20b",
+            choices: [],
+            x_groq: {
+                error: "raw provider diagnostic",
+            },
+        };
+    }
+    const { adapter } = createAdapter(() => streamChunks());
+    const iterator = adapter.stream(createRequest())[Symbol.asyncIterator]();
+
+    assert.deepEqual(await iterator.next(), {
+        done: false,
+        value: { type: "token", text: "Partial" },
+    });
+    await assert.rejects(iterator.next(), (error) => {
+        assert.equal(error instanceof GroqProviderError, true);
+        assert.equal(error.category, "provider_error");
+        assert.equal(error.retryable, true);
+        assert.equal(error.message, "Groq provider stream stopped early.");
+        assert.equal(error.message.includes("raw provider diagnostic"), false);
+
+        return true;
+    });
+});
+
+test("Groq adapter omits unavailable usage instead of synthesizing zero", async () => {
+    const { adapter } = createAdapter(() => ({
+        id: "chatcmpl_without_usage",
+        object: "chat.completion",
+        created: 1,
+        model: "openai/gpt-oss-20b",
+        choices: [
+            {
+                index: 0,
+                finish_reason: "stop",
+                message: {
+                    role: "assistant",
+                    content: "No usage metadata",
+                },
+            },
+        ],
+    }));
+
+    const result = await adapter.complete(createRequest());
+
+    assert.equal(Object.hasOwn(result, "usage"), false);
+});
+
 test("Groq adapter normalizes rate limit errors", async () => {
     const { adapter } = createAdapter(() => {
         throw new RateLimitError(429, {}, "raw sdk message", new Headers());

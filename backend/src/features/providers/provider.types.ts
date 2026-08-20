@@ -74,7 +74,7 @@ export interface CompletionResult {
     model: string;
     outputText: string;
     finishReason: ProviderFinishReason;
-    usage: TokenUsage;
+    usage?: TokenUsage;
     latencyMs: number;
     estimatedCostUsd?: number;
 }

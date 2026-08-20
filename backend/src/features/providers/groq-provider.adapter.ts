@@ -151,14 +151,20 @@ export class GroqProviderAdapter implements ProviderAdapter {
                 );
             }
 
-            return {
+            const result: CompletionResult = {
                 providerId: this.providerId,
                 model: completion.model,
                 outputText: choice.message.content ?? "",
                 finishReason: mapFinishReason(choice.finish_reason),
-                usage: mapUsage(completion.usage),
                 latencyMs: this.elapsedSince(startedAt),
             };
+            const usage = mapUsage(completion.usage);
+
+            if (usage !== undefined) {
+                result.usage = usage;
+            }
+
+            return result;
         } catch (error: unknown) {
             throw normalizeGroqError(
                 error,
@@ -244,6 +250,17 @@ export class GroqProviderAdapter implements ProviderAdapter {
             ) as AsyncIterable<ChatCompletionChunk>;
 
             for await (const chunk of stream) {
+                if (chunk.x_groq?.error) {
+                    throw createProviderError(
+                        "provider_error",
+                        "Groq provider stream stopped early.",
+                        true,
+                        request.model,
+                        undefined,
+                        this.elapsedSince(startedAt),
+                    );
+                }
+
                 const choice = chunk.choices[0];
                 const text = choice?.delta.content;
 
@@ -356,23 +373,17 @@ function mapMessages(
     }));
 }
 
-function mapUsage(usage: CompletionUsage | undefined | null): TokenUsage {
+function mapUsage(
+    usage: CompletionUsage | undefined | null,
+): TokenUsage | undefined {
     if (!usage) {
-        return createUnknownUsage();
+        return undefined;
     }
 
     return {
         inputTokens: usage.prompt_tokens,
         outputTokens: usage.completion_tokens,
         totalTokens: usage.total_tokens,
-    };
-}
-
-function createUnknownUsage(): TokenUsage {
-    return {
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
     };
 }
 
