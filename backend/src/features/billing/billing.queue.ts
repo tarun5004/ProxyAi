@@ -4,6 +4,7 @@ import type { Queue } from "bullmq";
 import {
     connectManagedQueue,
     createManagedQueue,
+    recordQueueEnqueued,
 } from "../../shared/async/bullmq.js";
 import {
     parseRequestCompletedJob,
@@ -47,13 +48,16 @@ export async function enqueueRequestCompletedJob(
     const queue = getBillingQueue();
 
     try {
-        return await queue.add(
+        const job = await queue.add(
             REQUEST_COMPLETED_JOB_TYPE,
             payload,
             {
                 jobId: createBillingJobId(payload.requestId),
             },
         );
+
+        recordQueueEnqueued(BILLING_QUEUE_NAME);
+        return job;
     } catch {
         logger.error(
             {

@@ -4,6 +4,7 @@ import type { Queue } from "bullmq";
 import {
     connectManagedQueue,
     createManagedQueue,
+    recordQueueEnqueued,
 } from "../../shared/async/bullmq.js";
 import {
     ASYNC_ENQUEUE_RECOVERY_SCAN_JOB_TYPE,
@@ -69,6 +70,7 @@ async function initializeEnqueueRecoverySchedule(): Promise<void> {
                 jobId: `enqueue-recovery-startup-${startupJob.requestId}`,
             },
         );
+        recordQueueEnqueued(ENQUEUE_RECOVERY_QUEUE_NAME);
 
         logger.info(
             {

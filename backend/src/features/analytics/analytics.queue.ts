@@ -3,6 +3,7 @@ import type { Job, Queue } from "bullmq";
 import {
     connectManagedQueue,
     createManagedQueue,
+    recordQueueEnqueued,
 } from "../../shared/async/bullmq.js";
 import {
     parseAnalyticsRequestOutcomeJob,
@@ -44,7 +45,7 @@ export async function enqueueAnalyticsRequestOutcomeJob(
     const payload = parseAnalyticsRequestOutcomeJob(input);
 
     try {
-        return await getAnalyticsQueue().add(
+        const job = await getAnalyticsQueue().add(
             payload.jobType,
             payload,
             {
@@ -54,6 +55,9 @@ export async function enqueueAnalyticsRequestOutcomeJob(
                 ),
             },
         );
+
+        recordQueueEnqueued(ANALYTICS_QUEUE_NAME);
+        return job;
     } catch {
         logger.error(
             {

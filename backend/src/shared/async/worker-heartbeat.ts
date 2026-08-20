@@ -1,3 +1,8 @@
+import {
+    APPROVED_METRIC_LABEL_VALUES,
+    metrics,
+} from "../observability/metrics.js";
+
 export interface WorkerHealthState {
     readonly workerId: string;
     readonly workerType: string;
@@ -27,6 +32,27 @@ const defaultScheduler: WorkerHeartbeatScheduler = {
         clearInterval(handle as NodeJS.Timeout);
     },
 };
+
+type ApprovedWorkerName =
+    (typeof APPROVED_METRIC_LABEL_VALUES.workers)[number];
+
+const metricHeartbeats = new Map<ApprovedWorkerName, {
+    readonly heartbeat: WorkerHeartbeat;
+    readonly now: () => Date;
+}>();
+
+(metrics.workerRunning as unknown as {
+    collect?: () => void;
+}).collect = collectWorkerLifecycleMetrics;
+(metrics.workerHealthy as unknown as {
+    collect?: () => void;
+}).collect = collectWorkerLifecycleMetrics;
+(metrics.workerHeartbeatAgeSeconds as unknown as {
+    collect?: () => void;
+}).collect = collectWorkerAgeMetrics;
+(metrics.workerLastSuccessfulJobAgeSeconds as unknown as {
+    collect?: () => void;
+}).collect = collectWorkerAgeMetrics;
 
 export function createWorkerHeartbeat(input: {
     readonly workerId: string;
@@ -79,7 +105,7 @@ export function createWorkerHeartbeat(input: {
         }
     };
 
-    return {
+    const heartbeat: WorkerHeartbeat = {
         start() {
             if (running) {
                 return;
@@ -87,6 +113,7 @@ export function createWorkerHeartbeat(input: {
 
             running = true;
             heartbeatFailed = false;
+            registerMetricHeartbeat(input.workerType, heartbeat, now);
             timerHandle = scheduler.setInterval(() => {
                 void executeHeartbeat();
             }, input.intervalMs);
@@ -129,4 +156,63 @@ export function createWorkerHeartbeat(input: {
             });
         },
     };
+
+    return heartbeat;
+}
+
+function collectWorkerLifecycleMetrics(): void {
+    metrics.workerRunning.reset();
+    metrics.workerHealthy.reset();
+
+    for (const [worker, entry] of metricHeartbeats) {
+        const health = entry.heartbeat.getHealth();
+
+        metrics.workerRunning.set({ worker }, health.running ? 1 : 0);
+        metrics.workerHealthy.set({ worker }, health.healthy ? 1 : 0);
+    }
+}
+
+function collectWorkerAgeMetrics(): void {
+    metrics.workerHeartbeatAgeSeconds.reset();
+    metrics.workerLastSuccessfulJobAgeSeconds.reset();
+
+    for (const [worker, entry] of metricHeartbeats) {
+        const health = entry.heartbeat.getHealth();
+        const currentTimeMs = entry.now().getTime();
+
+        if (health.lastHeartbeatAt !== null) {
+            metrics.workerHeartbeatAgeSeconds.set(
+                { worker },
+                calculateAgeSeconds(currentTimeMs, health.lastHeartbeatAt),
+            );
+        }
+
+        if (health.lastSuccessfulJobAt !== null) {
+            metrics.workerLastSuccessfulJobAgeSeconds.set(
+                { worker },
+                calculateAgeSeconds(
+                    currentTimeMs,
+                    health.lastSuccessfulJobAt,
+                ),
+            );
+        }
+    }
+}
+
+function registerMetricHeartbeat(
+    workerType: string,
+    heartbeat: WorkerHeartbeat,
+    now: () => Date,
+): void {
+    const approvedWorker = APPROVED_METRIC_LABEL_VALUES.workers.find(
+        (worker) => worker === workerType,
+    );
+
+    if (approvedWorker !== undefined) {
+        metricHeartbeats.set(approvedWorker, { heartbeat, now });
+    }
+}
+
+function calculateAgeSeconds(currentTimeMs: number, timestamp: string): number {
+    return Math.max(0, (currentTimeMs - Date.parse(timestamp)) / 1_000);
 }

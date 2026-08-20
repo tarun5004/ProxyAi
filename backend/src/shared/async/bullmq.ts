@@ -15,6 +15,10 @@ import {
     redis,
 } from "../lib/redis.js";
 import { logger } from "../lib/logger.js";
+import {
+    APPROVED_METRIC_LABEL_VALUES,
+    metrics,
+} from "../observability/metrics.js";
 import { InvalidAsyncJobPayloadError } from "./job-contract.js";
 import {
     createWorkerHeartbeat,
@@ -25,9 +29,34 @@ export const BULLMQ_JOB_ATTEMPTS = 3;
 export const BULLMQ_BACKOFF_DELAY_MS = 1_000;
 export const BULLMQ_COMPLETED_RETENTION_COUNT = 100;
 export const BULLMQ_FAILED_RETENTION_COUNT = 500;
+export const WORKER_HEARTBEAT_INTERVAL_MS = 30_000;
+export const WORKER_HEARTBEAT_FRESHNESS_MS = 120_000;
 
 const managedQueues = new Set<Queue>();
 const managedWorkers = new Set<ManagedWorker>();
+const instrumentedQueues = new Map<ApprovedQueueName, Queue>();
+
+type ApprovedQueueName =
+    (typeof APPROVED_METRIC_LABEL_VALUES.queues)[number];
+type ApprovedQueueOutcome =
+    (typeof APPROVED_METRIC_LABEL_VALUES.queueOutcomes)[number];
+type ApprovedQueueDurationOutcome =
+    (typeof APPROVED_METRIC_LABEL_VALUES.queueDurationOutcomes)[number];
+type ApprovedWorkerName =
+    (typeof APPROVED_METRIC_LABEL_VALUES.workers)[number];
+
+const WORKER_BY_QUEUE: Readonly<Record<ApprovedQueueName, ApprovedWorkerName>> =
+    Object.freeze({
+        "billing-queue": "billing",
+        "analytics-queue": "analytics",
+        "anomaly-queue": "anomaly",
+        "health-check-queue": "provider_health",
+        "enqueue-recovery-queue": "enqueue_recovery",
+    });
+
+(metrics.queueDepth as unknown as {
+    collect?: () => Promise<void>;
+}).collect = collectQueueDepthMetrics;
 
 export interface SafeWorkerJobContext {
     readonly requestId: string;
@@ -74,7 +103,17 @@ export function createManagedQueue<
 
     managedQueues.add(queue);
 
+    const approvedQueueName = getApprovedQueueName(name);
+
+    if (approvedQueueName !== undefined) {
+        instrumentedQueues.set(approvedQueueName, queue);
+    }
+
     return queue;
+}
+
+export function recordQueueEnqueued(queueName: string): void {
+    observeQueueJob(queueName, "enqueued");
 }
 
 export async function connectManagedQueue(queue: Queue): Promise<void> {
@@ -104,6 +143,14 @@ export async function connectManagedQueue(queue: Queue): Promise<void> {
 
 export async function closeManagedQueue(queue: Queue): Promise<void> {
     managedQueues.delete(queue);
+
+    const approvedQueueName = getApprovedQueueName(queue.name);
+
+    if (approvedQueueName !== undefined
+        && instrumentedQueues.get(approvedQueueName) === queue) {
+        instrumentedQueues.delete(approvedQueueName);
+    }
+
     await queue.close();
 }
 
@@ -125,16 +172,30 @@ export function createManagedWorker<
         readonly freshnessMs: number;
     };
 }): ManagedWorker {
+    const approvedQueueName = getApprovedQueueName(input.queueName);
+    const approvedWorkerName = approvedQueueName === undefined
+        ? undefined
+        : WORKER_BY_QUEUE[approvedQueueName];
     const connection = createRedisClient({
         enableOfflineQueue: true,
         maxRetriesPerRequest: null,
     });
     let runPromise: Promise<void> | undefined;
     let closed = false;
-    const heartbeat = input.heartbeat === undefined
+    const heartbeatConfig = input.heartbeat ?? (
+        approvedWorkerName === undefined
+            ? undefined
+            : {
+                workerId: `${approvedWorkerName.replace("_", "-")}-worker`,
+                workerType: approvedWorkerName,
+                intervalMs: WORKER_HEARTBEAT_INTERVAL_MS,
+                freshnessMs: WORKER_HEARTBEAT_FRESHNESS_MS,
+            }
+    );
+    const heartbeat = heartbeatConfig === undefined
         ? undefined
         : createWorkerHeartbeat({
-            ...input.heartbeat,
+            ...heartbeatConfig,
             probe: async () => {
                 const response = await connection.ping();
 
@@ -148,8 +209,8 @@ export function createManagedWorker<
                         errorCode: "BULLMQ_WORKER_HEARTBEAT_FAILED",
                         event: "queue.worker.heartbeat_failed",
                         queue: input.queueName,
-                        workerId: input.heartbeat?.workerId,
-                        workerType: input.heartbeat?.workerType,
+                        workerId: heartbeatConfig.workerId,
+                        workerType: heartbeatConfig.workerType,
                     },
                     "BullMQ worker heartbeat failed",
                 );
@@ -161,17 +222,25 @@ export function createManagedWorker<
         _token?: string,
         signal?: AbortSignal,
     ) => {
+        const startedAt = process.hrtime.bigint();
         let data: DataType;
 
         try {
             data = input.parse(job.data);
         } catch (error: unknown) {
             if (error instanceof InvalidAsyncJobPayloadError) {
+                observeQueueAttempt(
+                    input.queueName,
+                    "invalid_payload",
+                    "invalid_payload",
+                    startedAt,
+                );
                 throw new UnrecoverableError(
                     "Async job payload validation failed.",
                 );
             }
 
+            observeQueueFailure(input.queueName, job, error, startedAt);
             throw error;
         }
 
@@ -199,6 +268,12 @@ export function createManagedWorker<
             const result = await input.process(data, jobContext, signal);
 
             heartbeat?.recordSuccessfulJob();
+            observeQueueAttempt(
+                input.queueName,
+                "completed",
+                "completed",
+                startedAt,
+            );
             jobContext.log.info(
                 {
                     event: "queue.job.completed",
@@ -208,6 +283,7 @@ export function createManagedWorker<
 
             return result;
         } catch (error: unknown) {
+            observeQueueFailure(input.queueName, job, error, startedAt);
             jobContext.log.warn(
                 {
                     attemptsMade: job.attemptsMade,
@@ -338,4 +414,90 @@ export async function disconnectBullMq(): Promise<void> {
     if (results.some((result) => result.status === "rejected")) {
         throw new Error("BullMQ shutdown failed.");
     }
+}
+
+async function collectQueueDepthMetrics(): Promise<void> {
+    metrics.queueDepth.reset();
+
+    await Promise.all([...instrumentedQueues].map(async ([queueName, queue]) => {
+        try {
+            const counts = await queue.getJobCounts(
+                ...APPROVED_METRIC_LABEL_VALUES.queueDepthStates,
+            );
+
+            for (const state of APPROVED_METRIC_LABEL_VALUES.queueDepthStates) {
+                metrics.queueDepth.set(
+                    { queue: queueName, state },
+                    counts[state] ?? 0,
+                );
+            }
+        } catch {
+            for (const state of APPROVED_METRIC_LABEL_VALUES.queueDepthStates) {
+                metrics.queueDepth.remove(queueName, state);
+            }
+        }
+    }));
+}
+
+function observeQueueFailure(
+    queueName: string,
+    job: Job<unknown>,
+    error: unknown,
+    startedAt: bigint,
+): void {
+    const attempts = job.opts.attempts ?? 1;
+    const willRetry = !(error instanceof UnrecoverableError)
+        && job.attemptsMade + 1 < attempts;
+
+    observeQueueAttempt(
+        queueName,
+        willRetry ? "retried" : "failed",
+        willRetry ? "retryable_failure" : "terminal_failure",
+        startedAt,
+    );
+}
+
+function observeQueueAttempt(
+    queueName: string,
+    outcome: ApprovedQueueOutcome,
+    durationOutcome: ApprovedQueueDurationOutcome,
+    startedAt: bigint,
+): void {
+    const approvedQueueName = getApprovedQueueName(queueName);
+
+    if (approvedQueueName === undefined) {
+        return;
+    }
+
+    metrics.queueJobsTotal.inc({
+        queue: approvedQueueName,
+        outcome,
+    });
+    metrics.queueJobDurationSeconds.observe(
+        {
+            queue: approvedQueueName,
+            outcome: durationOutcome,
+        },
+        Number(process.hrtime.bigint() - startedAt) / 1_000_000_000,
+    );
+}
+
+function observeQueueJob(
+    queueName: string,
+    outcome: ApprovedQueueOutcome,
+): void {
+    const approvedQueueName = getApprovedQueueName(queueName);
+
+    if (approvedQueueName !== undefined) {
+        metrics.queueJobsTotal.inc({
+            queue: approvedQueueName,
+            outcome,
+        });
+    }
+}
+
+function getApprovedQueueName(queueName: string): ApprovedQueueName | undefined {
+    return APPROVED_METRIC_LABEL_VALUES.queues.find(
+        (approvedQueueName) => approvedQueueName === queueName,
+    );
 }

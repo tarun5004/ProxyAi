@@ -5,6 +5,7 @@ import type { Job, Queue } from "bullmq";
 import {
     connectManagedQueue,
     createManagedQueue,
+    recordQueueEnqueued,
 } from "../../shared/async/bullmq.js";
 import {
     parseUsageUpdatedJob,
@@ -42,13 +43,16 @@ export async function enqueueUsageUpdatedJob(
     const payload = parseUsageUpdatedJob(input);
 
     try {
-        return await getAnomalyQueue().add(
+        const job = await getAnomalyQueue().add(
             payload.jobType,
             payload,
             {
                 jobId: createAnomalyJobId(payload),
             },
         );
+
+        recordQueueEnqueued(ANOMALY_QUEUE_NAME);
+        return job;
     } catch {
         logger.error(
             {
