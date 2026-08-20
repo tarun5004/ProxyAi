@@ -6,6 +6,14 @@ set -Eeuo pipefail
 : "${FRONTEND_SERVICE:?FRONTEND_SERVICE is required}"
 : "${API_SERVICE:?API_SERVICE is required}"
 : "${WORKER_SERVICE:?WORKER_SERVICE is required}"
+
+if [[ $# -gt 0 ]]; then
+  previous_definitions_file="${1}"
+  FRONTEND_TASK_DEFINITION="$(jq -er --arg service "${FRONTEND_SERVICE}" '.[] | select(.service == $service) | .taskDefinition' "${previous_definitions_file}")"
+  API_TASK_DEFINITION="$(jq -er --arg service "${API_SERVICE}" '.[] | select(.service == $service) | .taskDefinition' "${previous_definitions_file}")"
+  WORKER_TASK_DEFINITION="$(jq -er --arg service "${WORKER_SERVICE}" '.[] | select(.service == $service) | .taskDefinition' "${previous_definitions_file}")"
+fi
+
 : "${FRONTEND_TASK_DEFINITION:?FRONTEND_TASK_DEFINITION is required}"
 : "${API_TASK_DEFINITION:?API_TASK_DEFINITION is required}"
 : "${WORKER_TASK_DEFINITION:?WORKER_TASK_DEFINITION is required}"

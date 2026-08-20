@@ -4,10 +4,10 @@ Description: Shared immutable ProxiAI release image repositories.
 Parameters:
   FrontendRepositoryName:
     Type: String
-    Default: proxiai-frontend
+    Default: proxiai/frontend
   BackendRepositoryName:
     Type: String
-    Default: proxiai-backend
+    Default: proxiai/backend
 
 Resources:
   FrontendRepository:

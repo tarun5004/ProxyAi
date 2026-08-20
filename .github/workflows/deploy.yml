@@ -113,6 +113,7 @@ jobs:
       - name: Deploy staging services
         run: deploy/scripts/deploy-services.sh frontend-task.json api-task.json worker-task.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: staging-previous-task-definitions-${{ github.event.workflow_run.head_sha }}
           path: previous-task-definitions.json
@@ -121,6 +122,9 @@ jobs:
         run: deploy/scripts/smoke.sh
       - name: Verify worker accounting
         run: deploy/scripts/verify-worker-events.sh "${{ steps.smoke.outputs.request_id }}"
+      - name: Roll back failed staging release
+        if: failure() && hashFiles('previous-task-definitions.json') != ''
+        run: deploy/scripts/rollback-services.sh previous-task-definitions.json
 
   deploy-production:
     runs-on: ubuntu-latest
@@ -155,6 +159,7 @@ jobs:
       - name: Deploy production services
         run: deploy/scripts/deploy-services.sh frontend-task.json api-task.json worker-task.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: production-previous-task-definitions-${{ github.event.workflow_run.head_sha }}
           path: previous-task-definitions.json
@@ -163,3 +168,6 @@ jobs:
         run: deploy/scripts/smoke.sh
       - name: Verify worker accounting
         run: deploy/scripts/verify-worker-events.sh "${{ steps.smoke.outputs.request_id }}"
+      - name: Roll back failed production release
+        if: failure() && hashFiles('previous-task-definitions.json') != ''
+        run: deploy/scripts/rollback-services.sh previous-task-definitions.json

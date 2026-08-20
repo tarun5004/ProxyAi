@@ -116,6 +116,42 @@
       ]
     },
     {
+      "Sid": "ManageOnlyProxiAiRepositories",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DeleteRepository",
+        "ecr:DeleteLifecyclePolicy",
+        "ecr:PutImageScanningConfiguration",
+        "ecr:PutImageTagMutability",
+        "ecr:PutLifecyclePolicy",
+        "ecr:TagResource"
+      ],
+      "Resource": [
+        "arn:aws:ecr:ap-south-1:851725401338:repository/proxiai/frontend",
+        "arn:aws:ecr:ap-south-1:851725401338:repository/proxiai/backend"
+      ]
+    },
+    {
+      "Sid": "ManageOnlyProxiAiListeners",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:AddTags",
+        "elasticloadbalancing:CreateListener",
+        "elasticloadbalancing:CreateRule",
+        "elasticloadbalancing:DeleteListener",
+        "elasticloadbalancing:DeleteRule",
+        "elasticloadbalancing:ModifyListener",
+        "elasticloadbalancing:ModifyRule",
+        "elasticloadbalancing:RemoveTags"
+      ],
+      "Resource": [
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:loadbalancer/app/proxiai-*/*",
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:listener/app/proxiai-*/*/*",
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:listener-rule/app/proxiai-*/*/*/*"
+      ]
+    },
+    {
       "Sid": "RegisterProxiAiTasks",
       "Effect": "Allow",
       "Action": [
