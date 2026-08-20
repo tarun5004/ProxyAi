@@ -1,0 +1,113 @@
+groups:
+  - name: proxiai-api
+    rules:
+      - alert: ProxiAIHighApiErrorRate
+        expr: |
+          sum(rate(proxiai_http_requests_total{status_class="5xx"}[5m]))
+          /
+          clamp_min(sum(rate(proxiai_http_requests_total[5m])), 0.000000001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: sev2
+          service: proxiai-api
+        annotations:
+          summary: ProxiAI API 5xx rate is above 5 percent
+          description: The sustained API 5xx ratio has exceeded the approved MVP threshold.
+          runbook_url: docs/runbooks/api-error-rate.md
+
+  - name: proxiai-dependencies
+    rules:
+      - alert: ProxiAIMongoDbUnavailable
+        expr: |
+          max(proxiai_dependency_ready{dependency="mongodb"}) < 1
+          or absent(proxiai_dependency_ready{dependency="mongodb"})
+        for: 2m
+        labels:
+          severity: sev2
+          service: proxiai-api
+        annotations:
+          summary: ProxiAI MongoDB readiness is unavailable
+          description: MongoDB readiness is reporting unavailable or no readiness sample is being emitted.
+          runbook_url: docs/runbooks/mongodb-unavailable.md
+
+      - alert: ProxiAIRedisUnavailable
+        expr: |
+          max(proxiai_dependency_ready{dependency="redis"}) < 1
+          or absent(proxiai_dependency_ready{dependency="redis"})
+        for: 2m
+        labels:
+          severity: sev2
+          service: proxiai-api
+        annotations:
+          summary: ProxiAI Redis readiness is unavailable
+          description: Redis readiness is reporting unavailable or no readiness sample is being emitted.
+          runbook_url: docs/runbooks/redis-unavailable.md
+
+  - name: proxiai-workers
+    rules:
+      - alert: ProxiAIWorkerHeartbeatStale
+        expr: |
+          max by (worker) (proxiai_worker_heartbeat_age_seconds) > 120
+          or max by (worker) (proxiai_worker_healthy) == 0
+          or absent(proxiai_worker_healthy)
+        for: 2m
+        labels:
+          severity: sev2
+          service: proxiai-worker
+        annotations:
+          summary: ProxiAI worker heartbeat is stale
+          description: A managed worker heartbeat is older than 120 seconds or its bounded health state is unhealthy.
+          runbook_url: docs/runbooks/worker-heartbeat-stale.md
+
+      - alert: ProxiAIQueueJobFailure
+        expr: |
+          sum by (queue) (
+            increase(proxiai_queue_jobs_total{outcome=~"failed|invalid_payload"}[5m])
+          ) > 0
+          or max by (queue) (proxiai_queue_depth{state="failed"}) > 0
+        for: 2m
+        labels:
+          severity: sev3
+          service: proxiai-worker
+        annotations:
+          summary: ProxiAI queue has failed jobs
+          description: A bounded BullMQ queue reported a terminal/schema failure or retains failed jobs.
+          runbook_url: docs/runbooks/queue-job-failure.md
+
+  - name: proxiai-providers
+    rules:
+      - alert: ProxiAIProviderCircuitOpen
+        expr: max by (provider) (proxiai_provider_circuit_state{state="OPEN"}) == 1
+        for: 2m
+        labels:
+          severity: sev3
+          service: proxiai-api
+        annotations:
+          summary: ProxiAI provider circuit is open
+          description: An enabled provider circuit has remained open for the approved sustained period.
+          runbook_url: docs/runbooks/provider-circuit-open.md
+
+      - alert: ProxiAIProviderUnhealthy
+        expr: max by (provider) (proxiai_provider_health_state{state="UNHEALTHY"}) == 1
+        for: 2m
+        labels:
+          severity: sev3
+          service: proxiai-worker
+        annotations:
+          summary: ProxiAI provider health is unhealthy
+          description: The approved provider health projection has remained explicitly unhealthy.
+          runbook_url: docs/runbooks/provider-circuit-open.md
+
+  - name: proxiai-audit
+    rules:
+      - alert: ProxiAIAuditWriteFailure
+        expr: sum(increase(proxiai_audit_writes_total{outcome="failure"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: sev3
+          service: proxiai-api
+        annotations:
+          summary: ProxiAI AuditLog writes are failing
+          description: At least one durable AuditLog append failed during the evaluation window.
+          runbook_url: docs/runbooks/audit-write-failure.md
