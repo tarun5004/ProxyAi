@@ -1,6 +1,9 @@
 import { startWorkerAsyncInfrastructure } from
     "./shared/async/runtime.js";
-import { logger } from "./shared/lib/logger.js";
+import {
+    configureLoggerService,
+    logger,
+} from "./shared/lib/logger.js";
 import { connectMongo } from "./shared/lib/mongo.js";
 import { connectRedis } from "./shared/lib/redis.js";
 import { disconnectInfrastructure } from
@@ -9,6 +12,8 @@ import { initializeEncryption } from "./shared/security/encryption.js";
 import { assertEncryptionStorageReady } from "./shared/security/encryption-readiness.js";
 
 let shutdownStarted = false;
+
+configureLoggerService("proxiai-worker");
 
 async function startWorker(): Promise<void> {
     initializeEncryption();
