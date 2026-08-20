@@ -12,6 +12,7 @@ permissions:
 jobs:
   build-release:
     if: >-
+      vars.ECS_RELEASE_ENABLED == 'true' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest

@@ -1,0 +1,285 @@
+name: Deploy Lightsail Demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Tested 40-character Git SHA
+        required: true
+      target:
+        description: Canary first; production only after canary smoke passes
+        type: choice
+        options: [canary, production]
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: proxiai-lightsail-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      backend_image: ${{ steps.images.outputs.backend_image }}
+      frontend_image: ${{ steps.images.outputs.frontend_image }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      BACKEND_REPOSITORY: ${{ vars.BACKEND_ECR_REPOSITORY }}
+      BACKEND_REPOSITORY_NAME: ${{ vars.BACKEND_ECR_REPOSITORY_NAME }}
+      FRONTEND_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY }}
+      FRONTEND_REPOSITORY_NAME: ${{ vars.FRONTEND_ECR_REPOSITORY_NAME }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_sha }}
+      - name: Validate release SHA
+        run: '[[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build missing immutable images
+        run: |
+          if ! aws ecr describe-images --repository-name "${FRONTEND_REPOSITORY_NAME}" --image-ids imageTag="${RELEASE_SHA}" >/dev/null 2>&1; then
+            docker build --build-arg COMMIT_SHA="${RELEASE_SHA}" --tag "${FRONTEND_REPOSITORY}:${RELEASE_SHA}" frontend
+          else
+            docker pull "${FRONTEND_REPOSITORY}:${RELEASE_SHA}"
+          fi
+          if ! aws ecr describe-images --repository-name "${BACKEND_REPOSITORY_NAME}" --image-ids imageTag="${RELEASE_SHA}" >/dev/null 2>&1; then
+            docker build --build-arg COMMIT_SHA="${RELEASE_SHA}" --tag "${BACKEND_REPOSITORY}:${RELEASE_SHA}" backend
+          else
+            docker pull "${BACKEND_REPOSITORY}:${RELEASE_SHA}"
+          fi
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: image
+          image-ref: ${{ vars.FRONTEND_ECR_REPOSITORY }}:${{ inputs.release_sha }}
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: image
+          image-ref: ${{ vars.BACKEND_ECR_REPOSITORY }}:${{ inputs.release_sha }}
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      - name: Scan proxy image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: image
+          image-ref: caddy:2.11.4-alpine
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      - name: Push missing SHA images
+        run: |
+          if ! aws ecr describe-images --repository-name "${FRONTEND_REPOSITORY_NAME}" --image-ids imageTag="${RELEASE_SHA}" >/dev/null 2>&1; then
+            docker push "${FRONTEND_REPOSITORY}:${RELEASE_SHA}"
+          fi
+          if ! aws ecr describe-images --repository-name "${BACKEND_REPOSITORY_NAME}" --image-ids imageTag="${RELEASE_SHA}" >/dev/null 2>&1; then
+            docker push "${BACKEND_REPOSITORY}:${RELEASE_SHA}"
+          fi
+      - id: images
+        name: Resolve immutable image digests
+        run: |
+          frontend_digest="$(aws ecr describe-images --repository-name "${FRONTEND_REPOSITORY_NAME}" --image-ids imageTag="${RELEASE_SHA}" --query 'imageDetails[0].imageDigest' --output text)"
+          backend_digest="$(aws ecr describe-images --repository-name "${BACKEND_REPOSITORY_NAME}" --image-ids imageTag="${RELEASE_SHA}" --query 'imageDetails[0].imageDigest' --output text)"
+          echo "frontend_image=${FRONTEND_REPOSITORY}@${frontend_digest}" >> "${GITHUB_OUTPUT}"
+          echo "backend_image=${BACKEND_REPOSITORY}@${backend_digest}" >> "${GITHUB_OUTPUT}"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: release
+    environment: production
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      CANARY_DOMAIN: ${{ vars.LIGHTSAIL_CANARY_DOMAIN }}
+      HOSTED_ZONE_ID: ${{ vars.ROUTE53_HOSTED_ZONE_ID }}
+      INSTANCE_NAME: ${{ vars.LIGHTSAIL_INSTANCE_NAME }}
+      PRIMARY_DOMAIN: ${{ vars.PRODUCTION_DOMAIN }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      SECRET_ID: proxiai/production
+      SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+      SMOKE_ORG_SLUG: ${{ vars.SMOKE_ORG_SLUG }}
+      SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+      TARGET: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_sha }}
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: target
+        name: Resolve target origin
+        run: |
+          [[ "${PRIMARY_DOMAIN}" =~ ^[a-z0-9.-]+$ ]]
+          [[ "${CANARY_DOMAIN}" =~ ^[a-z0-9.-]+$ ]]
+          if [[ "${TARGET}" == "production" ]]; then
+            domain="${PRIMARY_DOMAIN}"
+          else
+            domain="${CANARY_DOMAIN}"
+          fi
+          echo "domain=${domain}" >> "${GITHUB_OUTPUT}"
+          echo "origin=https://${domain}" >> "${GITHUB_OUTPUT}"
+      - id: access
+        name: Open temporary SSH access
+        run: |
+          set +x
+          runner_ip="$(curl --fail --silent --show-error https://checkip.amazonaws.com | tr -d '[:space:]')"
+          static_ip="$(aws lightsail get-static-ips --query "staticIps[?attachedTo=='${INSTANCE_NAME}'].ipAddress | [0]" --output text)"
+          test "${static_ip}" != "None"
+          jq -n --arg cidr "${runner_ip}/32" '[
+            {fromPort:22,toPort:22,protocol:"tcp",cidrs:[$cidr]},
+            {fromPort:80,toPort:80,protocol:"tcp",cidrs:["0.0.0.0/0"],ipv6Cidrs:["::/0"]},
+            {fromPort:443,toPort:443,protocol:"tcp",cidrs:["0.0.0.0/0"],ipv6Cidrs:["::/0"]},
+            {fromPort:443,toPort:443,protocol:"udp",cidrs:["0.0.0.0/0"],ipv6Cidrs:["::/0"]}
+          ]' > "${RUNNER_TEMP}/ports.json"
+          aws lightsail put-instance-public-ports --instance-name "${INSTANCE_NAME}" --port-infos "file://${RUNNER_TEMP}/ports.json" >/dev/null
+          access_json="${RUNNER_TEMP}/access.json"
+          aws lightsail get-instance-access-details --instance-name "${INSTANCE_NAME}" --protocol ssh > "${access_json}"
+          key="${RUNNER_TEMP}/lightsail-key"
+          jq -r '.accessDetails.privateKey' "${access_json}" > "${key}"
+          jq -r '.accessDetails.certKey' "${access_json}" > "${key}-cert.pub"
+          chmod 600 "${key}" "${key}-cert.pub"
+          username="$(jq -r '.accessDetails.username' "${access_json}")"
+          host="$(jq -r '.accessDetails.ipAddress' "${access_json}")"
+          known_hosts="${RUNNER_TEMP}/known_hosts"
+          : > "${known_hosts}"
+          while IFS=$'\t' read -r algorithm public_key; do
+            if [[ "${public_key}" == "${algorithm} "* ]]; then
+              printf '%s %s\n' "${host}" "${public_key}" >> "${known_hosts}"
+            else
+              printf '%s %s %s\n' "${host}" "${algorithm}" "${public_key}" >> "${known_hosts}"
+            fi
+          done < <(jq -r '.accessDetails.hostKeys[] | [.algorithm,.publicKey] | @tsv' "${access_json}")
+          {
+            echo "host=${host}"
+            echo "key=${key}"
+            echo "known_hosts=${known_hosts}"
+            echo "username=${username}"
+          } >> "${GITHUB_OUTPUT}"
+      - id: dns
+        name: Point temporary target hostname
+        run: |
+          deploy/lightsail/update-dns.sh apply "${HOSTED_ZONE_ID}" "${{ steps.target.outputs.domain }}" "${RUNNER_TEMP}/previous-dns.json" "${{ steps.access.outputs.host }}"
+      - name: Preserve pre-cutover DNS evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dns-backup-${{ inputs.target }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/previous-dns.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Generate protected runtime environment
+        run: |
+          set +x
+          umask 077
+          secret_json="$(aws secretsmanager get-secret-value --secret-id "${SECRET_ID}" --query SecretString --output text)"
+          jq -er '
+            ["MONGO_URI","REDIS_URL","JWT_ACCESS_SECRET","AUTH_RATE_LIMIT_SECRET","GROQ_API_KEY"] as $required
+            | ($required - keys) as $missing
+            | if ($missing | length) == 0 then . else error("missing required secret keys") end
+          ' <<< "${secret_json}" >/dev/null
+          jq -r '[
+            "NODE_ENV=production",
+            "LOG_LEVEL=info",
+            "MONGO_URI=" + .MONGO_URI,
+            "REDIS_URL=" + .REDIS_URL,
+            "JWT_ACCESS_SECRET=" + .JWT_ACCESS_SECRET,
+            "AUTH_RATE_LIMIT_SECRET=" + .AUTH_RATE_LIMIT_SECRET,
+            "GROQ_API_KEY=" + .GROQ_API_KEY,
+            "ACCESS_TOKEN_TTL_MINUTES=15",
+            "REFRESH_TOKEN_TTL_DAYS=7",
+            "CHAT_RATE_LIMIT_FREE_USER_RPM=10",
+            "CHAT_RATE_LIMIT_FREE_ORG_RPM=60",
+            "CHAT_RATE_LIMIT_PRO_USER_RPM=30",
+            "CHAT_RATE_LIMIT_PRO_ORG_RPM=300",
+            "CHAT_RATE_LIMIT_ENTERPRISE_USER_RPM=60",
+            "CHAT_RATE_LIMIT_ENTERPRISE_ORG_RPM=1200",
+            "IDEMPOTENCY_PROCESSING_TTL_SECONDS=300",
+            "IDEMPOTENCY_COMPLETED_TTL_SECONDS=3600",
+            "GROQ_MODEL=openai/gpt-oss-20b",
+            "PROVIDER_REQUEST_TIMEOUT_MS=30000"
+          ] | .[]' <<< "${secret_json}" > "${RUNNER_TEMP}/runtime.env"
+          unset secret_json
+      - name: Transfer release files
+        env:
+          HOST: ${{ steps.access.outputs.host }}
+          KEY: ${{ steps.access.outputs.key }}
+          KNOWN_HOSTS: ${{ steps.access.outputs.known_hosts }}
+          USERNAME: ${{ steps.access.outputs.username }}
+        run: |
+          ssh_options=(-i "${KEY}" -o CertificateFile="${KEY}-cert.pub" -o IdentitiesOnly=yes -o UserKnownHostsFile="${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes)
+          for _attempt in {1..60}; do
+            if ssh "${ssh_options[@]}" "${USERNAME}@${HOST}" "test -f /var/lib/proxiai-bootstrap-complete"; then
+              break
+            fi
+            if [[ "${_attempt}" == "60" ]]; then
+              echo "Lightsail bootstrap did not complete." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          # shellcheck disable=SC2029
+          ssh "${ssh_options[@]}" "${USERNAME}@${HOST}" "install -d -m 0755 /opt/proxiai/releases/${RELEASE_SHA}"
+          scp "${ssh_options[@]}" deploy/lightsail/{compose.yml,Caddyfile,deploy.sh,rollback.sh,verify-worker.sh} "${USERNAME}@${HOST}:/opt/proxiai/releases/${RELEASE_SHA}/"
+          scp "${ssh_options[@]}" "${RUNNER_TEMP}/runtime.env" "${USERNAME}@${HOST}:/opt/proxiai/shared/runtime.env.next"
+          # shellcheck disable=SC2029
+          ssh "${ssh_options[@]}" "${USERNAME}@${HOST}" "chmod 0755 /opt/proxiai/releases/${RELEASE_SHA}/*.sh && chmod 0600 /opt/proxiai/shared/runtime.env.next && mv /opt/proxiai/shared/runtime.env.next /opt/proxiai/shared/runtime.env"
+      - name: Authenticate host to ECR
+        env:
+          HOST: ${{ steps.access.outputs.host }}
+          KEY: ${{ steps.access.outputs.key }}
+          KNOWN_HOSTS: ${{ steps.access.outputs.known_hosts }}
+          USERNAME: ${{ steps.access.outputs.username }}
+        run: |
+          registry="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password | ssh -i "${KEY}" -o CertificateFile="${KEY}-cert.pub" -o IdentitiesOnly=yes -o UserKnownHostsFile="${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes "${USERNAME}@${HOST}" "docker login --username AWS --password-stdin ${registry}" >/dev/null
+      - name: Deploy immutable release
+        env:
+          HOST: ${{ steps.access.outputs.host }}
+          KEY: ${{ steps.access.outputs.key }}
+          KNOWN_HOSTS: ${{ steps.access.outputs.known_hosts }}
+          USERNAME: ${{ steps.access.outputs.username }}
+        run: |
+          ssh -i "${KEY}" -o CertificateFile="${KEY}-cert.pub" -o IdentitiesOnly=yes -o UserKnownHostsFile="${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes "${USERNAME}@${HOST}" \
+            "/opt/proxiai/releases/${RELEASE_SHA}/deploy.sh '${RELEASE_SHA}' '${{ needs.release.outputs.frontend_image }}' '${{ needs.release.outputs.backend_image }}' '${{ steps.target.outputs.origin }}' '${PRIMARY_DOMAIN}' '${CANARY_DOMAIN}'"
+      - id: smoke
+        name: Run authenticated smoke
+        env:
+          APP_ORIGIN: ${{ steps.target.outputs.origin }}
+        run: deploy/scripts/smoke.sh
+      - name: Verify worker outcomes
+        env:
+          HOST: ${{ steps.access.outputs.host }}
+          KEY: ${{ steps.access.outputs.key }}
+          KNOWN_HOSTS: ${{ steps.access.outputs.known_hosts }}
+          USERNAME: ${{ steps.access.outputs.username }}
+        run: |
+          ssh -i "${KEY}" -o CertificateFile="${KEY}-cert.pub" -o IdentitiesOnly=yes -o UserKnownHostsFile="${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes "${USERNAME}@${HOST}" \
+            "/opt/proxiai/releases/${RELEASE_SHA}/verify-worker.sh '${{ steps.smoke.outputs.request_id }}'"
+      - name: Restore DNS after failed deployment
+        if: ${{ (failure() || cancelled()) && steps.dns.outcome == 'success' }}
+        run: deploy/lightsail/update-dns.sh restore "${HOSTED_ZONE_ID}" "${{ steps.target.outputs.domain }}" "${RUNNER_TEMP}/previous-dns.json"
+      - name: Close public SSH and remove temporary files
+        if: always()
+        run: |
+          jq -n '[
+            {fromPort:80,toPort:80,protocol:"tcp",cidrs:["0.0.0.0/0"],ipv6Cidrs:["::/0"]},
+            {fromPort:443,toPort:443,protocol:"tcp",cidrs:["0.0.0.0/0"],ipv6Cidrs:["::/0"]},
+            {fromPort:443,toPort:443,protocol:"udp",cidrs:["0.0.0.0/0"],ipv6Cidrs:["::/0"]}
+          ]' > "${RUNNER_TEMP}/closed-ports.json"
+          aws lightsail put-instance-public-ports --instance-name "${INSTANCE_NAME}" --port-infos "file://${RUNNER_TEMP}/closed-ports.json" >/dev/null || true
+          rm -f "${RUNNER_TEMP}/runtime.env" "${RUNNER_TEMP}/access.json" "${RUNNER_TEMP}/lightsail-key" "${RUNNER_TEMP}/lightsail-key-cert.pub"
