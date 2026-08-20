@@ -197,3 +197,45 @@ After deployment:
   <https://www.mongodb.com/docs/atlas/billing/atlas-flex-costs/>
 - Atlas Flex limitations:
   <https://www.mongodb.com/docs/atlas/reference/flex-limitations/>
+
+## 12. Lightsail Cost-Cut Migration
+
+The approved demo replacement is one 2 GB Linux Lightsail instance with public
+IPv4, two vCPUs, and 60 GB SSD. AWS currently lists this bundle at USD 12/month
+before taxes and region-specific transfer overages. The attached Lightsail
+static IPv4 has no separate charge while attached.
+
+Before provisioning, an account administrator must extend only the ProxiAI
+deployment and GitHub OIDC roles with the repository policy's explicit
+Lightsail and Route 53 actions. The current non-root role cannot call
+`lightsail:GetInstances` or `lightsail:GetBundles`; do not fall back to root for
+normal provisioning.
+
+Required manual values/actions:
+
+1. Attach the reviewed updated deployment policy to
+   `proxiai-deployment-role` and the GitHub deployment role.
+2. Set `LIGHTSAIL_INSTANCE_NAME=proxiai-demo`, the Route 53 hosted-zone ID,
+   `LIGHTSAIL_CANARY_DOMAIN`, and the production domain in GitHub variables.
+3. Keep `SMOKE_EMAIL` and `SMOKE_PASSWORD` only in the protected GitHub
+   environment.
+4. Run the canary deployment and full smoke before changing `proxiai.me`.
+5. Approve the Route 53 apex cutover only after the canary is green.
+6. Wait for public stability, then separately approve any ECS/ALB/NAT cleanup.
+
+Do not delete or scale down the existing ECS services, ALB, NAT gateway, target
+groups, or their rollback metadata during this migration task.
+
+### Post-cutover cleanup approval matrix
+
+| Resource | Main recurring-cost reason | Safe before stable cutover | Rollback impact |
+|---|---|---:|---|
+| ECS services/tasks | Fargate CPU and memory | No | Immediate rollback unavailable |
+| NAT Gateway/EIP | Hourly and per-GB egress | No | ECS loses external dependency access |
+| ALB | Hourly, LCU, public IPv4 | No | Previous HTTPS endpoint disappears |
+| Target groups | Operational clutter | No | Previous ALB routing cannot be restored quickly |
+| CloudWatch logs | Ingest/storage | No | Migration evidence lost |
+| Task definitions | Negligible idle cost | No | Revision rollback metadata lost |
+
+ECR, Route 53, and IAM/OIDC remain required by the Lightsail delivery path and
+are not cleanup candidates.

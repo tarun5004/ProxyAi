@@ -5,8 +5,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
-- **Task:** P12-09 — Staging and Production-Like Release Verification
-- **Status:** Local production-like release gates pass; live AWS staging, same-digest production promotion, and rollback proof remain pending. Phase 8 remains deferred.
+- **Task:** P12-09A — Cost-Optimized Lightsail Live-Demo Migration
+- **Status:** Repository-side Lightsail provisioning, deployment, CI/CD, and rollback automation is under verification. The existing ECS deployment remains live and unchanged; Phase 8 remains deferred.
 
 ## Completed Tasks
 
@@ -1016,6 +1016,46 @@ npm run dev
 ## Recommended Next Task
 
 - P12-09 — Run local final gates, then provision/verify staging AWS rollout and rollback; do not start Phase 8.
+
+## Active Lightsail Cost-Cut Migration
+
+- **Task:** P12-09A — Replace the low-traffic public ECS demo with one
+  cost-optimized Lightsail Docker Compose host while preserving ECS rollback.
+- **Sizing evidence:** The current production images started together against
+  isolated MongoDB/Redis dependencies and consumed approximately 35 MiB
+  frontend, 54 MiB API, and 57 MiB worker memory at idle. The approved initial
+  target is the public-IPv4 2 GB Linux plan; sustained pressure or OOM is the
+  objective upgrade trigger to 4 GB.
+- **Target topology:** Caddy exposes only 80/443 and routes to private Compose
+  frontend/API services; worker exposes no port. Atlas, Upstash, Groq, ECR,
+  Route 53, and the existing production secret remain authoritative.
+- **Migration safety:** No ECS service, ALB, NAT gateway, target group, ECR
+  repository, hosted zone, or IAM/OIDC history is removed or scaled down until
+  canary and public smoke pass and destructive cleanup receives explicit
+  approval.
+- **Current blocker:** The non-root `proxiai-deployment-role` lacks the reviewed
+  Lightsail and Route 53 permissions. Provisioning must not use root; the
+  scoped policy update must first be attached to the local deployment role and
+  GitHub OIDC role.
+- **Live baseline:** `https://proxiai.me/`, `/health/live`, and
+  `/health/ready` returned HTTP 200 before migration work.
+- **Current release:** Git SHA
+  `eb9607adaadabdecf3802b42c523cb1d1c146c7e`; existing ECS stays live.
+- **Repository verification:** Lightsail Compose and Caddy validation,
+  PowerShell parsing, IAM-policy JSON parsing, actionlint, ShellCheck, and both
+  local production image builds passed. Frontend typecheck and production
+  build passed. The committed backend produced 196/197 passing tests in the
+  full isolated run; the sole BullMQ retry-attempt timing assertion passed on
+  focused rerun, and backend lint/typecheck/build passed. The local frontend
+  Vitest and broad ESLint processes did not terminate within bounded runs;
+  neither deployment change touches frontend application code.
+- **Repository isolation:** An unrelated in-progress
+  `backend/src/scripts/seed-demo-organisation.ts` and `backend/package.json`
+  edit remain outside this migration and must not be staged with deployment
+  commits.
+- **Next action:** Complete repo-side Lightsail provisioning/deployment/CI
+  automation, attach the scoped IAM update manually, then provision in
+  parallel. Do not start Phase 8 or Phase 9.
 
 ## Do Not Forget
 

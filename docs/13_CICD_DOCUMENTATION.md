@@ -1,7 +1,7 @@
 # ProxiAI AWS CI/CD Documentation
 
 **Document ID:** CICD-001
-**Status:** Approved AWS deployment baseline
+**Status:** Approved AWS deployment baseline with Lightsail live-demo delivery
 **Related deployment contract:** `docs/07_DEPLOYMENT_ARCHITECTURE.md`
 
 ## 1. Purpose
@@ -285,3 +285,37 @@ production promotion, production smoke, and rollback verification all pass.
 Static workflow and shell validation is required before merge. Actual AWS
 OIDC, ECR, ECS, Secrets Manager, Atlas, Redis, smoke-account, production
 approval, and rollback execution remain P12-09 environment gates.
+
+## 21. Lightsail Live-Demo Delivery
+
+The cost-optimized public demo uses `.github/workflows/lightsail-deploy.yml`.
+It keeps the existing CI and immutable ECR build contract, but deploys the
+frontend and backend digests to one Lightsail host instead of registering new
+Fargate task definitions.
+
+The release workflow:
+
+1. accepts one explicitly selected, tested Git SHA;
+2. builds/scans/pushes immutable frontend and backend images when absent;
+3. resolves both ECR digests;
+4. assumes the repository-scoped GitHub OIDC role;
+5. opens SSH only to the ephemeral runner IPv4 for the deployment window;
+6. obtains temporary SSH credentials from Lightsail;
+7. transfers deployment manifests and a mode-`0600` generated runtime env;
+8. supplies a short-lived ECR login token without logging it;
+9. deploys and health-checks Caddy, frontend, API, and worker;
+10. runs authenticated smoke checks against the selected HTTPS origin; and
+11. closes public SSH access in an `always()` cleanup step.
+
+Lightsail releases are serialized so two workflows cannot race on DNS or host
+state. The workflow retains the pre-cutover DNS record as a seven-day artifact
+and restores it on deployment failure or cancellation after DNS mutation.
+
+No static SSH private key, AWS access key, runtime secret, or `.env` file is
+stored in GitHub. The Lightsail workflow remains manually dispatchable during
+migration and does not automatically cut over production. The legacy ECS
+release workflow is separately variable-gated so a push cannot deploy both
+platforms.
+
+Rollback uses the previous host release record and exact image digests. It does
+not rebuild, delete databases, change DNS, or remove the ECS fallback.

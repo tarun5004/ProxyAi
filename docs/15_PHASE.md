@@ -135,9 +135,9 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
-Current Task: P12-09 — Staging and Production-Like Release Verification
-Current Status: Local release gates pass; live AWS staging, promotion, and rollback remain pending
-Current Blocker: Approved AWS account inputs, OIDC roles, environment secrets, Atlas/Redis connectivity, domain/certificate values, and smoke identities are not configured locally
+Current Task: P12-09A — Cost-Optimized Lightsail Live-Demo Migration
+Current Status: Repository-side Lightsail release path is under verification; existing ECS deployment remains live and unchanged
+Current Blocker: The non-root local and GitHub deployment roles require the reviewed scoped Lightsail and Route 53 permissions before parallel provisioning
 Last Completed Task: P12-08 — GitHub Actions Validation, Deployment, Smoke, and Rollback
 Last Completed Commit: ci(deploy): add immutable AWS release and rollback pipelines
 ```
@@ -869,6 +869,9 @@ readiness. Phases 8–11 remain planned and are not cancelled.
 - [x] P12-07 — Add parameterized AWS infrastructure definitions.
 - [x] P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback.
 - [ ] P12-09 — Verify staging/production-like release smoke and rollback.
+- [ ] P12-09A — Migrate the low-traffic live demo to one 2 GB Lightsail host,
+  prove canary/public smoke, and preserve ECS until destructive cleanup is
+  separately approved.
 
 - [x] Multi-stage backend Dockerfile.
 - [x] Non-root runtime.
@@ -1059,6 +1062,14 @@ Provision approved environment parameters/secrets, run the complete CI/CD
 workflow against staging, verify authenticated application/worker/accounting
 smoke, promote the same digests after approval, and execute rollback proof.
 Do not start Phase 8 product work.
+
+### Active cost-cut migration
+
+P12-09A keeps the deployed product behavior unchanged while replacing the
+high-fixed-cost ECS/ALB/NAT runtime with one Docker Compose Lightsail host.
+Current ECS remains the rollback environment until Lightsail canary HTTPS,
+public DNS cutover, authenticated application smoke, worker/accounting smoke,
+and rollback proof pass. Cleanup is planning-only until explicit approval.
 
 ---
 

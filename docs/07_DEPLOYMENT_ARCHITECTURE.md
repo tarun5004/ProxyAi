@@ -1,8 +1,9 @@
 # ProxiAI AWS Deployment Architecture
 
 **Document ID:** DEPLOY-001
-**Status:** Approved deployment baseline
-**Target:** Docker on AWS ECS/Fargate
+**Status:** Approved deployment baseline with cost-optimized live-demo path
+**Target:** Docker on AWS Lightsail for the public demo; ECS/Fargate remains the
+rollback architecture until migration cleanup is explicitly approved
 
 ## 1. Purpose
 
@@ -259,3 +260,71 @@ limitation remains fail closed and unchanged.
 Deployment is ready only when containers, worker separation, index deployment,
 AWS infrastructure definitions, CI/CD, secret injection, health checks,
 staging smoke tests, production approval, and rollback verification all pass.
+
+## 16. Cost-Optimized Lightsail Live Demo
+
+For expected portfolio/interview traffic of approximately 0–10 occasional
+users, the approved live-demo target is one Linux Lightsail instance in
+`ap-south-1` running Docker Compose:
+
+```text
+Internet
+  -> Lightsail firewall (80/443)
+  -> Caddy automatic HTTPS
+     -> frontend:3000
+     -> api:8080 for /api/* and /health/*
+
+worker -> MongoDB Atlas / Upstash Redis / Groq
+api    -> MongoDB Atlas / Upstash Redis / Groq
+```
+
+The frontend, API, worker, and Caddy remain separate containers. The worker has
+no published port. MongoDB Atlas and Upstash remain external authoritative
+services; no duplicate database or Redis service is created on Lightsail.
+
+### 16.1 Capacity decision
+
+The initial bundle is the public-IPv4 2 GB Linux plan. The current immutable
+images were measured together in an isolated production-mode startup at about
+146 MiB idle application memory: frontend about 35 MiB, API about 54 MiB, and
+worker about 57 MiB. Each backend process is still capped at 512 MiB, the
+frontend is capped below its previous 512 MiB Fargate allocation, and Caddy is
+bounded separately. This leaves operating-system and burst headroom on a 2 GB
+host for the approved low traffic. Sustained memory pressure, OOM termination,
+or swap activity is an explicit upgrade trigger to the 4 GB plan.
+
+### 16.2 Migration safety
+
+- Existing ECS, ALB, NAT, target groups, and tasks stay unchanged until the
+  Lightsail deployment passes direct/canary and public-domain smoke checks.
+- `proxiai.me` DNS is changed only after a temporary HTTPS canary hostname has
+  proven login, refresh, chat, policy, accounting, and worker behavior.
+- Application images remain immutable ECR digests derived from one Git SHA.
+- The previous release SHA and image digests remain on the host for rollback.
+- Destructive ECS/ALB/NAT cleanup requires a separate explicit approval after
+  public stability is proven.
+
+### 16.3 Secrets and host storage
+
+The GitHub OIDC deployment role reads only the existing
+`proxiai/production` secret. A release job transfers a mode-`0600` runtime env
+file over an authenticated temporary Lightsail SSH certificate. Secret values
+never enter Git, Docker build arguments, image layers, or workflow logs.
+Lightsail does not receive long-lived AWS access keys. ECR login uses a
+short-lived token delivered over the same authenticated deployment session.
+
+### 16.4 HTTPS and DNS
+
+Caddy terminates TLS and obtains certificates automatically after Route 53
+points the approved hostname to the attached Lightsail static IPv4 address. A
+temporary canary hostname is used before apex cutover. HTTP redirects to HTTPS.
+The API `FRONTEND_ORIGIN` always equals the exact active HTTPS origin.
+
+### 16.5 Operations and rollback
+
+Deployments retain release directories by Git SHA, update Compose with exact
+frontend/backend image digests, wait for container health, and then run the
+authenticated smoke suite. Rollback selects the previous recorded release and
+never rebuilds images or mutates data. Caddy certificate state is persisted in
+named volumes. Host backups/snapshots are optional costed safeguards and must
+be approved separately.
