@@ -1982,9 +1982,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
-        - name: employee
+        - name: userId
           in: query
-          schema: { type: string }
+          schema: { type: string, format: uuid }
         - name: provider
           in: query
           schema: { $ref: '#/components/schemas/ProviderId' }
@@ -1994,15 +1994,12 @@ paths:
         - name: dateTo
           in: query
           schema: { type: string, format: date-time }
-        - name: piiOnly
-          in: query
-          schema: { type: boolean, default: false }
         - name: status
           in: query
           schema: { $ref: '#/components/schemas/RequestStatus' }
-        - name: fallbackUsed
+        - name: policyAction
           in: query
-          schema: { type: boolean }
+          schema: { type: string, enum: [ALLOW, ALLOW_WITH_MASK, BLOCK] }
       responses:
         '200':
           description: Request-log page
@@ -2022,9 +2019,6 @@ paths:
           schema:
             type: string
             pattern: '^\\d{4}-(0[1-9]|1[0-2])$'
-        - name: userId
-          in: query
-          schema: { type: string }
       responses:
         '200':
           description: Billing rollup
@@ -2041,12 +2035,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
-        - name: type
+        - name: status
           in: query
-          schema: { type: string, enum: [anomaly, pii, budget, system] }
-        - name: resolved
+          schema: { type: string, enum: [OPEN, RESOLVED] }
+        - name: userId
           in: query
-          schema: { type: boolean, default: false }
+          schema: { type: string, format: uuid }
       responses:
         '200':
           description: Alert page
@@ -2054,98 +2048,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessEnvelope'
-  /admin/alerts/{alertId}:
-    patch:
-      tags: [Admin]
-      operationId: updateAlert
-      parameters:
-        - name: alertId
-          in: path
-          required: true
-          schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [resolved]
-              properties:
-                resolved: { type: boolean }
-      responses:
-        '200':
-          description: Alert updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /admin/policy:
-    patch:
-      tags: [Admin]
-      operationId: updatePolicy
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdatePolicyRequest'
-      responses:
-        '200':
-          description: Policy updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /admin/retention:
-    patch:
-      tags: [Admin]
-      operationId: updateRetention
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateRetentionRequest'
-      responses:
-        '200':
-          description: Retention updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /admin/audit/export:
+  /admin/users:
     get:
       tags: [Admin]
-      operationId: exportAudit
+      operationId: listAdminUsers
       parameters:
-        - name: dateFrom
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: role
           in: query
-          required: true
-          schema: { type: string, format: date-time }
-        - name: dateTo
+          schema: { type: string, enum: [EMPLOYEE, TEAM_LEAD, ORG_ADMIN] }
+        - name: status
           in: query
-          required: true
-          schema: { type: string, format: date-time }
-        - name: action
+          schema: { type: string, enum: [INVITED, ACTIVE, DISABLED] }
+        - name: teamId
           in: query
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       responses:
         '200':
-          description: Audit CSV
+          description: Organisation user page
           content:
-            text/csv:
-              schema: { type: string }
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/teams:
+    get:
+      tags: [Admin]
+      operationId: listAdminTeams
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: isActive
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Organisation team page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
         '403':
           $ref: '#/components/responses/Forbidden'
 components:

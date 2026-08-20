@@ -1027,7 +1027,7 @@ RequestLog.find({ orgId, createdAt: { $gte: from, $lte: to } })
 Resolve the authenticated lead's `teamId`, then query:
 
 ```ts
-RequestLog.find({ orgId, teamId, createdAt: { $gte: from, $lte: to } });
+// Deferred: RequestLog currently has no trusted teamId ownership field.
 ```
 
 ### 25.5 Budget remaining

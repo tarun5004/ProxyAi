@@ -6,11 +6,15 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 - **Phase:** Phase 8 — Admin Dashboard and RBAC
 - **Task:** Phase 8 — Admin Dashboard and RBAC
-- **Status:** In progress. The approved implementation boundary is read-only,
-  tenant-scoped administration backed only by authoritative persisted fields.
-  Phase 9-dependent mutations remain unavailable.
+- **Status:** Completed and verified on 2026-08-21. The implemented boundary is
+  read-only, tenant-scoped administration backed only by authoritative
+  persisted fields. Phase 9-dependent mutations remain unavailable.
 
 ## Completed Tasks
+
+- Phase 8 — Read-only organisation dashboard APIs and permission-aware admin
+  frontend completed on 2026-08-21. Real Mongo verification proves request-log,
+  user, team, and alert queries cannot return another organisation's records.
 
 - Phase 0 — Planning and repository baseline
 - P1-01 — TypeScript foundation verified against the repository on 2026-07-24
@@ -404,8 +408,9 @@ npm run dev
   approved.
 - Phase 7 explicitly waives email delivery implementation. The safe
   `alert.created`/`ORG_ADMIN` contract remains approved, but provider-backed
-  delivery moves to Phase 8 after provider, configuration, sender, error
-  mapping, template IDs, and rendered template content are approved.
+  delivery remains deferred after Phase 8 until provider, configuration,
+  sender, error mapping, template IDs, and rendered template content are
+  approved.
 - P7-09 provider health uses `provider.health_check` every 60 seconds for only
   approved enabled-provider registry IDs. Redis stores `HEALTHY`, `UNHEALTHY`,
   or `UNKNOWN` plus `checkedAt` at `health:{providerId}` for 120 seconds.
@@ -796,6 +801,38 @@ npm run dev
 
 ## Latest Task
 
+- **Task:** Phase 8 — Admin Dashboard and RBAC
+- **Status:** Completed and verified on 2026-08-21; Phase 9 not started.
+- **Backend:** Added authenticated `GET /api/v1/admin/summary`, `/logs`,
+  `/billing`, `/alerts`, `/users`, and `/teams` with canonical permission
+  guards, trusted `orgId`, strict Zod query validation, stable bounded cursors,
+  and `Cache-Control: no-store` responses.
+- **Frontend:** Added `/admin` with permission-aware navigation, responsive
+  overview/users/teams/usage/alerts/logs views, and explicit loading, empty,
+  error, denied, unknown-accounting, and deferred-mutation states.
+- **Authoritative data:** Summary and billing expose persisted outcomes,
+  known/unknown usage, provider/model counts, budget, anomaly alerts, and Redis
+  provider health. Cost, latency, cache, fallback, routing, PII-risk, prompt,
+  response, ciphertext, and secret fields are absent.
+- **Security:** All tenant-owned queries include trusted `orgId`; real Mongo
+  cross-tenant verification passed. Employee permission denial passed.
+  RequestLog remains append-only, and no Phase 9 audit/encryption code exists.
+- **Focused verification:** Backend admin unit tests passed `4/4`, real Mongo
+  tenant integration passed `1/1`, and frontend admin tests passed `3/3`.
+- **Full verification:** Backend passed `207/207` using the local test Redis
+  override; frontend passed `15/15` with deterministic single-worker Vitest.
+  Backend/frontend lint, typecheck, build, `git diff --check`, production
+  dependency audits, and admin sensitive-source scans passed.
+- **Approved deferrals:** Team-lead logs await trusted request-to-team
+  ownership. User/team/status, session revocation, policy/budget/retention,
+  alert resolution, and audit export await Phase 9 durable audit. Email awaits
+  approved provider/configuration/template content.
+- **Completed commits:** `docs(admin): resolve phase 8 dashboard contracts`,
+  `feat(admin): add tenant-scoped organisation dashboard APIs`,
+  `feat(frontend): add read-only organisation admin dashboard`, and
+  `test(admin): cover tenant and permission boundaries`.
+- **Next task:** Phase 9 contract planning/audit only after explicit approval.
+
 - **Task:** P7-11 — Durable Enqueue Recovery
 - **Status:** Completed and verified on 2026-08-19; Phase 7 completed and Phase 8 not started
 - **Files changed:** `backend/src/features/analytics/analytics.queue.ts`, `backend/src/features/billing/billing.queue.ts`, `backend/src/features/chat/chat.service.ts`, `backend/src/features/recovery/enqueue-recovery.types.ts`, `backend/src/features/recovery/enqueue-recovery.model.ts`, `backend/src/features/recovery/enqueue-recovery.repository.ts`, `backend/src/features/recovery/enqueue-recovery.service.ts`, `backend/src/features/recovery/enqueue-recovery.queue.ts`, `backend/src/features/recovery/enqueue-recovery.worker.ts`, `backend/src/server.ts`, `backend/src/shared/async/job-contract.ts`, `backend/tests/chat-billing-producer.test.mjs`, `backend/tests/chat.stream.test.mjs`, `backend/tests/enqueue-recovery.worker.test.mjs`, `docs/15_PHASE.md`, and `PROJECT_MEMORY.md`.
@@ -1076,9 +1113,9 @@ npm run dev
   `backend/src/scripts/seed-demo-organisation.ts` and `backend/package.json`
   edit remain outside this migration and must not be staged with deployment
   commits.
-- **Next action:** Complete repo-side Lightsail provisioning/deployment/CI
-  automation, attach the scoped IAM update manually, then provision in
-  parallel. Do not start Phase 8 or Phase 9.
+- **Historical deployment note:** The prior instruction to defer Phase 8 was
+  superseded by explicit approval. Phase 8 is now complete; Phase 9 remains
+  not started.
 - **Autopsy accounting hardening:** Unknown Groq usage now remains unknown while
   synchronous budget checks reserve the approved model's maximum input/output
   liability separately. One interrupted request no longer creates an

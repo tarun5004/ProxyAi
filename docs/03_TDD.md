@@ -1623,7 +1623,7 @@ create another alert.
   resolution emails are deferred. The provider, credentials, sender,
   provider-specific timeout/error mapping, allowlisted template values, and
   rendered template content remain unresolved. Phase 7 explicitly waives email
-  implementation; it moves to Phase 8 after these decisions are approved.
+  implementation; it remains deferred after Phase 8 until these decisions are approved.
 - Provider health consumes `provider.health_check`, is platform-scoped, and carries provider ID, request ID, schema version, and schedule timestamp only.
 
 ## 31. Provider Health Worker

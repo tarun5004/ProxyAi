@@ -217,7 +217,7 @@ The MVP should keep this role minimal and should not create a full platform-mana
 | Resilience | Retry, backoff, jitter, circuit breaker, fallback chain |
 | Redis | Idempotency and provider health state; prompt-cache implementation deferred to Phase 9 prerequisites |
 | Retention | Metadata Only and Encrypted Storage; custom TTL support if practical |
-| Background jobs | Billing, analytics, anomaly, provider health, and failed-enqueue recovery; email delivery moves to Phase 8 pending provider approval |
+| Background jobs | Billing, analytics, anomaly, provider health, and failed-enqueue recovery; email delivery remains deferred pending provider approval |
 | Audit | Append-only audit records for important actions |
 | Dashboard | Basic KPIs, logs, filters, cursor pagination, alerts |
 | Observability | Pino logs and core Prometheus metrics |
@@ -623,13 +623,10 @@ The dashboard shall display:
 
 - Requests today.
 - Requests this month.
-- Token usage.
-- Estimated cost.
+- Known token usage and explicit unknown-usage count.
+- Provider/model request counts.
 - Provider health.
-- Error rate.
-- Average latency.
-- Cache hit ratio.
-- Fallback count or rate.
+- Completed, blocked, masked, failed, and interrupted outcomes.
 - Active alerts.
 - Budget remaining.
 
@@ -644,12 +641,13 @@ The MVP shall support filters for:
 - User.
 - Provider.
 - Date range.
-- PII-only requests.
-- Routing reason.
+- Request status.
+- Policy action.
 
 ### FR-ADMIN-004 — Audit export
 
-An organisation admin shall be able to export organisation audit records as CSV.
+Audit CSV export is a Phase 9 requirement after the append-only `AuditLog`
+exists. It is not exposed by the Phase 8 dashboard.
 
 ## 9.16 Background jobs
 
@@ -665,7 +663,7 @@ The MVP shall include queues for:
 
 Phase 7 has an explicit waiver for email delivery. The safe `alert.created`
 contract remains approved, but provider/configuration/template implementation
-moves to Phase 8 after those decisions are approved.
+remains deferred after Phase 8 until those decisions are approved.
 
 ### FR-JOB-002 — Retry failed jobs
 

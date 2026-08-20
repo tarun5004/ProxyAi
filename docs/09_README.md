@@ -438,8 +438,8 @@ Approved worker responsibilities:
 - optional retention cleanup where database TTL does not already solve the requirement.
 
 Phase 7 email delivery has an explicit waiver. Its safe `alert.created`
-contract is retained, but implementation moves to Phase 8 after provider,
-sender, timeout, error mapping, and template content are approved.
+contract is retained, but implementation remains deferred after Phase 8 until
+provider, sender, timeout, error mapping, and template content are approved.
 
 If billing or analytics enqueue fails after RequestLog persistence, a safe
 tenant-scoped recovery record and bounded backfill scan reconstruct the job

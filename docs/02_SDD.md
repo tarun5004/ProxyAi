@@ -917,21 +917,18 @@ must not render enabled mutation controls for these deferred operations.
 ### MVP dashboard data
 
 - Requests today and this month
-- Token usage
-- Estimated cost
-- Provider usage split
+- Known token usage plus explicit unknown-usage count
+- Provider/model request counts
 - Provider health
-- Error count/rate
-- Average latency
-- Cache-hit ratio
-- Fallback count/rate
+- Completed, blocked, masked, failed, and interrupted request counts
 - Budget remaining
-- Active alerts
+- Active anomaly alerts
+- Read-only users and teams
 
 ### Query rules
 
 - Always organisation-scoped
-- Team-lead queries additionally filter by team
+- Team-lead request-log queries remain unavailable until trusted request-to-team ownership exists
 - Use date ranges
 - Use cursor pagination for log lists
 - Never decrypt content for dashboards

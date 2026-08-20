@@ -738,27 +738,27 @@ response, PII, credential, or secret is stored or logged.
 
 **Effort:** High
 
-- [ ] P8-01 — Add organisation-scoped dashboard summary backed only by persisted analytics, billing, anomaly-alert, and provider-health data.
-- [ ] P8-02 — Add stable cursor-paginated metadata-only request logs with filters supported by the current `RequestLog` schema.
-- [ ] P8-03 — Add read-only organisation user and team listings.
-- [ ] P8-04 — Add authoritative billing/token usage and explicit known/unknown accounting visibility.
-- [ ] P8-05 — Add read-only anomaly alert listing.
-- [ ] P8-06 — Add the permission-aware responsive admin frontend for the supported read APIs.
-- [ ] P8-07 — Verify tenant isolation, permission denial, bounded pagination, unsupported-metric omission, and sensitive-data exclusion.
-- [ ] Team-lead request-log access is deferred until request ownership can be mapped to a trusted team without weakening scope.
-- [ ] User role/team/status mutations and refresh-session revocation are blocked by the Phase 9 durable admin-audit guarantee.
-- [ ] Policy, budget, retention, and alert-resolution mutations are blocked by the Phase 9 durable admin-audit guarantee.
-- [ ] Audit export is Phase 9 work because the append-only `AuditLog` does not exist yet.
-- [ ] `ENCRYPTED_STORAGE` remains unavailable until Phase 9 encryption is implemented; `CUSTOM_RETENTION` is not an MVP mode.
-- [ ] `alert.created` email delivery remains deferred until provider, configuration, sender, error mapping, and allowlisted template content are approved.
-- [ ] Cost, latency, cache, fallback, and PII-risk dashboard metrics remain omitted until authoritative persistence and approved contracts exist.
+- [x] P8-01 — Add organisation-scoped dashboard summary backed only by persisted analytics, billing, anomaly-alert, and provider-health data.
+- [x] P8-02 — Add stable cursor-paginated metadata-only request logs with filters supported by the current `RequestLog` schema.
+- [x] P8-03 — Add read-only organisation user and team listings.
+- [x] P8-04 — Add authoritative billing/token usage and explicit known/unknown accounting visibility.
+- [x] P8-05 — Add read-only anomaly alert listing.
+- [x] P8-06 — Add the permission-aware responsive admin frontend for the supported read APIs.
+- [x] P8-07 — Verify tenant isolation, permission denial, bounded pagination, unsupported-metric omission, and sensitive-data exclusion.
+- [x] Team-lead request-log access is approved-deferred until request ownership can be mapped to a trusted team without weakening scope.
+- [x] User role/team/status mutations and refresh-session revocation are blocked by the Phase 9 durable admin-audit guarantee.
+- [x] Policy, budget, retention, and alert-resolution mutations are blocked by the Phase 9 durable admin-audit guarantee.
+- [x] Audit export is Phase 9 work because the append-only `AuditLog` does not exist yet.
+- [x] `ENCRYPTED_STORAGE` remains unavailable until Phase 9 encryption is implemented; `CUSTOM_RETENTION` is not an MVP mode.
+- [x] `alert.created` email delivery remains approved-deferred until provider, configuration, sender, error mapping, and allowlisted template content are approved.
+- [x] Cost, latency, cache, fallback, and PII-risk dashboard metrics remain omitted until authoritative persistence and approved contracts exist.
 
 ## Exit Criteria
 
-- [ ] Admin sees only their organisation.
-- [ ] Employee and unauthorised users receive `403` for admin routes.
-- [ ] Admin does not automatically receive decrypted employee prompts.
-- [ ] Dashboard values match authoritative persisted records and unknown usage remains explicit.
+- [x] Admin sees only their organisation.
+- [x] Employee and unauthorised users receive `403` for admin routes.
+- [x] Admin does not automatically receive decrypted employee prompts.
+- [x] Dashboard values match authoritative persisted records and unknown usage remains explicit.
 
 ---
 
@@ -1040,14 +1040,14 @@ Do not randomly change several files.
 | Phase | Status | Notes |
 |---|---|---|
 | Phase 0 | Completed | Documentation and base server completed |
-| Phase 1 | In Progress | Foundation work |
-| Phase 2 | Not Started | |
-| Phase 3 | Not Started | |
-| Phase 4 | Not Started | |
+| Phase 1 | Completed | Foundation configuration, logging, data connections, health, and API baseline verified |
+| Phase 2 | Completed | Tenant models, authentication, refresh, authorization, and logout verified |
+| Phase 3 | Completed | Provider contracts, Groq adapter, capability registry, retry, circuit, and fallback verified |
+| Phase 4 | Completed | Deterministic PII, policy, masking, blocking, and safe decision events verified |
 | Phase 5 | Completed | Login, tenant-scoped conversations, policy-aware streaming, responsive frontend, and P5-08 contract-aligned UX verified |
 | Phase 6 | Completed | P6-01/P6-03/P6-04 idempotency proven; P6-02 cache contract resolved; P6-05 records cache/replay/recovery deferrals and accepted crash risk |
 | Phase 7 | Completed | Provider health and durable billing/analytics enqueue recovery verified; email delivery waived to Phase 8 |
-| Phase 8 | In Progress | Read-only tenant admin contract approved; Phase 9-dependent mutations explicitly blocked/deferred |
+| Phase 8 | Completed | Read-only tenant admin APIs/UI verified; audit-dependent mutations explicitly blocked/deferred to Phase 9 |
 | Phase 9 | Not Started | |
 | Phase 10 | Not Started | |
 | Phase 11 | Not Started | |
@@ -1058,13 +1058,13 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## Phase 8 — Complete Read-Only Tenant Administration
+## Phase 9 — Retention, Encryption, and Audit Planning
 
 **Effort:** High
 
-Implement only authoritative organisation-scoped summary, request-log,
-billing, alerts, users, teams, and frontend views. Do not start Phase 9 or
-expose audit-dependent mutations.
+Audit and resolve the Phase 9 encryption, key management, retained message,
+append-only audit, export, and admin-mutation contracts before implementation.
+Do not implement Phase 9 without explicit approval.
 
 ### Active cost-cut migration
 
