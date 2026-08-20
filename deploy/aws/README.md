@@ -73,3 +73,29 @@ ECS deployment circuit breakers automatically roll back failed service
 revisions. Manual rollback registers/deploys the previously recorded task
 definition revisions; database/index rollback is never automatic or
 destructive.
+
+## Demo power controls
+
+The manual power controls discover the current ProxiAI resource identifiers
+before each operation. Soft stop scales only the three ECS services to zero.
+Deep stop additionally removes the ALB and NAT Gateway while preserving the
+target groups, ACM certificate, Route 53 hosted zone, NAT EIP, VPC networking,
+ECR, IAM, Secrets Manager, ECS services, cluster, and task definitions.
+
+```powershell
+.\deploy\aws\demo-power.ps1 soft-stop
+.\deploy\aws\demo-power.ps1 soft-start
+.\deploy\aws\demo-power.ps1 deep-stop -WhatIf
+.\deploy\aws\demo-power.ps1 deep-stop -Apply
+.\deploy\aws\demo-power.ps1 deep-start -Apply
+```
+
+Deep stop writes the non-secret reconstruction state to the ignored
+`deploy/aws/.runtime/demo-power-state.json`. Keep that local file until deep
+start and public smoke verification complete. Do not release the preserved NAT
+EIP because Atlas trusts its public address.
+
+The account administrator must attach
+`deploy/aws/proxiai-demo-power-policy.json` to
+`proxiai-deployment-role` before the first apply operation. No script attaches
+IAM policy or uses root credentials.

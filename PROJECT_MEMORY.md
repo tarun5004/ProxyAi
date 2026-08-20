@@ -1099,6 +1099,33 @@ npm run dev
   ShellCheck, JSON parsing, diff checks, and focused secret scans passed for
   the deployment correction.
 
+## Latest Task — AWS Demo Power Controls
+
+- **Status:** Repository implementation completed on 2026-08-20. The live ECS,
+  ALB, NAT Gateway, EIP, Route 53, and service counts were not changed during
+  implementation.
+- **Soft mode:** `soft-stop-demo.ps1` scales only frontend/API/worker to zero;
+  `soft-start-demo.ps1` restores API/worker before frontend and verifies the
+  public landing, liveness, and readiness endpoints.
+- **Deep mode:** `deep-stop-demo.ps1` snapshots non-secret topology before
+  scaling down, deletes only verified ALB/listener/rule and NAT resources,
+  preserves target groups/ACM/Route 53 zone/NAT EIP/networking, and removes the
+  dangling apex alias. `deep-start-demo.ps1` reconstructs NAT routing, ALB,
+  HTTPS/HTTP listeners, priority 10/20 routing, DNS, ECS tasks, target health,
+  and public smoke from that snapshot.
+- **Safety:** Deep operations require `-Apply`; `-WhatIf` performs live
+  read-only discovery and refuses ambiguous ownership. The ignored state file
+  is `deploy/aws/.runtime/demo-power-state.json` and contains no secrets.
+- **IAM:** `deploy/aws/proxiai-demo-power-policy.json` is intentionally not
+  attached by the deployment role. An account administrator must review and
+  attach it only to `proxiai-deployment-role`.
+- **Verification:** PowerShell parsing passed for all demo-control scripts;
+  policy JSON parsing, live deep-stop preview, reconstructed deep-start preview,
+  wrapper preview, current topology discovery, and `git diff --check` passed.
+- **Next action:** Attach the scoped power policy, use soft mode for routine
+  savings, and run deep stop only when accepting the longer ALB/NAT rebuild
+  window. P12-09A Lightsail canary/public cutover remains incomplete.
+
 ## Do Not Forget
 
 - Implement only the active PHASE task; keep deferred features out of the MVP.

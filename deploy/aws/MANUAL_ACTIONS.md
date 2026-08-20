@@ -239,3 +239,20 @@ groups, or their rollback metadata during this migration task.
 
 ECR, Route 53, and IAM/OIDC remain required by the Lightsail delivery path and
 are not cleanup candidates.
+# Demo power-control IAM
+
+Before using deep power control, an account administrator must create or update
+the managed policy from `deploy/aws/proxiai-demo-power-policy.json` and attach
+it only to `proxiai-deployment-role`. The policy permits scaling the three
+existing ECS demo services and reconstructing only the named ProxiAI ALB, NAT
+route, NAT Gateway, and `proxiai.me` alias. It does not permit releasing the NAT
+EIP, deleting target groups, or changing application secrets.
+
+```powershell
+aws iam create-policy --policy-name proxiai-demo-power-policy --policy-document file://deploy/aws/proxiai-demo-power-policy.json
+aws iam attach-role-policy --role-name proxiai-deployment-role --policy-arn arn:aws:iam::851725401338:policy/proxiai-demo-power-policy
+```
+
+If the managed policy already exists, create a new non-default policy version,
+set the reviewed version as default, and then run only the attach command. Do
+not attach AdministratorAccess.

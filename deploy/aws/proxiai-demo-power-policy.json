@@ -1,0 +1,156 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadOnlyPowerDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "acm:DescribeCertificate",
+        "acm:ListCertificates",
+        "ec2:DescribeAddresses",
+        "ec2:DescribeNatGateways",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs",
+        "ecs:DescribeClusters",
+        "ecs:DescribeServices",
+        "ecs:DescribeTasks",
+        "ecs:ListTasks",
+        "elasticloadbalancing:DescribeListeners",
+        "elasticloadbalancing:DescribeLoadBalancers",
+        "elasticloadbalancing:DescribeRules",
+        "elasticloadbalancing:DescribeTags",
+        "elasticloadbalancing:DescribeTargetGroups",
+        "elasticloadbalancing:DescribeTargetHealth",
+        "route53:GetChange",
+        "route53:GetHostedZone",
+        "route53:ListHostedZonesByName",
+        "route53:ListResourceRecordSets"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ScaleOnlyProxiAiDemoServices",
+      "Effect": "Allow",
+      "Action": "ecs:UpdateService",
+      "Resource": [
+        "arn:aws:ecs:ap-south-1:851725401338:service/proxiai-production/proxiai-staging-frontend",
+        "arn:aws:ecs:ap-south-1:851725401338:service/proxiai-production/proxiai-staging-api",
+        "arn:aws:ecs:ap-south-1:851725401338:service/proxiai-production/proxiai-staging-worker"
+      ]
+    },
+    {
+      "Sid": "CreateTaggedProxiAiNatGateway",
+      "Effect": "Allow",
+      "Action": "ec2:CreateNatGateway",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-south-1",
+          "aws:RequestTag/Project": "ProxiAI"
+        }
+      }
+    },
+    {
+      "Sid": "TagNewProxiAiNatGateway",
+      "Effect": "Allow",
+      "Action": "ec2:CreateTags",
+      "Resource": "arn:aws:ec2:ap-south-1:851725401338:natgateway/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:CreateAction": "CreateNatGateway",
+          "aws:RequestTag/Project": "ProxiAI"
+        }
+      }
+    },
+    {
+      "Sid": "DeleteTaggedProxiAiNatGateway",
+      "Effect": "Allow",
+      "Action": "ec2:DeleteNatGateway",
+      "Resource": "arn:aws:ec2:ap-south-1:851725401338:natgateway/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Project": "ProxiAI"
+        }
+      }
+    },
+    {
+      "Sid": "RestoreOnlyTaggedProxiAiPrivateRoutes",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateRoute",
+        "ec2:DeleteRoute",
+        "ec2:ReplaceRoute"
+      ],
+      "Resource": "arn:aws:ec2:ap-south-1:851725401338:route-table/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Project": "ProxiAI"
+        }
+      }
+    },
+    {
+      "Sid": "ManageOnlyNamedProxiAiAlb",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:AddTags",
+        "elasticloadbalancing:CreateLoadBalancer",
+        "elasticloadbalancing:DeleteLoadBalancer",
+        "elasticloadbalancing:ModifyLoadBalancerAttributes",
+        "elasticloadbalancing:SetIpAddressType",
+        "elasticloadbalancing:SetSecurityGroups",
+        "elasticloadbalancing:SetSubnets"
+      ],
+      "Resource": "arn:aws:elasticloadbalancing:ap-south-1:851725401338:loadbalancer/app/proxiai-alb/*"
+    },
+    {
+      "Sid": "ManageOnlyProxiAiAlbListeners",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:CreateListener",
+        "elasticloadbalancing:DeleteListener",
+        "elasticloadbalancing:ModifyListener"
+      ],
+      "Resource": [
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:loadbalancer/app/proxiai-alb/*",
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:listener/app/proxiai-alb/*/*",
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:targetgroup/proxiai-frontend-tg/*",
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:targetgroup/proxiai-api-tg/*"
+      ]
+    },
+    {
+      "Sid": "ManageOnlyProxiAiAlbRules",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:CreateRule",
+        "elasticloadbalancing:DeleteRule",
+        "elasticloadbalancing:ModifyRule"
+      ],
+      "Resource": [
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:listener/app/proxiai-alb/*/*",
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:listener-rule/app/proxiai-alb/*/*/*",
+        "arn:aws:elasticloadbalancing:ap-south-1:851725401338:targetgroup/proxiai-api-tg/*"
+      ]
+    },
+    {
+      "Sid": "ChangeOnlyProxiAiApexAlias",
+      "Effect": "Allow",
+      "Action": "route53:ChangeResourceRecordSets",
+      "Resource": "arn:aws:route53:::hostedzone/*",
+      "Condition": {
+        "ForAllValues:StringEquals": {
+          "route53:ChangeResourceRecordSetsActions": [
+            "DELETE",
+            "UPSERT"
+          ],
+          "route53:ChangeResourceRecordSetsRecordTypes": [
+            "A",
+            "AAAA"
+          ],
+          "route53:ChangeResourceRecordSetsNormalizedRecordNames": "proxiai.me"
+        }
+      }
+    }
+  ]
+}
