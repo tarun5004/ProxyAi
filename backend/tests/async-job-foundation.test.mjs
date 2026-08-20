@@ -109,10 +109,16 @@ test("enqueues a validated job with bounded retry and retention options", async 
 });
 
 test("retries transient worker failures three times and retains the failed job", async () => {
+    const observedContexts = [];
+
     activeWorker = createManagedWorker({
         queueName: billingQueue.name,
         parse: parseRequestCompletedJob,
-        async process() {
+        async process(data, context) {
+            observedContexts.push(context);
+            assert.equal(context.requestId, data.requestId);
+            assert.equal(context.log.bindings().requestId, data.requestId);
+            assert.equal(context.log.bindings().service, "proxiai-worker");
             throw new Error("simulated transient dependency failure");
         },
     });
@@ -123,6 +129,7 @@ test("retries transient worker failures three times and retains the failed job",
 
     assert.equal(failedJob.attemptsMade, BULLMQ_JOB_ATTEMPTS);
     assert.equal(await failedJob.getState(), "failed");
+    assert.equal(observedContexts.length, BULLMQ_JOB_ATTEMPTS);
 });
 
 function createValidPayload() {

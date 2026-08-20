@@ -55,6 +55,37 @@ export function createChatStreamHandler(
 
         let prepared: PreparedChatStream | undefined;
         let accountingStarted = false;
+        let firstTokenLogged = false;
+        let terminalEventLogged = false;
+        const startedAt = Date.now();
+
+        const logTerminalEvent = (
+            event: "chat.stream.completed"
+                | "chat.stream.failed"
+                | "chat.stream.interrupted",
+            status: "COMPLETED" | "FAILED" | "INTERRUPTED",
+            errorCode?: string,
+        ) => {
+            if (terminalEventLogged) {
+                return;
+            }
+
+            terminalEventLogged = true;
+            const context = {
+                durationMs: Date.now() - startedAt,
+                errorCode,
+                event,
+                operation: "chat.stream",
+                provider: prepared?.providerId,
+                status,
+            };
+
+            if (status === "COMPLETED") {
+                request.log.info(context, "Chat stream completed");
+            } else {
+                request.log.warn(context, "Chat stream ended without completion");
+            }
+        };
 
         try {
             prepared = await prepareChatStream(
@@ -74,9 +105,23 @@ export function createChatStreamHandler(
                     { status: "INTERRUPTED" },
                     dependencies,
                 );
+                logTerminalEvent(
+                    "chat.stream.interrupted",
+                    "INTERRUPTED",
+                    "CLIENT_DISCONNECTED",
+                );
                 return;
             }
 
+            request.log.info(
+                {
+                    event: "chat.stream.started",
+                    operation: "chat.stream",
+                    provider: prepared.providerId,
+                    status: "STARTED",
+                },
+                "Chat stream started",
+            );
             startSse(response);
             await writeInitialEvents(response, prepared);
 
@@ -98,6 +143,19 @@ export function createChatStreamHandler(
                         disconnected = true;
                         abortController.abort();
                         break;
+                    }
+
+                    if (!firstTokenLogged) {
+                        firstTokenLogged = true;
+                        request.log.info(
+                            {
+                                durationMs: Date.now() - startedAt,
+                                event: "chat.stream.first_token",
+                                operation: "chat.stream",
+                                provider: prepared.providerId,
+                            },
+                            "Chat stream emitted first token",
+                        );
                     }
                 } else {
                     accountingStarted = true;
@@ -125,6 +183,10 @@ export function createChatStreamHandler(
                         masked:
                             prepared.decision.action === "ALLOW_WITH_MASK",
                     });
+                    logTerminalEvent(
+                        "chat.stream.completed",
+                        "COMPLETED",
+                    );
                     response.end();
                     return;
                 }
@@ -145,6 +207,15 @@ export function createChatStreamHandler(
                             : "FAILED",
                     },
                     dependencies,
+                );
+                logTerminalEvent(
+                    disconnected
+                        ? "chat.stream.interrupted"
+                        : "chat.stream.failed",
+                    disconnected ? "INTERRUPTED" : "FAILED",
+                    disconnected
+                        ? "CLIENT_DISCONNECTED"
+                        : "STREAM_INTERRUPTED",
                 );
             }
 
@@ -177,6 +248,16 @@ export function createChatStreamHandler(
                     );
                 } catch {}
             }
+
+            logTerminalEvent(
+                disconnected
+                    ? "chat.stream.interrupted"
+                    : "chat.stream.failed",
+                disconnected ? "INTERRUPTED" : "FAILED",
+                disconnected
+                    ? "CLIENT_DISCONNECTED"
+                    : "STREAM_INTERRUPTED",
+            );
 
             if (!disconnected) {
                 await writeSseEvent(response, "error", {

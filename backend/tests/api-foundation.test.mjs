@@ -97,6 +97,28 @@ test("request ID is server-generated and propagated", async () => {
     assert.equal(body.error.requestId, requestId);
 });
 
+test("request-scoped logger binds the generated request ID", () => {
+    const request = {};
+    const headers = new Map();
+    let nextCalled = false;
+
+    requestIdMiddleware(
+        request,
+        {
+            setHeader(name, value) {
+                headers.set(name, value);
+            },
+        },
+        () => {
+            nextCalled = true;
+        },
+    );
+
+    assert.equal(nextCalled, true);
+    assert.equal(headers.get("X-Request-ID"), request.requestId);
+    assert.equal(request.log.bindings().requestId, request.requestId);
+});
+
 test("success helper creates the approved envelope", async () => {
     const response = await request(createErrorTestApp(), "/success");
     const body = await response.json();

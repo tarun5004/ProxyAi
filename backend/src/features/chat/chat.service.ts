@@ -311,6 +311,7 @@ export async function prepareChatStream(
             {
                 recordEvent: (event) => {
                     fallbackEvents.push(Object.freeze({ ...event }));
+                    logProviderLifecycleEvent(event);
                 },
             },
         );
@@ -372,6 +373,29 @@ export async function prepareChatStream(
 
         throw normalizePreStreamError(error);
     }
+}
+
+function logProviderLifecycleEvent(event: ProviderFallbackEvent): void {
+    const context = {
+        attemptNumber: event.attemptNumber,
+        errorCategory: event.errorCategory,
+        event: event.type,
+        model: event.model,
+        operation: "provider.stream",
+        provider: event.providerId,
+        requestId: event.requestId,
+        statusCode: event.statusCode,
+    };
+
+    if (
+        event.type === "provider.fallback_candidate_failed"
+        || event.type === "provider.fallback_all_unavailable"
+    ) {
+        logger.warn(context, "Provider stream attempt failed");
+        return;
+    }
+
+    logger.info(context, "Provider stream attempt completed");
 }
 
 function requireProviderPolicyAction(

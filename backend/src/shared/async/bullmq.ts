@@ -7,6 +7,7 @@ import type {
     Job,
     Processor,
 } from "bullmq";
+import type { Logger } from "pino";
 
 import {
     closeRedisClient,
@@ -29,8 +30,10 @@ const managedQueues = new Set<Queue>();
 const managedWorkers = new Set<ManagedWorker>();
 
 export interface SafeWorkerJobContext {
+    readonly requestId: string;
     readonly jobId: string;
     readonly attemptsMade: number;
+    readonly log: Logger;
 }
 
 export interface ManagedWorker {
@@ -104,7 +107,10 @@ export async function closeManagedQueue(queue: Queue): Promise<void> {
     await queue.close();
 }
 
-export function createManagedWorker<DataType, ResultType>(input: {
+export function createManagedWorker<
+    DataType extends { readonly requestId: string },
+    ResultType,
+>(input: {
     readonly queueName: string;
     readonly parse: (value: unknown) => DataType;
     readonly process: (
@@ -169,18 +175,51 @@ export function createManagedWorker<DataType, ResultType>(input: {
             throw error;
         }
 
-        const result = await input.process(
-            data,
+        const jobContext: SafeWorkerJobContext = {
+            attemptsMade: job.attemptsMade,
+            jobId: job.id ?? "unknown",
+            requestId: data.requestId,
+            log: logger.child({
+                jobId: job.id ?? "unknown",
+                queue: input.queueName,
+                requestId: data.requestId,
+                service: "proxiai-worker",
+            }),
+        };
+
+        jobContext.log.info(
             {
                 attemptsMade: job.attemptsMade,
-                jobId: job.id ?? "unknown",
+                event: "queue.job.started",
             },
-            signal,
+            "BullMQ job processing started",
         );
 
-        heartbeat?.recordSuccessfulJob();
+        try {
+            const result = await input.process(data, jobContext, signal);
 
-        return result;
+            heartbeat?.recordSuccessfulJob();
+            jobContext.log.info(
+                {
+                    event: "queue.job.completed",
+                },
+                "BullMQ job processing completed",
+            );
+
+            return result;
+        } catch (error: unknown) {
+            jobContext.log.warn(
+                {
+                    attemptsMade: job.attemptsMade,
+                    errorCode: error instanceof UnrecoverableError
+                        ? "ASYNC_JOB_TERMINAL_FAILURE"
+                        : "ASYNC_JOB_PROCESSING_FAILED",
+                    event: "queue.job.processing_failed",
+                },
+                "BullMQ job processing failed",
+            );
+            throw error;
+        }
     };
     const worker = new Worker<unknown, ResultType>(
         input.queueName,
