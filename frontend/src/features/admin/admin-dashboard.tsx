@@ -16,12 +16,20 @@ import { BrandLogo } from "@/components/layout/brand-logo";
 import { useAuth } from "@/features/auth/auth-provider";
 
 import {
+    downloadAdminAudit,
     getAdminBilling,
     getAdminSummary,
     listAdminAlerts,
     listAdminLogs,
     listAdminTeams,
     listAdminUsers,
+    revokeAdminUserSessions,
+    updateAdminAlert,
+    updateAdminPolicy,
+    updateAdminRetention,
+    updateAdminUserRole,
+    updateAdminUserStatus,
+    updateAdminUserTeam,
 } from "./admin.api";
 import type {
     AdminAlertItem,
@@ -62,7 +70,9 @@ export function AdminDashboard() {
     const canViewLogs = permissions.includes("admin:view_logs");
     const canViewBilling = permissions.includes("admin:view_billing");
     const canManageUsers = permissions.includes("admin:manage_users");
-    const canOpenAdmin = canViewLogs || canViewBilling || canManageUsers;
+    const canConfigurePolicy = permissions.includes("admin:configure_policy");
+    const canExportAudit = permissions.includes("admin:export_audit");
+    const canOpenAdmin = canViewLogs || canViewBilling || canManageUsers || canConfigurePolicy || canExportAudit;
 
     useEffect(() => {
         if (!auth.accessToken || !canOpenAdmin) {
@@ -167,15 +177,15 @@ export function AdminDashboard() {
                             setReload((value) => value + 1);
                         }} />
                     ) : tab === "overview" ? (
-                        <Overview summary={data.summary} />
+                        <Overview summary={data.summary} accessToken={auth.accessToken} canConfigure={canConfigurePolicy} onChanged={() => setReload((value) => value + 1)} />
                     ) : tab === "users" ? (
-                        <UsersAndTeams users={data.users} teams={data.teams} />
+                        <UsersAndTeams users={data.users} teams={data.teams} accessToken={auth.accessToken} onChanged={() => setReload((value) => value + 1)} />
                     ) : tab === "usage" ? (
                         <Usage billing={data.billing} />
                     ) : tab === "alerts" ? (
-                        <Alerts alerts={data.alerts} />
+                        <Alerts alerts={data.alerts} accessToken={auth.accessToken} onChanged={() => setReload((value) => value + 1)} />
                     ) : (
-                        <Logs logs={data.logs} />
+                        <Logs logs={data.logs} accessToken={auth.accessToken} canExport={canExportAudit} />
                     )}
                 </section>
             </div>
@@ -183,7 +193,7 @@ export function AdminDashboard() {
     );
 }
 
-function Overview({ summary }: Readonly<{ summary?: AdminSummary }>) {
+function Overview({ summary, accessToken, canConfigure, onChanged }: Readonly<{ summary?: AdminSummary; accessToken?: string; canConfigure: boolean; onChanged: () => void }>) {
     if (!summary) {
         return <StatePanel title="No overview permission" detail="Summary data is unavailable for this account." />;
     }
@@ -235,11 +245,12 @@ function Overview({ summary }: Readonly<{ summary?: AdminSummary }>) {
                     <MetricRows rows={summary.providerModels.map((item) => [`${item.providerId} · ${item.model}`, item.requestCount])} />
                 )}
             </Panel>
+            {canConfigure && accessToken ? <PolicyControls summary={summary} accessToken={accessToken} onChanged={onChanged} /> : null}
         </div>
     );
 }
 
-function UsersAndTeams({ users, teams }: Readonly<{ users: AdminUserItem[]; teams: AdminTeamItem[] }>) {
+function UsersAndTeams({ users, teams, accessToken, onChanged }: Readonly<{ users: AdminUserItem[]; teams: AdminTeamItem[]; accessToken?: string; onChanged: () => void }>) {
     const teamNames = new Map(teams.map((team) => [team.teamId, team.name]));
     return (
         <div className="grid gap-6">
@@ -248,7 +259,7 @@ function UsersAndTeams({ users, teams }: Readonly<{ users: AdminUserItem[]; team
                 {users.length === 0 ? <Empty label="No users found." /> : users.map((user) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center" key={user.userId}>
                         <div><strong className="block text-sm">{user.displayName}</strong><span className="text-xs text-text-soft">{user.email}</span></div>
-                        <Badge value={user.role.replaceAll("_", " ")} />
+                        {accessToken ? <UserControls user={user} teams={teams} accessToken={accessToken} onChanged={onChanged} /> : <Badge value={user.role.replaceAll("_", " ")} />}
                         <span className="text-xs text-text-soft">{user.teamId ? teamNames.get(user.teamId) ?? "Assigned team" : "No team"} · {user.status}</span>
                     </div>
                 ))}
@@ -291,7 +302,7 @@ function Usage({ billing }: Readonly<{ billing?: AdminBilling }>) {
     );
 }
 
-function Alerts({ alerts }: Readonly<{ alerts: AdminAlertItem[] }>) {
+function Alerts({ alerts, accessToken, onChanged }: Readonly<{ alerts: AdminAlertItem[]; accessToken?: string; onChanged: () => void }>) {
     return (
         <div className="grid gap-6">
             <SectionHeading title="Anomaly alerts" detail="Read-only daily token anomalies; resolution requires Phase 9 audit guarantees." />
@@ -299,7 +310,7 @@ function Alerts({ alerts }: Readonly<{ alerts: AdminAlertItem[] }>) {
                 {alerts.length === 0 ? <Empty label="No anomaly alerts found." /> : alerts.map((alert) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto]" key={alert.alertId}>
                         <div><strong className="text-sm">{alert.title}</strong><p className="mt-1 mb-0 text-xs text-text-soft">{alert.observedDay} · {formatNumber(alert.metadata.observedTokens)} tokens vs {formatNumber(alert.metadata.baselineAverageTokens)} baseline</p></div>
-                        <Badge value={alert.status} />
+                        <div className="flex items-center gap-2"><Badge value={alert.status} />{accessToken ? <MutationButton label={alert.status === "OPEN" ? "Resolve" : "Reopen"} run={() => updateAdminAlert(accessToken, alert.alertId, alert.status === "OPEN")} onDone={onChanged} /> : null}</div>
                     </div>
                 ))}
             </Panel>
@@ -307,10 +318,20 @@ function Alerts({ alerts }: Readonly<{ alerts: AdminAlertItem[] }>) {
     );
 }
 
-function Logs({ logs }: Readonly<{ logs: AdminLogItem[] }>) {
+function Logs({ logs, accessToken, canExport }: Readonly<{ logs: AdminLogItem[]; accessToken?: string; canExport: boolean }>) {
     return (
         <div className="grid gap-6">
-            <SectionHeading title="Request logs" detail="Metadata only. Prompt and response content is never available here." />
+            <div className="flex items-start justify-between gap-4"><SectionHeading title="Request logs" detail="Metadata only. Prompt and response content is never available here." />{canExport && accessToken ? <MutationButton label="Export audit CSV" run={async () => {
+                const dateTo = new Date();
+                const dateFrom = new Date(dateTo.getTime() - 30 * 24 * 60 * 60 * 1_000);
+                const blob = await downloadAdminAudit(accessToken, dateFrom.toISOString(), dateTo.toISOString());
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+                anchor.href = url;
+                anchor.download = "proxiai-audit.csv";
+                anchor.click();
+                URL.revokeObjectURL(url);
+            }} /> : null}</div>
             <Panel title={`Recent requests (${logs.length})`}>
                 {logs.length === 0 ? <Empty label="No request logs found." /> : logs.map((log) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center" key={log.requestId}>
@@ -322,6 +343,69 @@ function Logs({ logs }: Readonly<{ logs: AdminLogItem[] }>) {
             </Panel>
         </div>
     );
+}
+
+function PolicyControls({ summary, accessToken, onChanged }: Readonly<{ summary: AdminSummary; accessToken: string; onChanged: () => void }>) {
+    const [maskThreshold, setMaskThreshold] = useState(String(summary.organisation.policy.maskThreshold));
+    const [blockThreshold, setBlockThreshold] = useState(String(summary.organisation.policy.blockThreshold));
+    const [budget, setBudget] = useState(String(summary.budget.monthlyBudgetTokens));
+
+    return <Panel title="Policy and retention settings"><div className="grid gap-4 md:grid-cols-3">
+        <label className="grid gap-1 text-xs font-medium">Mask threshold<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="0" max="100" value={maskThreshold} onChange={(event) => setMaskThreshold(event.target.value)} /></label>
+        <label className="grid gap-1 text-xs font-medium">Block threshold<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="0" max="100" value={blockThreshold} onChange={(event) => setBlockThreshold(event.target.value)} /></label>
+        <label className="grid gap-1 text-xs font-medium">Monthly token budget<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="0" value={budget} onChange={(event) => setBudget(event.target.value)} /></label>
+    </div><div className="mt-4 flex flex-wrap gap-2">
+        <MutationButton label="Save policy" run={() => updateAdminPolicy(accessToken, { maskThreshold: Number(maskThreshold), blockThreshold: Number(blockThreshold), monthlyTokenBudget: Number(budget) })} onDone={onChanged} />
+        <MutationButton label={`Use ${summary.organisation.retentionMode === "METADATA_ONLY" ? "encrypted storage" : "metadata only"}`} confirm run={() => updateAdminRetention(accessToken, summary.organisation.retentionMode === "METADATA_ONLY" ? "ENCRYPTED_STORAGE" : "METADATA_ONLY")} onDone={onChanged} />
+    </div></Panel>;
+}
+
+function UserControls({ user, teams, accessToken, onChanged }: Readonly<{ user: AdminUserItem; teams: AdminTeamItem[]; accessToken: string; onChanged: () => void }>) {
+    return <div className="flex flex-wrap items-center justify-end gap-2">
+        <MutationSelect ariaLabel={`Role for ${user.displayName}`} value={user.role} run={(value) => updateAdminUserRole(accessToken, user.userId, value as AdminUserItem["role"])} onDone={onChanged}>
+            <option value="EMPLOYEE">Employee</option><option value="TEAM_LEAD">Team lead</option><option value="ORG_ADMIN">Org admin</option>
+        </MutationSelect>
+        <MutationSelect ariaLabel={`Team for ${user.displayName}`} value={user.teamId ?? ""} run={(value) => updateAdminUserTeam(accessToken, user.userId, value || null)} onDone={onChanged}>
+            <option value="">No team</option>{teams.map((team) => <option key={team.teamId} value={team.teamId}>{team.name}</option>)}
+        </MutationSelect>
+        <MutationButton label={user.status === "ACTIVE" ? "Disable" : "Activate"} confirm={user.status === "ACTIVE"} run={() => updateAdminUserStatus(accessToken, user.userId, user.status === "ACTIVE" ? "DISABLED" : "ACTIVE")} onDone={onChanged} />
+        <MutationButton label="Revoke sessions" confirm run={() => revokeAdminUserSessions(accessToken, user.userId)} onDone={onChanged} />
+    </div>;
+}
+
+function MutationSelect({ ariaLabel, value, run, onDone, children }: Readonly<{ ariaLabel: string; value: string; run: (value: string) => Promise<unknown>; onDone: () => void; children: React.ReactNode }>) {
+    const [state, setState] = useState<"idle" | "working" | "error">("idle");
+
+    async function change(nextValue: string) {
+        setState("working");
+        try {
+            await run(nextValue);
+            setState("idle");
+            onDone();
+        } catch {
+            setState("error");
+        }
+    }
+
+    return <span className="grid gap-1"><select aria-label={ariaLabel} className="rounded-lg border border-border-default px-2 py-1.5 text-xs disabled:opacity-60" value={value} disabled={state === "working"} onChange={(event) => void change(event.target.value)}>{children}</select>{state === "error" ? <span className="text-[10px] text-danger" role="alert">Update failed</span> : null}</span>;
+}
+
+function MutationButton({ label, run, onDone, confirm = false, disabled = false }: Readonly<{ label: string; run: () => Promise<unknown>; onDone?: () => void; confirm?: boolean; disabled?: boolean }>) {
+    const [state, setState] = useState<"idle" | "working" | "error">("idle");
+
+    async function execute() {
+        if (confirm && !window.confirm(`Confirm: ${label}?`)) return;
+        setState("working");
+        try {
+            await run();
+            setState("idle");
+            onDone?.();
+        } catch {
+            setState("error");
+        }
+    }
+
+    return <button className="rounded-lg border border-border-default bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60" disabled={disabled || state === "working"} onClick={() => void execute()}>{state === "working" ? "Saving…" : state === "error" ? "Retry" : label}</button>;
 }
 
 function StatePanel({ title, detail, action }: Readonly<{ title: string; detail: string; action?: () => void }>) {

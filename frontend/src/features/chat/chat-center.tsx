@@ -141,7 +141,7 @@ export function ChatCenter(props: ChatCenterProps) {
                             This conversation could not be loaded.
                         </p>
                     </div>
-                ) : props.messages.length === 0 ? (
+                ) : props.messages.length === 0 && props.retainedMessages.length === 0 ? (
                     <div className="mx-auto grid min-h-full max-w-117.5 content-center justify-items-center text-center">
                         <span className="grid size-13 place-items-center rounded-2xl bg-brand-soft text-brand">
                             <Sparkle size={25} weight="fill" />
@@ -153,7 +153,11 @@ export function ChatCenter(props: ChatCenterProps) {
                             Your prompt is evaluated by organisation policy before it reaches the configured provider.
                         </p>
                     </div>
-                ) : props.messages.map((message) => (
+                ) : <>
+                    {props.retainedMessages.filter((message) => message.contentAvailable).map((message) => (
+                        <RetainedMessage key={message.messageId} message={message} />
+                    ))}
+                    {props.messages.map((message) => (
                     <article
                         key={message.id}
                         className={`mx-auto mb-[22px] grid max-w-205 grid-cols-[48px_minmax(0,1fr)] gap-3.5 rounded-[15px] border border-border-default p-[21px] max-[720px]:mb-3.5 max-[720px]:grid-cols-[38px_minmax(0,1fr)] max-[720px]:gap-2.5 max-[720px]:rounded-xl max-[720px]:p-[15px] ${message.role === "user" ? "bg-surface-green" : "bg-surface shadow-panel"}`}
@@ -193,7 +197,8 @@ export function ChatCenter(props: ChatCenterProps) {
                             ) : null}
                         </div>
                     </article>
-                ))}
+                    ))}
+                </>}
             </section>
 
             <div className="px-8 pb-[26px] max-[720px]:px-3 max-[720px]:pb-[calc(12px+env(safe-area-inset-bottom))]">
@@ -231,5 +236,32 @@ export function ChatCenter(props: ChatCenterProps) {
                 </form>
             </div>
         </main>
+    );
+}
+
+function RetainedMessage({ message }: Readonly<{ message: MessageSummary }>) {
+    const assistant = message.role === "assistant";
+
+    return (
+        <article className={`mx-auto mb-[22px] grid max-w-205 grid-cols-[48px_minmax(0,1fr)] gap-3.5 rounded-[15px] border border-border-default p-[21px] max-[720px]:mb-3.5 max-[720px]:grid-cols-[38px_minmax(0,1fr)] max-[720px]:gap-2.5 max-[720px]:rounded-xl max-[720px]:p-[15px] ${assistant ? "bg-surface shadow-panel" : "bg-surface-green"}`}>
+            {assistant ? (
+                <span className="flex size-10 items-center overflow-hidden rounded-full bg-surface-soft max-[720px]:size-[34px]">
+                    <Image className="h-auto w-40 max-w-none shrink-0 max-[720px]:w-34" src="/proxiai-logo.png" alt="ProxyAi" width={360} height={90} />
+                </span>
+            ) : (
+                <span className="grid size-10 place-items-center rounded-full bg-brand text-[10px] font-bold text-white max-[720px]:size-[34px]">
+                    {message.role === "system" ? "SYS" : "YOU"}
+                </span>
+            )}
+            <div className="min-w-0">
+                <div className="mt-[7px] text-sm text-[#222724] max-[720px]:mt-[3px] max-[720px]:text-[13px]">
+                    {assistant ? (
+                        <AssistantMarkdown content={message.content ?? ""} />
+                    ) : (
+                        <p className="m-0 wrap-anywhere whitespace-pre-wrap leading-[1.7]">{message.content}</p>
+                    )}
+                </div>
+            </div>
+        </article>
     );
 }

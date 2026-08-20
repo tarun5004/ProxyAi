@@ -13,7 +13,15 @@ export const messageSummarySchema = z.object({
     role: z.enum(["user", "assistant", "system"]),
     tokenCount: z.number().int().nonnegative().optional(),
     createdAt: z.string().datetime(),
-    contentAvailable: z.literal(false),
+    contentAvailable: z.boolean(),
+    content: z.string().optional(),
+}).superRefine((message, context) => {
+    if (message.contentAvailable !== (message.content !== undefined)) {
+        context.addIssue({
+            code: "custom",
+            message: "Message content availability is inconsistent.",
+        });
+    }
 });
 
 export type ConversationSummary = z.infer<typeof conversationSummarySchema>;
