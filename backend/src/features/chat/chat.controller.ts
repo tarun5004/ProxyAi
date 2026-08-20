@@ -71,6 +71,7 @@ export function createChatStreamHandler(
             }
 
             terminalEventLogged = true;
+            prepared?.executionMetrics.finish(status);
             const context = {
                 durationMs: Date.now() - startedAt,
                 errorCode,
@@ -147,6 +148,7 @@ export function createChatStreamHandler(
 
                     if (!firstTokenLogged) {
                         firstTokenLogged = true;
+                        prepared.executionMetrics.observeFirstToken();
                         request.log.info(
                             {
                                 durationMs: Date.now() - startedAt,

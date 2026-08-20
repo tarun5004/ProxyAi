@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 
 import express from "express";
 
@@ -22,6 +22,7 @@ const [
     { createPolicyDecisionEvent },
     { streamWithOrderedFallback },
     { globalErrorHandler },
+    { metricsRegistry },
     { requestIdMiddleware },
 ] = await Promise.all([
     import("../dist/shared/errors/app-error.js"),
@@ -31,8 +32,13 @@ const [
     import("../dist/features/policy/policy-events.js"),
     import("../dist/features/providers/provider-fallback.js"),
     import("../dist/shared/middleware/error.middleware.js"),
+    import("../dist/shared/observability/metrics.js"),
     import("../dist/shared/middleware/request-id.middleware.js"),
 ]);
+
+beforeEach(() => {
+    metricsRegistry.resetMetrics();
+});
 
 const trustedOrgId = randomUUID();
 const trustedUserId = randomUUID();
@@ -43,6 +49,7 @@ function createRuntime({
     budgetError,
     ownershipError,
     usageError,
+    waitForAbortAfterToken = false,
 } = {}) {
     const order = [];
     const providerRequests = [];
@@ -61,6 +68,12 @@ function createRuntime({
             providerCalls += 1;
             providerRequests.push(request);
             yield { type: "token", text: "Safe streamed output" };
+
+            if (waitForAbortAfterToken) {
+                await waitForAbort(request.abortSignal);
+                return;
+            }
+
             yield {
                 type: "done",
                 finishReason: "stop",
@@ -271,6 +284,17 @@ test("BLOCK returns JSON 403 and performs zero provider calls", async () => {
         "pii",
     ]);
     assert.deepEqual(runtime.reservationEvents, ["completed"]);
+    const metricsText = await metricsRegistry.metrics();
+    assert.match(
+        metricsText,
+        /proxiai_chat_requests_total\{outcome="BLOCKED",policy_action="BLOCK"\} 1/,
+    );
+    assert.equal(
+        metricsText.includes(
+            "proxiai_chat_time_to_first_token_seconds_count",
+        ),
+        false,
+    );
 });
 
 test("MASK sends only the masked providerPrompt", async () => {
@@ -323,6 +347,86 @@ test("ALLOW streams output and records known provider usage", async () => {
         runtime.reservationEvents,
         ["provider-started", "completed"],
     );
+    const metricsText = await metricsRegistry.metrics();
+    assert.match(
+        metricsText,
+        /proxiai_chat_requests_total\{outcome="COMPLETED",policy_action="ALLOW"\} 1/,
+    );
+    assert.match(
+        metricsText,
+        /proxiai_chat_completion_duration_seconds_count\{outcome="COMPLETED"\} 1/,
+    );
+    assert.match(
+        metricsText,
+        /proxiai_chat_time_to_first_token_seconds_count\{provider="groq"\} 1/,
+    );
+});
+
+test("client disconnect records INTERRUPTED once after the first real token", async () => {
+    const runtime = createRuntime({ waitForAbortAfterToken: true });
+    const application = createTestApp(runtime);
+    const server = application.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+
+    assert.notEqual(address, null);
+    assert.equal(typeof address, "object");
+
+    const abortController = new AbortController();
+
+    try {
+        const response = await fetch(
+            `http://127.0.0.1:${address.port}/api/v1/chat/stream`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "text/event-stream",
+                },
+                body: JSON.stringify({
+                    conversationId,
+                    prompt: "Explain safe cancellation.",
+                    clientRequestId: randomUUID(),
+                    providerId: "groq",
+                    routingMode: "manual",
+                }),
+                signal: abortController.signal,
+            },
+        );
+        const reader = response.body?.getReader();
+
+        assert.notEqual(reader, undefined);
+        const decoder = new TextDecoder();
+        let received = "";
+
+        while (!received.includes("event: token")) {
+            const frame = await reader.read();
+
+            assert.equal(frame.done, false);
+            received += decoder.decode(frame.value, { stream: true });
+        }
+
+        abortController.abort();
+        await waitForMetric(
+            'proxiai_chat_requests_total{outcome="INTERRUPTED",policy_action="ALLOW"} 1',
+        );
+
+        const metricsText = await metricsRegistry.metrics();
+        assert.match(
+            metricsText,
+            /proxiai_chat_completion_duration_seconds_count\{outcome="INTERRUPTED"\} 1/,
+        );
+        assert.match(
+            metricsText,
+            /proxiai_chat_time_to_first_token_seconds_count\{provider="groq"\} 1/,
+        );
+    } finally {
+        abortController.abort();
+        const closed = once(server, "close");
+        server.closeAllConnections();
+        server.close();
+        await closed;
+    }
 });
 
 test("pre-provider failures release and accounting failure stays processing", async () => {
@@ -376,6 +480,15 @@ test("pre-provider failures release and accounting failure stays processing", as
         usageRuntime.reservationEvents,
         ["provider-started"],
     );
+    const metricsText = await metricsRegistry.metrics();
+    assert.match(
+        metricsText,
+        /proxiai_chat_requests_total\{outcome="FAILED",policy_action="ALLOW"\} 1/,
+    );
+    assert.match(
+        metricsText,
+        /proxiai_chat_completion_duration_seconds_count\{outcome="FAILED"\} 1/,
+    );
 });
 
 function availableBudget() {
@@ -386,4 +499,28 @@ function availableBudget() {
         remainingPercent: 99,
         exceeded: false,
     };
+}
+
+async function waitForAbort(signal) {
+    if (signal?.aborted) {
+        return;
+    }
+
+    await new Promise((resolve) => {
+        signal?.addEventListener("abort", resolve, { once: true });
+    });
+}
+
+async function waitForMetric(expectedLine) {
+    const expiresAt = Date.now() + 1_000;
+
+    while (Date.now() < expiresAt) {
+        if ((await metricsRegistry.metrics()).includes(expectedLine)) {
+            return;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    assert.fail(`Metric was not observed: ${expectedLine}`);
 }

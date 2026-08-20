@@ -64,6 +64,11 @@ import {
     type ChatControlService,
 } from "./chat-control.service.js";
 import {
+    recordBlockedChat,
+    startAcceptedChatMetrics,
+    type ChatExecutionMetrics,
+} from "./chat.metrics.js";
+import {
     loadChatOrganisationContext,
     type ChatOrganisationContext,
 } from "./chat.repository.js";
@@ -115,6 +120,7 @@ export interface PreparedChatStream {
     readonly conversationId: string;
     readonly retentionMode: RetentionMode;
     readonly originalUserContent: string;
+    readonly executionMetrics: ChatExecutionMetrics;
 }
 
 export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
@@ -172,6 +178,7 @@ export async function prepareChatStream(
     let providerStarted = false;
     let reservationFinalized = false;
     let policyAction: "ALLOW" | "ALLOW_WITH_MASK" | undefined;
+    let executionMetrics: ChatExecutionMetrics | undefined;
 
     try {
         await dependencies.controls.consumeRateLimit({
@@ -225,6 +232,7 @@ export async function prepareChatStream(
         });
 
         if (decision.action === "BLOCK") {
+            recordBlockedChat();
             const occurredAt = new Date().toISOString();
 
             await dependencies.appendUsage({
@@ -288,6 +296,7 @@ export async function prepareChatStream(
             ? decision.providerPrompt
             : input.request.prompt;
         policyAction = decision.action;
+        executionMetrics = startAcceptedChatMetrics(decision.action);
         const candidate = await selectProductionCandidate(
             input.request,
             dependencies.candidates,
@@ -319,6 +328,7 @@ export async function prepareChatStream(
 
         reservation.markProviderExecutionStarted();
         providerStarted = true;
+        executionMetrics.markProviderStarted(candidate.adapter.providerId);
         const firstResult = await iterator.next();
 
         if (firstResult.done === true) {
@@ -345,8 +355,13 @@ export async function prepareChatStream(
             conversationId: input.request.conversationId,
             retentionMode: organisation.retentionMode,
             originalUserContent: input.request.prompt,
+            executionMetrics,
         };
     } catch (error: unknown) {
+        executionMetrics?.finish(
+            input.abortSignal.aborted ? "INTERRUPTED" : "FAILED",
+        );
+
         if (!reservationFinalized) {
             if (providerStarted) {
                 await recordUsageAndComplete(
