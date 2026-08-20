@@ -16,21 +16,34 @@ import type {
     AdminUserItem,
 } from "./admin.types.js";
 
+interface AdminSummaryDependencies {
+    readonly readBudget: typeof readAuthoritativeBudgetStatus;
+    readonly readHealth: typeof readProviderHealth;
+    readonly providerIds: typeof getEnabledProductionProviderIds;
+}
+
+const defaultAdminSummaryDependencies: AdminSummaryDependencies = {
+    readBudget: readAuthoritativeBudgetStatus,
+    readHealth: readProviderHealth,
+    providerIds: getEnabledProductionProviderIds,
+};
+
 export async function getAdminSummary(
     orgId: string,
     period: AdminPeriod,
     now: Date = new Date(),
     repository: AdminRepository = adminRepository,
+    dependencies: AdminSummaryDependencies = defaultAdminSummaryDependencies,
 ) {
     const range = createPeriodRange(period, now);
     const [organisation, analytics, openAlerts, budget, providerHealth] = await Promise.all([
         repository.findOrganisation(orgId),
         repository.aggregateAnalytics({ orgId, ...range }),
         repository.countOpenAlerts(orgId),
-        readAuthoritativeBudgetStatus(orgId, now),
-        Promise.all(getEnabledProductionProviderIds().map(async (providerId) => ({
+        dependencies.readBudget(orgId, now),
+        Promise.all(dependencies.providerIds().map(async (providerId) => ({
             providerId,
-            ...await readProviderHealth(providerId),
+            ...await dependencies.readHealth(providerId),
         }))),
     ]);
 

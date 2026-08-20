@@ -287,7 +287,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                     setConversationListStatus("loading");
                     setConversationListReload((current) => current + 1);
                 }}
-                showAdmin={auth.context?.permissions.some((permission) =>
+                showAdmin={auth.context?.permissions?.some((permission) =>
                     permission.startsWith("admin:"),
                 ) ?? false}
             />}
