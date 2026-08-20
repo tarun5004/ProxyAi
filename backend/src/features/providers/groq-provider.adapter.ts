@@ -22,6 +22,7 @@ import {
     getProviderCapabilities,
     getProviderModelCapability,
 } from "./provider-capability.registry.js";
+import { recordProviderExecution } from "./provider-metrics.js";
 import type {
     CompletionRequest,
     CompletionResult,
@@ -164,13 +165,33 @@ export class GroqProviderAdapter implements ProviderAdapter {
                 result.usage = usage;
             }
 
+            recordProviderExecution(
+                this.providerId,
+                "succeeded",
+                result.latencyMs,
+            );
+
             return result;
         } catch (error: unknown) {
-            throw normalizeGroqError(
+            const latencyMs = this.elapsedSince(startedAt);
+            const providerError = normalizeGroqError(
                 error,
                 request.model,
-                this.elapsedSince(startedAt),
+                latencyMs,
             );
+
+            recordProviderExecution(
+                this.providerId,
+                request.abortSignal?.aborted === true
+                    ? "interrupted"
+                    : "failed",
+                providerError.latencyMs ?? latencyMs,
+                request.abortSignal?.aborted === true
+                    ? undefined
+                    : providerError.category,
+            );
+
+            throw providerError;
         }
     }
 
@@ -237,6 +258,7 @@ export class GroqProviderAdapter implements ProviderAdapter {
         const startedAt = this.now();
         let usage: TokenUsage | undefined;
         let finishReason: ProviderFinishReason = "stop";
+        let terminalOutcomeRecorded = false;
 
         try {
             const stream = await this.client.create(
@@ -290,13 +312,40 @@ export class GroqProviderAdapter implements ProviderAdapter {
                 doneChunk.usage = usage;
             }
 
+            recordProviderExecution(
+                this.providerId,
+                "succeeded",
+                doneChunk.latencyMs,
+            );
+            terminalOutcomeRecorded = true;
+
             yield doneChunk;
         } catch (error: unknown) {
-            throw normalizeGroqError(
+            const latencyMs = this.elapsedSince(startedAt);
+            const providerError = normalizeGroqError(
                 error,
                 request.model,
-                this.elapsedSince(startedAt),
+                latencyMs,
             );
+            const interrupted = request.abortSignal?.aborted === true;
+
+            recordProviderExecution(
+                this.providerId,
+                interrupted ? "interrupted" : "failed",
+                providerError.latencyMs ?? latencyMs,
+                interrupted ? undefined : providerError.category,
+            );
+            terminalOutcomeRecorded = true;
+
+            throw providerError;
+        } finally {
+            if (!terminalOutcomeRecorded) {
+                recordProviderExecution(
+                    this.providerId,
+                    "interrupted",
+                    this.elapsedSince(startedAt),
+                );
+            }
         }
     }
 

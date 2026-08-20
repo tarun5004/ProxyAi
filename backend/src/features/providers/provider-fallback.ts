@@ -9,6 +9,7 @@ import {
     type ProviderRetryOptions,
     type ProviderRetryPolicy,
 } from "./provider-retry.policy.js";
+import { recordProviderFallback } from "./provider-metrics.js";
 import type {
     CompletionRequest,
     CompletionResult,
@@ -133,6 +134,13 @@ export async function completeWithOrderedFallback(
             continue;
         }
 
+        if (index > 0) {
+            recordProviderFallback(
+                candidate.adapter.providerId,
+                "attempted",
+            );
+        }
+
         try {
             const result = await retryProviderOperation(
                 () => circuitBreaker.execute(
@@ -209,6 +217,13 @@ async function* createFallbackStream(
             options,
         )) {
             continue;
+        }
+
+        if (index > 0) {
+            recordProviderFallback(
+                candidate.adapter.providerId,
+                "attempted",
+            );
         }
 
         let streamStart: StreamStart;
@@ -319,6 +334,10 @@ function skipOpenCircuitCandidate(
 
     recordEvent(options, event);
 
+    if (attemptNumber > 1) {
+        recordProviderFallback(attempt.providerId, "skipped_open_circuit");
+    }
+
     return true;
 }
 
@@ -337,6 +356,9 @@ function recordSucceededAttempt(
     };
 
     attempts.push(attempt);
+    if (attemptNumber > 1) {
+        recordProviderFallback(attempt.providerId, "succeeded");
+    }
     recordEvent(options, {
         type: "provider.fallback_candidate_succeeded",
         requestId,
@@ -357,6 +379,9 @@ function recordFailedAttempt(
     const attempt = createFailedAttempt(candidate, attemptNumber, error);
 
     attempts.push(attempt);
+    if (attemptNumber > 1) {
+        recordProviderFallback(attempt.providerId, "failed");
+    }
     const event: ProviderFallbackEvent = {
         type: "provider.fallback_candidate_failed",
         requestId,
@@ -426,6 +451,7 @@ function createAllProvidersUnavailableError(
         errorCategory: error.category,
         statusCode: error.statusCode,
     });
+    recordProviderFallback(error.providerId, "all_unavailable");
 
     return error;
 }

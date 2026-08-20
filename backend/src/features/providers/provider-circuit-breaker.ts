@@ -2,6 +2,10 @@ import {
     isProviderError,
     shouldRetryProviderError,
 } from "./provider-retry.policy.js";
+import {
+    recordProviderCircuitState,
+    recordProviderCircuitTransition,
+} from "./provider-metrics.js";
 import type {
     ProviderError,
     ProviderErrorCategory,
@@ -89,11 +93,11 @@ export class ProviderCircuitBreaker {
 
         try {
             const result = await operation();
-            this.recordSuccess(record);
+            this.recordSuccess(providerId, record);
 
             return result;
         } catch (error: unknown) {
-            this.recordFailure(record, error);
+            this.recordFailure(providerId, record, error);
 
             throw error;
         } finally {
@@ -121,12 +125,17 @@ export class ProviderCircuitBreaker {
 
     public reset(providerId?: ProviderId): void {
         if (providerId === undefined) {
+            for (const existingProviderId of this.recordsByProviderId.keys()) {
+                recordProviderCircuitState(existingProviderId, "CLOSED");
+            }
+
             this.recordsByProviderId.clear();
 
             return;
         }
 
         this.recordsByProviderId.delete(providerId);
+        recordProviderCircuitState(providerId, "CLOSED");
     }
 
     private prepareRequest(
@@ -136,7 +145,7 @@ export class ProviderCircuitBreaker {
 
         if (record.state === "OPEN") {
             if (this.hasCooldownElapsed(record)) {
-                record.state = "HALF_OPEN";
+                this.transitionState(providerId, record, "HALF_OPEN");
                 record.halfOpenTrialCount = 0;
             } else {
                 throw new ProviderCircuitOpenError(providerId);
@@ -155,8 +164,11 @@ export class ProviderCircuitBreaker {
         return record;
     }
 
-    private recordSuccess(record: ProviderCircuitRecord): void {
-        record.state = "CLOSED";
+    private recordSuccess(
+        providerId: ProviderId,
+        record: ProviderCircuitRecord,
+    ): void {
+        this.transitionState(providerId, record, "CLOSED");
         record.failureCount = 0;
         record.halfOpenTrialCount = 0;
         delete record.openedAt;
@@ -164,6 +176,7 @@ export class ProviderCircuitBreaker {
     }
 
     private recordFailure(
+        providerId: ProviderId,
         record: ProviderCircuitRecord,
         error: unknown,
     ): void {
@@ -174,7 +187,7 @@ export class ProviderCircuitBreaker {
         record.lastFailureAt = this.now();
 
         if (record.state === "HALF_OPEN") {
-            this.openCircuit(record);
+            this.openCircuit(providerId, record);
 
             return;
         }
@@ -182,12 +195,15 @@ export class ProviderCircuitBreaker {
         record.failureCount += 1;
 
         if (record.failureCount >= this.policy.failureThreshold) {
-            this.openCircuit(record);
+            this.openCircuit(providerId, record);
         }
     }
 
-    private openCircuit(record: ProviderCircuitRecord): void {
-        record.state = "OPEN";
+    private openCircuit(
+        providerId: ProviderId,
+        record: ProviderCircuitRecord,
+    ): void {
+        this.transitionState(providerId, record, "OPEN");
         record.openedAt = this.now();
         record.halfOpenTrialCount = 0;
     }
@@ -201,6 +217,7 @@ export class ProviderCircuitBreaker {
         const existingRecord = this.recordsByProviderId.get(providerId);
 
         if (existingRecord) {
+            recordProviderCircuitState(providerId, existingRecord.state);
             return existingRecord;
         }
 
@@ -211,8 +228,30 @@ export class ProviderCircuitBreaker {
         };
 
         this.recordsByProviderId.set(providerId, record);
+        recordProviderCircuitState(providerId, record.state);
 
         return record;
+    }
+
+    private transitionState(
+        providerId: ProviderId,
+        record: ProviderCircuitRecord,
+        nextState: ProviderCircuitState,
+    ): void {
+        const previousState = record.state;
+
+        record.state = nextState;
+
+        if (previousState === nextState) {
+            recordProviderCircuitState(providerId, nextState);
+            return;
+        }
+
+        recordProviderCircuitTransition(
+            providerId,
+            previousState,
+            nextState,
+        );
     }
 }
 

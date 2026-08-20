@@ -3,6 +3,7 @@ import type {
     ProviderErrorCategory,
     ProviderId,
 } from "./provider.types.js";
+import { recordProviderRetry } from "./provider-metrics.js";
 
 export const DEFAULT_PROVIDER_RETRY_POLICY = Object.freeze({
     maxAttempts: 3,
@@ -73,10 +74,26 @@ export async function retryProviderOperation<T>(
             return await operation({ attempt });
         } catch (error: unknown) {
             if (!isProviderError(error)
-                || !shouldRetryProviderError(error)
-                || attempt >= policy.maxAttempts) {
+                || !shouldRetryProviderError(error)) {
                 throw error;
             }
+
+            if (attempt >= policy.maxAttempts) {
+                if (attempt > 1) {
+                    recordProviderRetry(
+                        options.providerId,
+                        error.category,
+                        "exhausted",
+                    );
+                }
+                throw error;
+            }
+
+            recordProviderRetry(
+                options.providerId,
+                error.category,
+                "scheduled",
+            );
 
             const delayMs = calculateRetryDelayMs(
                 attempt,

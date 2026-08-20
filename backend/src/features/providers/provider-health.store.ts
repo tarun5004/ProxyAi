@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { logger } from "../../shared/lib/logger.js";
 import { redis } from "../../shared/lib/redis.js";
+import { recordProviderHealthState } from "./provider-metrics.js";
 import type {
     ProviderHealthStatus,
     ProviderId,
@@ -65,6 +66,7 @@ export async function writeProviderHealth(
         "EX",
         PROVIDER_HEALTH_TTL_SECONDS,
     );
+    recordProviderHealthState(providerId, record.state);
 }
 
 export async function readProviderHealth(
@@ -84,11 +86,11 @@ export async function readProviderHealth(
             "Provider health state unavailable",
         );
 
-        return Object.freeze({ state: "UNKNOWN" });
+        return projectHealthState(providerId, "UNKNOWN");
     }
 
     if (storedValue === null) {
-        return Object.freeze({ state: "UNKNOWN" });
+        return projectHealthState(providerId, "UNKNOWN");
     }
 
     try {
@@ -97,11 +99,20 @@ export async function readProviderHealth(
         );
 
         if (!result.success) {
-            return Object.freeze({ state: "UNKNOWN" });
+            return projectHealthState(providerId, "UNKNOWN");
         }
 
+        recordProviderHealthState(providerId, result.data.state);
         return Object.freeze(result.data);
     } catch {
-        return Object.freeze({ state: "UNKNOWN" });
+        return projectHealthState(providerId, "UNKNOWN");
     }
+}
+
+function projectHealthState(
+    providerId: ProviderId,
+    state: ProviderHealthState,
+): ProviderHealthRecord {
+    recordProviderHealthState(providerId, state);
+    return Object.freeze({ state });
 }
