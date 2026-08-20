@@ -25,15 +25,16 @@ if (-not (Test-Path -LiteralPath $StatePath)) {
 
 $identity = Assert-ProxiDeploymentIdentity -Profile $Profile -Region $Region -AccountId $AccountId
 $state = Get-Content -Raw -LiteralPath $StatePath | ConvertFrom-Json
-if ($state.schemaVersion -ne 1 -or $state.accountId -ne $AccountId -or $state.region -ne $Region) {
-    throw "Recovery snapshot is incompatible with the approved account and region."
-}
-if ($state.clusterName -ne $ClusterName -or $state.loadBalancer.name -ne $LoadBalancerName) {
-    throw "Recovery snapshot does not describe the approved ProxiAI environment."
-}
-if ($state.route53.recordName -ne "$DomainName.") {
-    throw "Recovery snapshot does not describe the approved domain."
-}
+Assert-ProxiPowerState `
+    -State $state `
+    -AccountId $AccountId `
+    -Region $Region `
+    -ClusterName $ClusterName `
+    -LoadBalancerName $LoadBalancerName `
+    -FrontendServiceName $FrontendServiceName `
+    -ApiServiceName $ApiServiceName `
+    -WorkerServiceName $WorkerServiceName `
+    -DomainName $DomainName | Out-Null
 
 Invoke-ProxiAwsJson -Profile $Profile -Region $Region -Arguments @(
     "ec2", "describe-vpcs", "--vpc-ids", $state.vpcId

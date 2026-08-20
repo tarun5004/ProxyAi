@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidateSet("soft-stop", "soft-start", "deep-stop", "deep-start")]
+    [ValidateSet("snapshot", "soft-stop", "soft-start", "deep-stop", "deep-start")]
     [string]$Action,
     [Alias("Profile")]
     [string]$AwsProfile = "proxiai-deployment",
@@ -12,6 +12,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptName = switch ($Action) {
+    "snapshot" { "snapshot-demo-power.ps1" }
     "soft-stop" { "soft-stop-demo.ps1" }
     "soft-start" { "soft-start-demo.ps1" }
     "deep-stop" { "deep-stop-demo.ps1" }

@@ -258,6 +258,10 @@ function Get-ProxiPowerState {
         "elbv2", "describe-listeners", "--load-balancer-arn", $loadBalancer.LoadBalancerArn
     )
     $listeners = @($listenerResult.Listeners)
+    $httpListeners = @($listeners | Where-Object { $_.Protocol -eq "HTTP" -and $_.Port -eq 80 })
+    if ($httpListeners.Count -gt 1) {
+        throw "Expected at most one ProxiAI HTTP listener."
+    }
     $httpsListeners = @($listeners | Where-Object { $_.Protocol -eq "HTTPS" -and $_.Port -eq 443 })
     if ($httpsListeners.Count -ne 1) {
         throw "Expected exactly one ProxiAI HTTPS listener."
@@ -365,7 +369,7 @@ function Get-ProxiPowerState {
     }
 
     return [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         capturedAt = [DateTimeOffset]::UtcNow.ToString("o")
         accountId = $AccountId
         region = $Region
@@ -389,20 +393,40 @@ function Get-ProxiPowerState {
             ipAddressType = $loadBalancer.IpAddressType
             securityGroupIds = @($loadBalancer.SecurityGroups)
             subnetIds = @($loadBalancer.AvailabilityZones.SubnetId)
+            subnetMappings = @($loadBalancer.AvailabilityZones | ForEach-Object {
+                [ordered]@{
+                    zoneName = $_.ZoneName
+                    subnetId = $_.SubnetId
+                    loadBalancerAddresses = @($_.LoadBalancerAddresses)
+                }
+            })
         }
         targetGroups = [ordered]@{
             frontendArn = $frontendTargetGroupArn
             apiArn = $apiTargetGroupArn
         }
         listeners = [ordered]@{
-            http = @($listeners | Where-Object { $_.Protocol -eq "HTTP" -and $_.Port -eq 80 } | ForEach-Object {
-                [ordered]@{ arn = $_.ListenerArn; defaultActions = @($_.DefaultActions) }
-            })
+            http = [ordered]@{
+                present = $httpListeners.Count -eq 1
+                arn = if ($httpListeners.Count -eq 1) { $httpListeners[0].ListenerArn } else { $null }
+                protocol = "HTTP"
+                port = 80
+                defaultActions = if ($httpListeners.Count -eq 1) { @($httpListeners[0].DefaultActions) } else { @() }
+                restoreDefaultAction = [ordered]@{
+                    type = "redirect"
+                    protocol = "HTTPS"
+                    port = 443
+                    statusCode = "HTTP_301"
+                }
+            }
             https = [ordered]@{
+                protocol = "HTTPS"
+                port = 443
                 arn = $httpsListener.ListenerArn
                 sslPolicy = $httpsListener.SslPolicy
                 certificateArn = $certificateArns[0]
                 defaultTargetGroupArn = $frontendTargetGroupArn
+                defaultActions = @($httpsListener.DefaultActions)
             }
             rules = @(
                 [ordered]@{ priority = 10; pathPattern = "/api/*"; targetGroupArn = $apiTargetGroupArn },
@@ -421,6 +445,167 @@ function Get-ProxiPowerState {
             privateRouteTableId = $privateRouteTableId
         }
     }
+}
+
+function Assert-ProxiPowerState {
+    param(
+        [Parameter(Mandatory)]
+        [object]$State,
+        [Parameter(Mandatory)]
+        [string]$AccountId,
+        [Parameter(Mandatory)]
+        [string]$Region,
+        [Parameter(Mandatory)]
+        [string]$ClusterName,
+        [Parameter(Mandatory)]
+        [string]$LoadBalancerName,
+        [Parameter(Mandatory)]
+        [string]$FrontendServiceName,
+        [Parameter(Mandatory)]
+        [string]$ApiServiceName,
+        [Parameter(Mandatory)]
+        [string]$WorkerServiceName,
+        [Parameter(Mandatory)]
+        [string]$DomainName
+    )
+
+    if ($State.schemaVersion -ne 2) {
+        throw "Recovery snapshot schema version is unsupported."
+    }
+    if ($State.accountId -ne $AccountId -or $State.region -ne $Region -or $State.clusterName -ne $ClusterName) {
+        throw "Recovery snapshot account, region, or cluster is invalid."
+    }
+    if ([string]::IsNullOrWhiteSpace($State.capturedAt)) {
+        throw "Recovery snapshot capture time is missing."
+    }
+    if ($State.vpcId -notmatch "^vpc-[a-z0-9]+$") {
+        throw "Recovery snapshot VPC ID is invalid."
+    }
+
+    $publicSubnetIds = @($State.publicSubnetIds)
+    $privateSubnetIds = @($State.privateSubnetIds)
+    if ($publicSubnetIds.Count -lt 2 -or @($publicSubnetIds | Where-Object { $_ -notmatch "^subnet-[a-z0-9]+$" }).Count -gt 0) {
+        throw "Recovery snapshot public subnet IDs are invalid."
+    }
+    if ($privateSubnetIds.Count -lt 2 -or @($privateSubnetIds | Where-Object { $_ -notmatch "^subnet-[a-z0-9]+$" }).Count -gt 0) {
+        throw "Recovery snapshot private subnet IDs are invalid."
+    }
+
+    if ($State.loadBalancer.name -ne $LoadBalancerName) {
+        throw "Recovery snapshot ALB name is invalid."
+    }
+    if ($State.loadBalancer.arn -notmatch "^arn:aws:elasticloadbalancing:$([regex]::Escape($Region)):$([regex]::Escape($AccountId)):loadbalancer/app/$([regex]::Escape($LoadBalancerName))/") {
+        throw "Recovery snapshot ALB ARN is invalid."
+    }
+    if ([string]::IsNullOrWhiteSpace($State.loadBalancer.dnsName)) {
+        throw "Recovery snapshot ALB DNS name is missing."
+    }
+    if ([string]::IsNullOrWhiteSpace($State.loadBalancer.canonicalHostedZoneId) -or
+        $State.loadBalancer.scheme -ne "internet-facing" -or
+        $State.loadBalancer.type -ne "application" -or
+        $State.loadBalancer.ipAddressType -notin @("ipv4", "dualstack")) {
+        throw "Recovery snapshot ALB configuration is invalid."
+    }
+    $albSecurityGroupIds = @($State.loadBalancer.securityGroupIds)
+    if ($albSecurityGroupIds.Count -lt 1 -or @($albSecurityGroupIds | Where-Object { $_ -notmatch "^sg-[a-z0-9]+$" }).Count -gt 0) {
+        throw "Recovery snapshot ALB security groups are invalid."
+    }
+    $albSubnetIds = @($State.loadBalancer.subnetIds)
+    $subnetMappings = @($State.loadBalancer.subnetMappings)
+    if ($albSubnetIds.Count -lt 2 -or $subnetMappings.Count -ne $albSubnetIds.Count) {
+        throw "Recovery snapshot ALB subnet mappings are incomplete."
+    }
+    if ((Compare-Object @($albSubnetIds | Sort-Object) @($publicSubnetIds | Sort-Object))) {
+        throw "Recovery snapshot ALB subnets do not match the public subnet set."
+    }
+    foreach ($mapping in $subnetMappings) {
+        if ($mapping.subnetId -notin $albSubnetIds -or [string]::IsNullOrWhiteSpace($mapping.zoneName)) {
+            throw "Recovery snapshot ALB subnet mapping is invalid."
+        }
+    }
+
+    if ($State.targetGroups.frontendArn -notmatch ":targetgroup/proxiai-frontend-tg/" -or $State.targetGroups.apiArn -notmatch ":targetgroup/proxiai-api-tg/") {
+        throw "Recovery snapshot target group ARNs are invalid."
+    }
+    if ($State.targetGroups.frontendArn -eq $State.targetGroups.apiArn) {
+        throw "Recovery snapshot target groups must be distinct."
+    }
+
+    if ($State.listeners.http.PSObject.Properties.Name -notcontains "present" -or
+        $State.listeners.http.present -isnot [bool] -or
+        $State.listeners.http.protocol -ne "HTTP" -or
+        $State.listeners.http.port -ne 80) {
+        throw "Recovery snapshot HTTP listener configuration is invalid."
+    }
+    if ($State.listeners.http.restoreDefaultAction.type -ne "redirect" -or
+        $State.listeners.http.restoreDefaultAction.protocol -ne "HTTPS" -or
+        $State.listeners.http.restoreDefaultAction.port -ne 443 -or
+        $State.listeners.http.restoreDefaultAction.statusCode -ne "HTTP_301") {
+        throw "Recovery snapshot HTTP redirect restoration config is invalid."
+    }
+    if ($State.listeners.http.present -and [string]::IsNullOrWhiteSpace($State.listeners.http.arn)) {
+        throw "Recovery snapshot says the HTTP listener exists but its ARN is missing."
+    }
+    if ($State.listeners.https.protocol -ne "HTTPS" -or $State.listeners.https.port -ne 443) {
+        throw "Recovery snapshot HTTPS listener configuration is invalid."
+    }
+    if ([string]::IsNullOrWhiteSpace($State.listeners.https.arn) -or
+        [string]::IsNullOrWhiteSpace($State.listeners.https.sslPolicy) -or
+        $State.listeners.https.certificateArn -notmatch "^arn:aws:acm:$([regex]::Escape($Region)):$([regex]::Escape($AccountId)):certificate/") {
+        throw "Recovery snapshot HTTPS listener or ACM certificate is invalid."
+    }
+    if ($State.listeners.https.defaultTargetGroupArn -ne $State.targetGroups.frontendArn) {
+        throw "Recovery snapshot HTTPS default target is invalid."
+    }
+    if (@($State.listeners.https.defaultActions).Count -ne 1 -or $State.listeners.https.defaultActions[0].TargetGroupArn -ne $State.targetGroups.frontendArn) {
+        throw "Recovery snapshot HTTPS default action is invalid."
+    }
+    $rules = @($State.listeners.rules)
+    if ($rules.Count -ne 2) {
+        throw "Recovery snapshot listener rules are incomplete."
+    }
+    $apiRule = @($rules | Where-Object { $_.priority -eq 10 -and $_.pathPattern -eq "/api/*" -and $_.targetGroupArn -eq $State.targetGroups.apiArn })
+    $healthRule = @($rules | Where-Object { $_.priority -eq 20 -and $_.pathPattern -eq "/health/*" -and $_.targetGroupArn -eq $State.targetGroups.apiArn })
+    if ($apiRule.Count -ne 1 -or $healthRule.Count -ne 1) {
+        throw "Recovery snapshot listener priorities or routes are invalid."
+    }
+
+    if ($State.route53.hostedZoneId -notmatch "^[A-Z0-9]+$" -or $State.route53.recordName -ne "$DomainName.") {
+        throw "Recovery snapshot Route 53 metadata is invalid."
+    }
+    $route53Records = @($State.route53.records)
+    if ($route53Records.Count -lt 1 -or @($route53Records | Where-Object {
+        $_.Name -ne "$DomainName." -or $_.Type -notin @("A", "AAAA") -or -not $_.AliasTarget
+    }).Count -gt 0) {
+        throw "Recovery snapshot proxiai.me alias record is invalid."
+    }
+    $expectedAliasDnsNames = @("$($State.loadBalancer.dnsName).", "dualstack.$($State.loadBalancer.dnsName).")
+    if (@($route53Records | Where-Object { $_.AliasTarget.DNSName -notin $expectedAliasDnsNames }).Count -gt 0) {
+        throw "Recovery snapshot proxiai.me alias does not target the snapshotted ALB."
+    }
+
+    if ($State.nat.gatewayId -notmatch "^nat-[a-z0-9]+$" -or
+        $State.nat.subnetId -notmatch "^subnet-[a-z0-9]+$" -or
+        $State.nat.eipAllocationId -notmatch "^eipalloc-[a-z0-9]+$" -or
+        $State.nat.privateRouteTableId -notmatch "^rtb-[a-z0-9]+$") {
+        throw "Recovery snapshot NAT or private route-table metadata is invalid."
+    }
+    if ($State.nat.subnetId -notin $publicSubnetIds) {
+        throw "Recovery snapshot NAT subnet is not one of the public ALB subnets."
+    }
+
+    $expectedServices = @(
+        @{ State = $State.services.frontend; Name = $FrontendServiceName },
+        @{ State = $State.services.api; Name = $ApiServiceName },
+        @{ State = $State.services.worker; Name = $WorkerServiceName }
+    )
+    foreach ($service in $expectedServices) {
+        if ($service.State.name -ne $service.Name -or $service.State.desiredCount -notin @(0, 1)) {
+            throw "Recovery snapshot ECS desired count is invalid for $($service.Name)."
+        }
+    }
+
+    return $State
 }
 
 function Test-ProxiPublicEndpoints {

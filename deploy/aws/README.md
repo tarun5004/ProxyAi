@@ -83,6 +83,7 @@ target groups, ACM certificate, Route 53 hosted zone, NAT EIP, VPC networking,
 ECR, IAM, Secrets Manager, ECS services, cluster, and task definitions.
 
 ```powershell
+.\deploy\aws\demo-power.ps1 snapshot
 .\deploy\aws\demo-power.ps1 soft-stop
 .\deploy\aws\demo-power.ps1 soft-start
 .\deploy\aws\demo-power.ps1 deep-stop -WhatIf
@@ -94,6 +95,11 @@ Deep stop writes the non-secret reconstruction state to the ignored
 `deploy/aws/.runtime/demo-power-state.json`. Keep that local file until deep
 start and public smoke verification complete. Do not release the preserved NAT
 EIP because Atlas trusts its public address.
+
+The standalone `snapshot` action is read-only for AWS. It discovers the live
+topology, validates every required recovery field, writes atomically, reads the
+file back, and validates it again. Deep stop performs the same snapshot gate
+before scaling ECS or mutating any AWS resource.
 
 The account administrator must attach
 `deploy/aws/proxiai-demo-power-policy.json` to

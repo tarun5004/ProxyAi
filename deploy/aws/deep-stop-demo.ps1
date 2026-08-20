@@ -23,33 +23,54 @@ if (-not $Apply -and -not $WhatIfPreference) {
 $identity = Assert-ProxiDeploymentIdentity -Profile $Profile -Region $Region -AccountId $AccountId
 $currentLoadBalancer = Get-ProxiLoadBalancer -Profile $Profile -Region $Region -LoadBalancerName $LoadBalancerName -AllowMissing
 if ($null -ne $currentLoadBalancer) {
-    $state = Get-ProxiPowerState `
-        -Profile $Profile `
-        -Region $Region `
-        -AccountId $AccountId `
-        -ClusterName $ClusterName `
-        -LoadBalancerName $LoadBalancerName `
-        -FrontendServiceName $FrontendServiceName `
-        -ApiServiceName $ApiServiceName `
-        -WorkerServiceName $WorkerServiceName `
-        -DomainName $DomainName
-    if ($Apply -and $PSCmdlet.ShouldProcess($StatePath, "Write non-secret recovery snapshot")) {
-        Write-ProxiJsonFile -Value $state -Path $StatePath
+    if ($WhatIfPreference) {
+        $previewState = Get-ProxiPowerState `
+            -Profile $Profile `
+            -Region $Region `
+            -AccountId $AccountId `
+            -ClusterName $ClusterName `
+            -LoadBalancerName $LoadBalancerName `
+            -FrontendServiceName $FrontendServiceName `
+            -ApiServiceName $ApiServiceName `
+            -WorkerServiceName $WorkerServiceName `
+            -DomainName $DomainName
+        $state = ConvertTo-Json -InputObject $previewState -Depth 30 | ConvertFrom-Json
+    }
+    else {
+        & (Join-Path $PSScriptRoot "snapshot-demo-power.ps1") `
+            -Profile $Profile `
+            -Region $Region `
+            -AccountId $AccountId `
+            -ClusterName $ClusterName `
+            -LoadBalancerName $LoadBalancerName `
+            -FrontendServiceName $FrontendServiceName `
+            -ApiServiceName $ApiServiceName `
+            -WorkerServiceName $WorkerServiceName `
+            -DomainName $DomainName `
+            -StatePath $StatePath | Out-Null
+        if (-not (Test-Path -LiteralPath $StatePath)) {
+            throw "Validated recovery snapshot was not created."
+        }
+        $state = Get-Content -Raw -LiteralPath $StatePath | ConvertFrom-Json
     }
 }
 elseif (Test-Path -LiteralPath $StatePath) {
     $state = Get-Content -Raw -LiteralPath $StatePath | ConvertFrom-Json
 }
 else {
-    throw "ALB is absent and no recovery snapshot exists."
+    throw "ALB is absent and no validated recovery snapshot exists."
 }
 
-if ($state.accountId -ne $AccountId -or $state.region -ne $Region -or $state.clusterName -ne $ClusterName) {
-    throw "Recovery snapshot does not match the approved account, region, and cluster."
-}
-if ($state.loadBalancer.name -ne $LoadBalancerName -or $state.route53.recordName -ne "$DomainName.") {
-    throw "Recovery snapshot does not describe the approved ProxiAI resources."
-}
+Assert-ProxiPowerState `
+    -State $state `
+    -AccountId $AccountId `
+    -Region $Region `
+    -ClusterName $ClusterName `
+    -LoadBalancerName $LoadBalancerName `
+    -FrontendServiceName $FrontendServiceName `
+    -ApiServiceName $ApiServiceName `
+    -WorkerServiceName $WorkerServiceName `
+    -DomainName $DomainName | Out-Null
 
 $serviceNames = @($FrontendServiceName, $ApiServiceName, $WorkerServiceName)
 if ($PSCmdlet.ShouldProcess(($serviceNames -join ", "), "Scale ProxiAI ECS services to zero")) {

@@ -1078,8 +1078,9 @@ Critical pre-cutover autopsy gates:
 - [x] RequestLog append failure cannot falsely close idempotency as completed.
 - [x] Complete remaining verified P0/P1 runtime fixes and full regression.
 - [x] Add reviewed soft/deep manual ECS demo power controls with non-secret
-  recovery snapshots and read-only `-WhatIf` validation; live deep stop remains
-  an operator action and was not executed during implementation.
+  recovery snapshots, mandatory atomic read-back validation, a read-only
+  snapshot command, and `-WhatIf` validation; live deep stop remains an
+  operator action and was not executed during implementation.
 - [ ] Pass Lightsail canary, public smoke, and rollback proof.
 
 Autopsy closure classification: unknown-usage lockout, Groq terminal stream

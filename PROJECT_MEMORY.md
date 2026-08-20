@@ -1116,6 +1116,11 @@ npm run dev
 - **Safety:** Deep operations require `-Apply`; `-WhatIf` performs live
   read-only discovery and refuses ambiguous ownership. The ignored state file
   is `deploy/aws/.runtime/demo-power-state.json` and contains no secrets.
+- **Snapshot hard gate:** `demo-power.ps1 snapshot` refreshes the non-secret
+  recovery snapshot without changing AWS. Deep stop now creates, atomically
+  persists, reads back, and validates every required ALB/listener/rule,
+  Route 53, NAT/EIP/route-table, VPC/subnet, target-group, ACM, and ECS desired
+  count field before its first AWS mutation. Any snapshot failure aborts.
 - **IAM:** `deploy/aws/proxiai-demo-power-policy.json` is intentionally not
   attached by the deployment role. An account administrator must review and
   attach it only to `proxiai-deployment-role`.
