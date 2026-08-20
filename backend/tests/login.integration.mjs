@@ -419,7 +419,7 @@ test("real Redis enforces opaque IP and account limits at ten attempts", async (
     const keys = await redis.keys("rate:login:*");
     const serializedKeys = JSON.stringify(keys);
 
-    assert.equal(keys.length, 2);
+    assert.equal(keys.length, 12);
     assert.equal(serializedKeys.includes(organisation.slug), false);
     assert.equal(serializedKeys.includes(user.emailNormalized), false);
     assert.equal(serializedKeys.includes("127.0.0.1"), false);
@@ -430,7 +430,8 @@ test("real Redis enforces opaque IP and account limits at ten attempts", async (
             redis.pttl(key),
         ]);
 
-        assert.equal(Number(count), 11);
+        const expectedCount = key.includes(":account:") ? 11 : 1;
+        assert.equal(Number(count), expectedCount);
         assert.equal(ttl > 0 && ttl <= 15 * 60 * 1_000, true);
     }
 });

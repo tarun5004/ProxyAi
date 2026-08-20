@@ -73,6 +73,15 @@ function createErrorTestApp() {
     return testApp;
 }
 
+test("proxy trust is limited to private reverse-proxy boundaries", () => {
+    const trustProxy = app.get("trust proxy fn");
+
+    assert.equal(trustProxy("127.0.0.1", 0), true);
+    assert.equal(trustProxy("10.0.0.10", 0), true);
+    assert.equal(trustProxy("172.20.0.10", 0), true);
+    assert.equal(trustProxy("203.0.113.10", 0), false);
+});
+
 test("request ID is server-generated and propagated", async () => {
     const response = await request(app, "/missing", {
         headers: {

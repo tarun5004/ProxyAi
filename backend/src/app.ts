@@ -14,6 +14,7 @@ import { requestIdMiddleware } from "./shared/middleware/request-id.middleware.j
 export const app = express();
 
 app.disable("x-powered-by");
+app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
 
 app.use(requestIdMiddleware);
 app.use(helmet());
