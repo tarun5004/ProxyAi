@@ -5,6 +5,11 @@ import { z } from "zod";
 import { env } from "../../config/env.js";
 import { AppError } from "../errors/app-error.js";
 import { redis } from "../lib/redis.js";
+import {
+    APPROVED_METRIC_LABEL_VALUES,
+    metrics,
+    requireApprovedMetricLabel,
+} from "../observability/metrics.js";
 
 const requestFingerprintSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const idempotencyRecordSchema = z.discriminatedUnion("status", [
@@ -134,11 +139,19 @@ export function createIdempotencyService(
                     ],
                 );
             } catch {
+                recordIdempotencyOutcome("reserve", "unavailable");
                 throw idempotencyUnavailable();
             }
 
             if (result !== "RESERVED") {
-                const record = parseRecord(result);
+                let record: IdempotencyRecord;
+
+                try {
+                    record = parseRecord(result);
+                } catch {
+                    recordIdempotencyOutcome("reserve", "unavailable");
+                    throw idempotencyUnavailable();
+                }
 
                 if (
                     !requestFingerprintsMatch(
@@ -146,6 +159,10 @@ export function createIdempotencyService(
                         requestFingerprint,
                     )
                 ) {
+                    recordIdempotencyOutcome(
+                        "reserve",
+                        "fingerprint_mismatch",
+                    );
                     throw new AppError(
                         409,
                         "DUPLICATE_REQUEST",
@@ -154,6 +171,10 @@ export function createIdempotencyService(
                 }
 
                 if (record.status === "PROCESSING") {
+                    recordIdempotencyOutcome(
+                        "reserve",
+                        "processing_duplicate",
+                    );
                     throw new AppError(
                         409,
                         "REQUEST_IN_PROGRESS",
@@ -161,12 +182,18 @@ export function createIdempotencyService(
                     );
                 }
 
+                recordIdempotencyOutcome(
+                    "reserve",
+                    "completed_duplicate",
+                );
                 throw new AppError(
                     409,
                     "DUPLICATE_REQUEST",
                     "This request has already completed.",
                 );
             }
+
+            recordIdempotencyOutcome("reserve", "reserved");
 
             return createReservation(
                 store,
@@ -236,11 +263,21 @@ function createReservation(
                     throw idempotencyUnavailable();
                 }
             } catch {
+                recordIdempotencyOutcome(
+                    "mark_completed",
+                    "unavailable",
+                );
                 throw idempotencyUnavailable();
             }
+
+            recordIdempotencyOutcome("mark_completed", "completed");
         },
         async releaseBeforeExecution() {
             if (providerExecutionStarted) {
+                recordIdempotencyOutcome(
+                    "release_before_execution",
+                    "release_refused_after_provider_start",
+                );
                 throw idempotencyUnavailable();
             }
 
@@ -255,8 +292,17 @@ function createReservation(
                     throw idempotencyUnavailable();
                 }
             } catch {
+                recordIdempotencyOutcome(
+                    "release_before_execution",
+                    "unavailable",
+                );
                 throw idempotencyUnavailable();
             }
+
+            recordIdempotencyOutcome(
+                "release_before_execution",
+                "released",
+            );
         },
     };
 }
@@ -316,4 +362,22 @@ function idempotencyUnavailable(): AppError {
         "IDEMPOTENCY_UNAVAILABLE",
         "Request deduplication is temporarily unavailable.",
     );
+}
+
+function recordIdempotencyOutcome(
+    operation: (typeof APPROVED_METRIC_LABEL_VALUES.idempotencyOperations)[number],
+    outcome: (typeof APPROVED_METRIC_LABEL_VALUES.idempotencyOutcomes)[number],
+): void {
+    metrics.idempotencyOperationsTotal.inc({
+        operation: requireApprovedMetricLabel(
+            "idempotency operation",
+            operation,
+            APPROVED_METRIC_LABEL_VALUES.idempotencyOperations,
+        ),
+        outcome: requireApprovedMetricLabel(
+            "idempotency outcome",
+            outcome,
+            APPROVED_METRIC_LABEL_VALUES.idempotencyOutcomes,
+        ),
+    });
 }
