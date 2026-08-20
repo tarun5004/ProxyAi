@@ -2014,23 +2014,130 @@ Prompt and response content must never be logged.
 
 ## 38. Metrics
 
-Core metrics:
+### 38.1 Registry and scrape boundary
+
+Phase 10 uses one process-local Prometheus registry per runtime. The API exposes
+`GET /metrics` only inside the private runtime network. The worker exposes a
+separate internal-only metrics listener because it does not run the public API.
+The ALB and Caddy must not route either metrics endpoint publicly. Scrapes do
+not require application authentication because network isolation is mandatory;
+public exposure is a deployment failure.
+
+The frontend has no Prometheus registry. Default Node.js process metrics may be
+enabled without custom tenant or request labels. `/metrics` itself is excluded
+from HTTP request metrics to avoid scrape feedback.
+
+### 38.2 Canonical application metric inventory
+
+| Metric | Type | Labels | Observation contract |
+|---|---|---|---|
+| `proxiai_http_requests_total` | Counter | `route`, `method`, `status_class` | Increment once when a handled API/health response finishes |
+| `proxiai_http_request_duration_seconds` | Histogram | `route`, `method`, `status_class` | Observe once from request entry to response finish/close |
+| `proxiai_chat_requests_total` | Counter | `outcome`, `policy_action` | Increment once for `COMPLETED`, `FAILED`, `INTERRUPTED`, or pre-stream `BLOCKED` after policy is known |
+| `proxiai_chat_completion_duration_seconds` | Histogram | `outcome` | Observe accepted non-blocked chat execution through finalization |
+| `proxiai_chat_time_to_first_token_seconds` | Histogram | `provider` | Observe only when the first provider token is actually emitted; never synthesize zero |
+| `proxiai_provider_requests_total` | Counter | `provider`, `outcome` | Count actual adapter executions, including interrupted streams; policy blocks never increment it |
+| `proxiai_provider_request_duration_seconds` | Histogram | `provider`, `outcome` | Observe actual adapter execution duration only |
+| `proxiai_provider_errors_total` | Counter | `provider`, `error_category` | Increment from normalized `ProviderError` categories only |
+| `proxiai_provider_retries_total` | Counter | `provider`, `error_category`, `outcome` | Count an actual retry schedule or retry exhaustion, not initial attempts |
+| `proxiai_provider_fallbacks_total` | Counter | `provider`, `outcome` | Count only candidate positions after the primary or the bounded all-unavailable terminal outcome |
+| `proxiai_provider_circuit_state` | Gauge | `provider`, `state` | One-hot gauge; exactly one state is `1` per enabled provider |
+| `proxiai_provider_circuit_transitions_total` | Counter | `provider`, `from_state`, `to_state` | Increment only when the state actually changes |
+| `proxiai_provider_health_state` | Gauge | `provider`, `state` | One-hot projection of the approved Redis health state |
+| `proxiai_policy_decisions_total` | Counter | `action`, `reason` | Increment once per evaluated policy decision |
+| `proxiai_pii_detections_total` | Counter | `category` | Add the number of final non-overlapping classified spans in each category |
+| `proxiai_idempotency_operations_total` | Counter | `operation`, `outcome` | Count reserve, completion, and safe pre-execution release outcomes |
+| `proxiai_dependency_ready` | Gauge | `dependency` | `1` when the current MongoDB/Redis readiness state is ready, otherwise `0` |
+| `proxiai_queue_jobs_total` | Counter | `queue`, `outcome` | Count successful enqueue, completion, retry, terminal failure, or schema rejection at the owning boundary |
+| `proxiai_queue_job_duration_seconds` | Histogram | `queue`, `outcome` | Observe each worker processing attempt with its bounded result |
+| `proxiai_queue_depth` | Gauge | `queue`, `state` | Collect BullMQ waiting, active, delayed, and failed counts at scrape time |
+| `proxiai_worker_running` | Gauge | `worker` | `1` only while the managed worker lifecycle is running |
+| `proxiai_worker_healthy` | Gauge | `worker` | `1` only while lifecycle and heartbeat freshness checks pass |
+| `proxiai_worker_heartbeat_age_seconds` | Gauge | `worker` | Age of the last successful heartbeat; absent until a heartbeat succeeds |
+| `proxiai_worker_last_successful_job_age_seconds` | Gauge | `worker` | Age of the last successful job; absent until a job succeeds |
+| `proxiai_audit_writes_total` | Counter | `outcome` | Count durable AuditLog append success/failure without action or tenant labels |
+
+Canonical histogram buckets in seconds:
 
 ```text
-http_request_duration_seconds{route,method,status}
-http_requests_total{route,method,status}
-llm_provider_latency_seconds{provider}
-llm_provider_errors_total{provider,error_code}
-llm_requests_total{provider,status}
-circuit_breaker_state{provider}
-cache_requests_total{result}
-queue_jobs_total{queue,status}
-queue_job_duration_seconds{queue}
-policy_decisions_total{action,reason}
-pii_detections_total{category}
+HTTP:     0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10
+Chat/LLM: 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30, 60
+Queue:    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60
 ```
 
-Do not put `orgId`, `userId`, prompt text, request ID, or other high-cardinality/sensitive values into Prometheus labels.
+### 38.3 Strict bounded label values
+
+- `route`: registered normalized Express templates only. Approved values are
+  `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`,
+  `/api/v1/auth/me`, `/api/v1/conversations`,
+  `/api/v1/conversations/:conversationId`,
+  `/api/v1/conversations/:conversationId/messages`, `/api/v1/chat/stream`,
+  `/api/v1/admin/summary`, `/api/v1/admin/logs`, `/api/v1/admin/billing`,
+  `/api/v1/admin/alerts`, `/api/v1/admin/users`, `/api/v1/admin/teams`,
+  `/api/v1/admin/users/:userId/role`, `/api/v1/admin/users/:userId/team`,
+  `/api/v1/admin/users/:userId/status`,
+  `/api/v1/admin/users/:userId/revoke-sessions`, `/api/v1/admin/policy`,
+  `/api/v1/admin/retention`, `/api/v1/admin/alerts/:alertId`,
+  `/api/v1/admin/audit/export`, `/health/live`, `/health/ready`, and
+  `unmatched`. Raw paths and query strings are forbidden.
+- `method`: `GET`, `POST`, `PATCH`, `OPTIONS`, or `OTHER`.
+- `status_class`: `2xx`, `3xx`, `4xx`, or `5xx`.
+- `provider`: values from `ENABLED_PRODUCTION_PROVIDER_IDS`; currently `groq`.
+- `error_category`: `timeout`, `rate_limit`, `authentication`,
+  `invalid_request`, `unavailable`, or `provider_error`.
+- `policy_action`: `ALLOW`, `ALLOW_WITH_MASK`, or `BLOCK`.
+- `action`: `ALLOW`, `ALLOW_WITH_MASK`, or `BLOCK`.
+- `reason`: `risk_below_mask_threshold`, `mask_threshold_reached`,
+  `budget_exceeded`, or `high_risk_pii`.
+- `category`: `CONTACT_INFO`, `FINANCIAL`, `GOVERNMENT_ID`, `CREDENTIAL`,
+  `INTERNAL_SECRET`, or `BUSINESS_CONFIDENTIAL`.
+- `outcome` is metric-specific:
+  - chat: `COMPLETED`, `FAILED`, `INTERRUPTED`, `BLOCKED`;
+  - provider: `succeeded`, `failed`, `interrupted`;
+  - retry: `scheduled`, `exhausted`;
+  - fallback: `attempted`, `succeeded`, `failed`, `all_unavailable`,
+    `skipped_open_circuit`;
+  - idempotency: `reserved`, `processing_duplicate`, `completed_duplicate`,
+    `fingerprint_mismatch`, `unavailable`, `completed`, `released`,
+    `release_refused_after_provider_start`;
+  - queue: `enqueued`, `completed`, `retried`, `failed`, `invalid_payload`;
+  - queue duration: `completed`, `retryable_failure`, `terminal_failure`,
+    `invalid_payload`;
+  - audit: `success`, `failure`.
+- `operation`: `reserve`, `mark_completed`, or `release_before_execution`.
+- `state` is metric-specific: circuit `CLOSED`, `OPEN`, `HALF_OPEN`; provider
+  health `HEALTHY`, `UNHEALTHY`, `UNKNOWN`; queue depth `waiting`, `active`,
+  `delayed`, `failed`.
+- `queue`: `billing-queue`, `analytics-queue`, `anomaly-queue`,
+  `health-check-queue`, or `enqueue-recovery-queue`.
+- `worker`: `billing`, `analytics`, `anomaly`, `provider_health`, or
+  `enqueue_recovery`.
+- `dependency`: `mongodb` or `redis`.
+
+Any value outside an allowlist must be rejected by instrumentation or mapped
+only to the explicit fixed fallback (`unmatched`, `OTHER`, or `UNKNOWN`) defined
+above. Instrumentation must not dynamically create new label values.
+
+### 38.4 Prohibited labels and values
+
+Metrics must never contain `orgId`, `userId`, `teamId`, `requestId`,
+`clientRequestId`, conversation/message/session/token/family/audit/alert/job IDs,
+provider request IDs, email, IP address, user agent, model, raw URL/path/query,
+Redis key, Mongo query/collection value, prompt, masked prompt, response,
+detected value, headers, cookies, credentials, secrets, exception messages, or
+stack traces. Correlation IDs remain in redacted structured logs, never labels
+or exemplars.
+
+### 38.5 Honest deferrals
+
+`proxiai_prompt_cache_requests_total` and response-replay metrics are reserved
+names but MUST NOT be registered or emitted until those execution paths are
+implemented under their approved Phase 9 storage prerequisites. Emitting a
+constant zero series would falsely claim observability of a nonexistent path.
+
+Metrics are global operational telemetry, not authoritative tenant analytics,
+billing, audit, or admin-dashboard data. Existing tenant-scoped persisted stores
+remain authoritative for those product views.
 
 ## 39. Health Endpoints
 

@@ -899,16 +899,22 @@ response, PII, credential, or secret is stored or logged.
 
 **Effort:** High
 
-- [ ] HTTP request and duration metrics.
-- [ ] Chat completion and time-to-first-token metrics.
-- [ ] Provider latency, error, retry, fallback, and circuit metrics.
-- [ ] PII and policy metrics.
-- [ ] Cache and idempotency metrics.
-- [ ] Queue depth and worker heartbeat.
-- [ ] Trace ID propagation to workers.
-- [ ] One Grafana dashboard.
-- [ ] Alerts for API error rate, MongoDB, Redis, worker heartbeat, queue failures, provider circuit, and audit-write failures.
-- [ ] No high-cardinality user or organisation labels.
+- [x] P10-01 — Audit executable observability paths and approve the exact metric inventory, histogram buckets, private scrape boundary, and bounded label allowlists.
+- [ ] P10-02 — Add process-local Prometheus registries and private API/worker scrape endpoints.
+- [ ] P10-03 — Add normalized HTTP completion and duration instrumentation.
+- [ ] P10-04 — Add chat completion and time-to-first-token instrumentation.
+- [ ] P10-05 — Add provider latency, normalized error, retry, fallback, circuit, and health instrumentation.
+- [ ] P10-06 — Add PII-category and policy-decision instrumentation.
+- [ ] P10-07 — Add idempotency operation instrumentation; prompt-cache/replay metrics remain deferred and must not emit fake zero series.
+- [ ] P10-08 — Add dependency, queue depth/job, worker lifecycle/heartbeat, and audit-write instrumentation.
+- [ ] P10-09 — Add one private Grafana dashboard and bounded alert rules/runbooks for API error rate, MongoDB, Redis, worker heartbeat, queue failures, provider circuit, and audit-write failures.
+- [ ] P10-10 — Verify metric correctness, private endpoint exposure, bounded cardinality, redaction, dashboard panels, and alert/runbook behavior.
+- [x] `requestId` already propagates through request-derived jobs; an ad hoc second trace ID is prohibited and full W3C/OpenTelemetry tracing remains deferred pending collector, sampling, retention, and access-control contracts.
+- [x] Provider-health Redis state and worker heartbeat state already exist; Prometheus export remains P10-05/P10-08 work.
+- [x] Structured redacted Pino logs, request IDs, liveness/readiness, and seven-day CloudWatch log retention are already complete.
+- [x] MongoDB provider-health history is not required for the MVP because Redis health plus Phase 10 metrics provides bounded operational state without duplicate durable history.
+- [x] Public Bull Board/manual replay tooling remains deferred because it risks exposing safe-but-internal job metadata; failed-set metrics and structured logs are the approved MVP visibility path.
+- [x] No high-cardinality user, organisation, request, resource, model, path, query, job, or provider-request labels are approved.
 
 ## Exit Criteria
 
@@ -916,6 +922,8 @@ response, PII, credential, or secret is stored or logged.
 - [ ] Metrics endpoint works.
 - [ ] Dashboard works.
 - [ ] Critical alerts have runbooks.
+- [ ] Metrics endpoints are unreachable through public ALB/Caddy routes.
+- [ ] Label-cardinality and sensitive-value scans pass.
 
 ---
 

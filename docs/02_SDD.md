@@ -969,7 +969,7 @@ retention, email delivery, and arbitrary permission editing remain deferred.
 Pino JSON logs with:
 
 - Request ID
-- Trace ID
+- A separate trace ID only after an approved distributed-tracing implementation
 - Organisation ID
 - User ID
 - Route
@@ -989,23 +989,41 @@ Redact:
 
 ### Metrics
 
-Minimum Prometheus metrics:
+Phase 10 adds process-local Prometheus registries to the API and worker. The API
+registry is scraped from the API container; worker metrics use a separate
+internal-only worker endpoint. Neither endpoint is routed by the public ALB or
+Caddy configuration. Prometheus labels are platform-wide operational
+dimensions only and are never tenant reporting data.
 
-- HTTP request count
-- HTTP duration histogram
-- Provider request count
-- Provider latency histogram
-- Provider errors
-- Circuit state
-- Future cache hits and misses after safe cache enablement
-- Queue depth
-- Queue failures
-- Policy decisions
-- PII detections by category
+The approved inventory covers HTTP count/duration, chat outcome/completion/TTFT,
+provider request/latency/error/retry/fallback/circuit/health, policy decisions,
+PII categories, idempotency outcomes, dependency readiness, queue depth/job
+outcome/duration, worker health/heartbeat, and audit-write outcomes. Exact metric
+names, buckets, and bounded labels are defined in the TDD.
+
+Prompt-cache and completed-response replay metrics are not emitted while those
+features remain deferred. Fake zero-valued cache or replay series are
+prohibited.
+
+Current implementation status:
+
+| Area | Classification | Evidence or required work |
+|---|---|---|
+| Structured redacted Pino events and request ID | `ALREADY_COMPLETE` | API and worker emit safe JSON events; request-derived jobs preserve `requestId` |
+| Liveness, readiness, Redis provider health, worker heartbeat state | `ALREADY_COMPLETE` | Executable health and lifecycle code exists |
+| HTTP completion logging and duration | `PARTIAL` | Rejections/failures are logged, but successful completion timing is not recorded |
+| Chat/provider/policy/PII/idempotency/queue/audit metric source events | `PARTIAL` | Bounded domain states exist, but no Prometheus instruments export them |
+| Registry, internal scrape endpoints, instrumentation, dashboard, alerts, and runbooks | `IMPLEMENT` | Phase 10 production and operations work |
+| Prompt-cache/replay metrics | `DEFER_WITH_APPROVED_REASON` | Cache and replay execution remain deferred pending their approved safe-storage prerequisites |
+| MongoDB provider-health history | `DEFER_WITH_APPROVED_REASON` | Existing Redis health plus bounded metrics is sufficient for the MVP; duplicate durable incident history is not required |
+| Public Bull Board or manual replay UI | `DEFER_WITH_APPROVED_REASON` | Failed-set metrics and safe logs provide visibility without exposing job payload tooling |
 
 ### Tracing
 
-Full OpenTelemetry tracing is roadmap. The MVP uses request/trace IDs consistently so tracing can be added later.
+`requestId` remains the canonical application and async-job correlation ID.
+Phase 10 must not create an ad hoc second ID or put correlation IDs in metric
+labels. Full W3C Trace Context/OpenTelemetry propagation remains deferred until
+the collector, sampling, retention, and access-control contracts are approved.
 
 ## 9. Data Design Summary
 

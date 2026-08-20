@@ -36,7 +36,7 @@ The MVP observability stack includes:
 
 - structured application logs with Pino;
 - request IDs;
-- trace IDs propagated across API and workers;
+- request IDs propagated across API and workers;
 - Prometheus-compatible metrics;
 - one basic Grafana dashboard;
 - API health endpoints;
@@ -82,7 +82,7 @@ The MVP does not require:
 |---|---|---|
 | Pino | What exactly happened? | Structured JSON logs |
 | Request ID | Which log lines belong to one HTTP request? | Request correlation |
-| Trace ID | Which async jobs belong to the same business flow? | Cross-process correlation |
+| Request ID | Which async jobs belong to the same business flow? | Cross-process correlation |
 | Prometheus | What is the system trend? | Time-series metrics |
 | Grafana | How can humans view those trends? | Dashboards |
 | BullMQ failed set | Which jobs exhausted retries? | Retained failed jobs |
@@ -298,14 +298,14 @@ provider.circuit.closed
 ## Cache and Idempotency Events
 
 ```text
-cache.prompt.hit
-cache.prompt.miss
-cache.prompt.error
 idempotency.created
 idempotency.duplicate
 idempotency.completed
 idempotency.error
 ```
+
+Prompt-cache event names remain reserved and are not emitted while cache
+execution is deferred.
 
 ## Persistence Events
 
@@ -561,256 +561,164 @@ GET /metrics
 
 This endpoint should be:
 
-- restricted from public access where possible;
-- protected by network or authentication controls;
+- unreachable from public ALB, Caddy, firewall, and security-group routes;
+- protected by mandatory private-network controls;
 - excluded from normal public API documentation;
 - free of sensitive labels.
 
----
-
-# 19. Metric Naming Rules
-
-Use Prometheus naming conventions:
-
-- lowercase;
-- snake_case;
-- base unit suffix;
-- counters end in `_total`;
-- duration uses seconds;
-- size uses bytes;
-- ratio is a gauge.
-
-Good:
-
-```text
-http_requests_total
-http_request_duration_seconds
-provider_requests_total
-queue_jobs_failed_total
-```
-
-Bad:
-
-```text
-HTTPRequests
-requestLatencyMs
-user_123_cost
-```
+The API and worker use separate process-local registries. The worker metrics
+listener has no public port. The frontend exposes no Prometheus endpoint.
 
 ---
 
-# 20. HTTP Metrics
+# 19. Canonical Metric Contract
 
-## Counters
+The exact metric names, types, observation semantics, histogram buckets, route
+templates, and label allowlists are canonical in TDD section 38. Phase 10 must
+implement that table without aliases or legacy duplicate series.
 
-```text
-http_requests_total{method,route,status_class}
-http_errors_total{route,error_code}
-```
-
-## Histograms
+Approved metric families:
 
 ```text
-http_request_duration_seconds{method,route}
-http_response_size_bytes{route}
+proxiai_http_requests_total
+proxiai_http_request_duration_seconds
+proxiai_chat_requests_total
+proxiai_chat_completion_duration_seconds
+proxiai_chat_time_to_first_token_seconds
+proxiai_provider_requests_total
+proxiai_provider_request_duration_seconds
+proxiai_provider_errors_total
+proxiai_provider_retries_total
+proxiai_provider_fallbacks_total
+proxiai_provider_circuit_state
+proxiai_provider_circuit_transitions_total
+proxiai_provider_health_state
+proxiai_policy_decisions_total
+proxiai_pii_detections_total
+proxiai_idempotency_operations_total
+proxiai_dependency_ready
+proxiai_queue_jobs_total
+proxiai_queue_job_duration_seconds
+proxiai_queue_depth
+proxiai_worker_running
+proxiai_worker_healthy
+proxiai_worker_heartbeat_age_seconds
+proxiai_worker_last_successful_job_age_seconds
+proxiai_audit_writes_total
 ```
 
-## Streaming Metrics
+Prometheus naming remains lowercase snake case, counters end in `_total`, and
+durations use seconds. No additional business metric family may be introduced
+without updating the canonical TDD contract first.
 
-```text
-chat_streams_started_total
-chat_streams_completed_total
-chat_streams_interrupted_total{reason}
-chat_time_to_first_token_seconds{provider}
-chat_stream_duration_seconds{provider}
-```
+---
+
+# 20. HTTP and Chat Metrics
+
+HTTP metrics use only normalized registered route templates, `GET`/`POST`/
+`PATCH`/`OPTIONS`/`OTHER`, and `2xx`/`3xx`/`4xx`/`5xx`. Raw paths, query strings,
+error codes, and response sizes are not labels. Chat metrics use only canonical
+terminal outcomes, policy actions, and approved provider IDs. TTFT is observed
+only after a real first token and is never synthesized for blocked or failed
+pre-token requests.
 
 ---
 
 # 21. Provider Metrics
 
-```text
-llm_provider_requests_total{provider,model,outcome}
-llm_provider_errors_total{provider,error_type}
-llm_provider_retries_total{provider}
-llm_provider_fallbacks_total{from_provider,to_provider}
-llm_provider_latency_seconds{provider}
-llm_provider_time_to_first_token_seconds{provider}
-llm_provider_input_tokens_total{provider}
-llm_provider_output_tokens_total{provider}
-llm_provider_estimated_cost_usd_total{provider}
-llm_provider_circuit_state{provider}
-```
-
-Circuit state values:
-
-```text
-0 = CLOSED
-1 = HALF_OPEN
-2 = OPEN
-```
+Provider metrics use the enabled production-provider registry, normalized
+provider error categories, and approved circuit/health states. Model names,
+provider request IDs, raw SDK errors, and dynamic endpoints are prohibited.
+Fallback metrics count only a candidate after the primary or the bounded
+all-unavailable terminal outcome; a successful primary is not a fallback.
 
 ---
 
 # 22. Policy and PII Metrics
 
-```text
-pii_scans_total{outcome}
-pii_scan_duration_seconds
-pii_detections_total{category}
-policy_decisions_total{decision}
-policy_blocks_total{reason}
-policy_masks_total{category}
-budget_blocks_total
-```
-
-Do not use raw detected values as labels.
+Policy labels use the canonical `ALLOW`, `ALLOW_WITH_MASK`, and `BLOCK` actions
+plus the four allowlisted reason codes. PII labels use only the six canonical
+categories. Detector values, span offsets, source text, counts tied to a tenant,
+and risk payloads are never labels.
 
 ---
 
 # 23. Cache and Idempotency Metrics
 
-```text
-prompt_cache_requests_total{result}
-prompt_cache_errors_total
-prompt_cache_hit_ratio
-idempotency_requests_total{result}
-idempotency_errors_total
-```
+Only `proxiai_idempotency_operations_total` is implemented in Phase 10. Its
+operation and outcome labels use the strict TDD allowlists.
 
-Suggested `result` values:
-
-```text
-hit
-miss
-ineligible
-duplicate
-created
-completed
-```
+`proxiai_prompt_cache_requests_total` and response-replay metrics are reserved
+but must not be registered or emitted while prompt cache and replay remain
+deferred. Constant zero series are prohibited because they would falsely imply
+an executable cache/replay path.
 
 ---
 
-# 24. Database Metrics
+# 24. Dependency Metrics
 
-Application-level metrics:
-
-```text
-mongodb_operations_total{operation,outcome}
-mongodb_operation_duration_seconds{operation}
-mongodb_connection_state
-mongodb_write_failures_total{collection}
-```
-
-Do not add collection names dynamically beyond the known fixed list.
+`proxiai_dependency_ready{dependency}` exposes only `mongodb` and `redis` as a
+binary operational readiness gauge. Detailed database/Redis operation,
+collection, command, key, or query labels are not approved for the MVP.
+Managed-service telemetry may supplement this gauge without changing the
+application label contract.
 
 ---
 
-# 25. Redis Metrics
+# 25. Queue and Worker Metrics
 
-Application-level metrics:
-
-```text
-redis_operations_total{operation,outcome}
-redis_operation_duration_seconds{operation}
-redis_connection_state
-redis_errors_total{operation}
-```
-
-Operational Redis metrics may come from managed-service monitoring or exporter tooling later.
+Queue and worker metric names and bounded values are canonical in TDD section
+38. Approved queue values are `billing-queue`, `analytics-queue`,
+`anomaly-queue`, `health-check-queue`, and `enqueue-recovery-queue`. Approved
+worker values are `billing`, `analytics`, `anomaly`, `provider_health`, and
+`enqueue_recovery`. Job IDs and payload values are prohibited.
 
 ---
 
-# 26. Queue Metrics
+# 26. Audit Metrics
 
-```text
-queue_jobs_enqueued_total{queue}
-queue_jobs_started_total{queue}
-queue_jobs_completed_total{queue}
-queue_jobs_failed_total{queue}
-queue_jobs_retried_total{queue}
-queue_job_duration_seconds{queue}
-queue_depth{queue,state}
-worker_heartbeat_timestamp_seconds{worker}
-```
-
-Suggested queue states:
-
-```text
-waiting
-active
-delayed
-failed
-completed
-```
-
-Avoid job IDs as metric labels.
+`proxiai_audit_writes_total{outcome}` counts only `success` or `failure`.
+Actions, actors, resources, tenant IDs, request IDs, and export contents remain
+in the protected AuditLog/application-log boundaries, not metric labels.
 
 ---
 
-# 27. Billing Metrics
+# 27. Product Accounting Boundary
 
-```text
-billing_events_processed_total{outcome}
-billing_duplicate_events_total
-billing_rollup_update_duration_seconds
-budget_remaining_percent
-budget_threshold_events_total{threshold}
-```
-
-`orgId` must not be used as a public Prometheus label in the MVP.
-
-Organisation-specific budget values belong in application data and admin APIs, not global metric labels.
+Billing, budget, token usage, cost, tenant analytics, and anomaly data remain in
+their authoritative tenant-scoped MongoDB models and admin APIs. Global
+Prometheus metrics must not create a second accounting source of truth.
 
 ---
 
-# 28. Audit Metrics
+# 28. High-Cardinality Label Rules
 
-```text
-audit_events_written_total{action_group,outcome}
-audit_write_failures_total
-audit_exports_total{outcome}
-```
-
-Do not use actor IDs or resource IDs as labels.
-
----
-
-# 29. Health Metrics
-
-```text
-application_ready
-application_live
-dependency_health{dependency}
-provider_health{provider}
-```
-
-Suggested dependency values:
-
-- `mongodb`
-- `redis`
-- `worker`
-- `provider_registry`
+Metrics must never contain tenant/user/team IDs, request/client-request IDs,
+conversation/message/session/token/family/audit/alert/job IDs, provider request
+IDs, email, IP address, user agent, model, raw URL/path/query, Redis keys, Mongo
+queries, prompts, masked prompts, responses, PII values, headers, cookies,
+credentials, secrets, exception messages, or stacks. Correlation IDs belong in
+redacted structured logs and are not Prometheus exemplars.
 
 ---
 
-# 30. High-Cardinality Label Rules
+# 29. Label Enforcement
 
-Do not use these as Prometheus labels:
+Instrumentation accepts only the fixed domain allowlists in TDD section 38.
+Unexpected values are rejected or mapped only to the explicitly approved
+`unmatched`, `OTHER`, or `UNKNOWN` fallback. Dynamic label creation is a test
+and release failure.
 
-- `requestId`;
-- future distributed trace ID;
-- `userId`;
-- `orgId`;
-- email;
-- conversation ID;
-- message ID;
-- prompt hash;
-- IP address;
-- error stack;
-- raw URL.
+---
 
-These belong in logs, not metrics.
+# 30. Current Implementation Classification
+
+| Classification | Scope |
+|---|---|
+| `ALREADY_COMPLETE` | Structured redacted Pino logs, request ID/job correlation, liveness/readiness, Redis provider health, worker heartbeat state, seven-day CloudWatch logs |
+| `PARTIAL` | Safe source events/states exist for chat, provider, policy, PII, idempotency, queue, and audit; HTTP errors are logged but success duration is absent |
+| `IMPLEMENT` | Registry, private endpoints, instrumentation, dashboard, alerts, runbooks, and cardinality/security verification |
+| `DEFER_WITH_APPROVED_REASON` | Prompt-cache/replay metrics, Mongo provider-health history, public Bull Board/manual replay, and full W3C/OpenTelemetry tracing |
 
 ---
 

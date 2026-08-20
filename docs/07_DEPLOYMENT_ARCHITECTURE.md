@@ -212,6 +212,24 @@ contracts may differ, but both remain strictly validated.
   operational queue-processing smoke check; no public worker HTTP endpoint is
   required.
 
+## 11.1 Phase 10 metrics boundary
+
+Prometheus scrapes process-local API and worker registries over private runtime
+networking only. The API may serve `GET /metrics` on its existing container
+port, while the worker may use a dedicated internal-only metrics port. The ALB,
+Caddy, Lightsail firewall, and public security groups must not route or expose
+either endpoint. The frontend has no metrics endpoint.
+
+One Grafana dashboard may consume the Prometheus data after Phase 10
+implementation. It must not query or display raw prompts, responses, tenant IDs,
+user IDs, request IDs, queue payloads, or secrets. Alert rules use only the
+bounded metrics defined in the TDD. Alert thresholds and notification delivery
+require explicit operational configuration; no provider is silently selected.
+
+CloudWatch JSON logs remain the deployment log sink with the approved seven-day
+retention. Prometheus/Grafana do not replace append-only RequestLog, Billing,
+Analytics, or AuditLog product records.
+
 ## 12. Migration and Index Deployment
 
 The deployment pipeline runs an explicit idempotent index command before API

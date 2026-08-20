@@ -4,10 +4,10 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 9 — Retention, Encryption, and Audit
-- **Task:** Phase 9 closure completed; Phase 10 planning is next.
-- **Status:** P9-01 through P9-11 completed and verified on 2026-08-21.
-  Phase 10 has not started.
+- **Phase:** Phase 10 — Observability and Operations
+- **Task:** P10-01 — Metric inventory and bounded label contract.
+- **Status:** Contract audit completed on 2026-08-21. No Phase 10 production
+  instrumentation has been implemented; P10-02 is next.
 
 ## Completed Tasks
 
@@ -96,6 +96,31 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - P12-01 through P12-08 — AWS contracts, immutable frontend configuration, split API/worker runtimes, production images, local Compose, create-only indexes, parameterized AWS infrastructure, and GitHub Actions release/rollback automation completed on 2026-08-19
 
 ## Important Decisions
+
+- P10-01 audited executable logging, health, chat, provider, policy, PII,
+  idempotency, BullMQ/worker, AuditLog, and deployment paths before defining
+  metrics. The code currently has no Prometheus dependency, registry, scrape
+  endpoint, Grafana dashboard, or alert rules.
+- Phase 10 metrics use process-local API and worker registries with private-only
+  scrape endpoints. ALB, Caddy, public security groups, and the Lightsail
+  firewall must not expose them.
+- The canonical Phase 10 inventory and histogram buckets are fixed in the TDD.
+  Labels are allowlisted domain/platform dimensions only. Tenant, user,
+  request, resource, model, raw route/query, job, provider-request, prompt,
+  response, PII, credential, error-message, and stack values are prohibited.
+- Existing `requestId` remains the canonical HTTP/job correlation ID and never
+  becomes a metric label. A second ad hoc trace ID is prohibited; full
+  W3C/OpenTelemetry tracing remains deferred until collector, sampling,
+  retention, and access-control contracts are approved.
+- Prompt-cache and completed-response replay metrics remain truthfully deferred.
+  Their metric series must not be registered as constant zero while the
+  execution paths remain unimplemented.
+- Existing Redis provider health, worker heartbeat state, structured redacted
+  Pino logs, liveness/readiness, and seven-day CloudWatch logs are reusable
+  observability sources. Prometheus export remains Phase 10 implementation.
+- MongoDB provider-health history and public Bull Board/manual replay tooling
+  are approved-deferred for the MVP; bounded metrics and safe failed-set/log
+  visibility avoid duplicate storage and unsafe operational payload exposure.
 
 - Phase 9 was completed in the approved order: P9-01 encryption keyring/service,
   P9-02 append-only AuditLog, P9-03 auth/policy durable events, P9-04 retained
