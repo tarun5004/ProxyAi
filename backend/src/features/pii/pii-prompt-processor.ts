@@ -10,6 +10,11 @@ import {
     maskClassifiedPii,
     type PiiMaskResult,
 } from "./pii-masker.js";
+import {
+    APPROVED_METRIC_LABEL_VALUES,
+    metrics,
+    requireApprovedMetricLabel,
+} from "../../shared/observability/metrics.js";
 
 export interface PiiPromptRequest {
     readonly prompt: string;
@@ -36,6 +41,17 @@ export function processPiiPromptImmutably<
         categories: detected.categories,
     });
     const classification = classifyDetectedPii(detection);
+
+    for (const span of classification.spans) {
+        metrics.piiDetectionsTotal.inc({
+            category: requireApprovedMetricLabel(
+                "PII category",
+                span.category,
+                APPROVED_METRIC_LABEL_VALUES.piiCategories,
+            ),
+        });
+    }
+
     const masking = maskClassifiedPii(sourcePrompt, classification);
 
     return Object.freeze({

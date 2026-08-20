@@ -1,6 +1,11 @@
 import type { AuthContext } from "../auth/auth-context.types.js";
 import type { PiiCategory } from "../pii/pii-detector.js";
 import { logger } from "../../shared/lib/logger.js";
+import {
+    APPROVED_METRIC_LABEL_VALUES,
+    metrics,
+    requireApprovedMetricLabel,
+} from "../../shared/observability/metrics.js";
 import type {
     PolicyAction,
     PolicyDecision,
@@ -65,6 +70,19 @@ export function emitPolicyDecisionEvent(
     log: PolicyEventLogger = logger,
 ): PolicyDecisionEvent {
     const event = createPolicyDecisionEvent(input);
+
+    metrics.policyDecisionsTotal.inc({
+        action: requireApprovedMetricLabel(
+            "policy action",
+            event.decision,
+            APPROVED_METRIC_LABEL_VALUES.policyActions,
+        ),
+        reason: requireApprovedMetricLabel(
+            "policy reason",
+            event.reasonCode,
+            APPROVED_METRIC_LABEL_VALUES.policyReasons,
+        ),
+    });
 
     log.info(event, "Policy decision evaluated");
 
