@@ -156,6 +156,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
         setInspectorOpen(true);
 
         let conversation = activeConversation;
+        let assistantId: string | undefined;
 
         try {
             if (!conversation) {
@@ -173,12 +174,13 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 content: prompt,
                 state: "complete",
             };
-            const assistantId = crypto.randomUUID();
+            const createdAssistantId = crypto.randomUUID();
+            assistantId = createdAssistantId;
             setMessages((current) => [
                 ...current,
                 userMessage,
                 {
-                    id: assistantId,
+                    id: createdAssistantId,
                     role: "assistant",
                     content: "",
                     state: "streaming",
@@ -220,7 +222,20 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 }
             }
         } catch (error: unknown) {
-            setMessages((current) => current.filter((message) => message.state !== "streaming"));
+            if (isAbortError(error)) {
+                setMessages((current) => current.filter(
+                    (message) => message.state !== "streaming",
+                ));
+            } else if (assistantId !== undefined) {
+                updateAssistantMessage(
+                    setMessages,
+                    assistantId,
+                    (message) => ({
+                        ...message,
+                        state: "error",
+                    }),
+                );
+            }
             handleChatError(error, setPolicy, setRequestError);
         } finally {
             activeRequest.current = undefined;

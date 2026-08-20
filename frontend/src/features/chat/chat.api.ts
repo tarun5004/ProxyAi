@@ -45,6 +45,8 @@ export async function* streamChat(input: {
         });
     }
 
+    let terminalEventReceived = false;
+
     for await (const event of readSseStream(response.body)) {
         if (!(event.event in chatEventSchemas)) {
             continue;
@@ -55,5 +57,17 @@ export async function* streamChat(input: {
         const data = schema.parse(event.data);
 
         yield { type: eventName, data } as ChatEvent;
+
+        if (eventName === "done" || eventName === "error") {
+            terminalEventReceived = true;
+        }
+    }
+
+    if (!terminalEventReceived && !input.signal.aborted) {
+        throw new ApiError({
+            status: response.status,
+            code: "STREAM_INTERRUPTED",
+            message: "The chat stream ended before a terminal event.",
+        });
     }
 }
