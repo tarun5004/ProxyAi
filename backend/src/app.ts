@@ -10,6 +10,7 @@ import { conversationRouter } from "./features/conversations/conversation.routes
 import { healthRouter } from "./features/health/health.routes.js";
 import { metricsRouter } from "./features/metrics/metrics.routes.js";
 import { globalErrorHandler } from "./shared/middleware/error.middleware.js";
+import { httpMetricsMiddleware } from "./shared/middleware/http-metrics.middleware.js";
 import { notFoundHandler } from "./shared/middleware/not-found.middleware.js";
 import { requestIdMiddleware } from "./shared/middleware/request-id.middleware.js";
 
@@ -19,6 +20,7 @@ app.disable("x-powered-by");
 app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
 
 app.use(requestIdMiddleware);
+app.use(httpMetricsMiddleware);
 app.use(helmet());
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));

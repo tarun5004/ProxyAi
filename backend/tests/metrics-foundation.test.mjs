@@ -6,9 +6,10 @@ import { applyAuthTestEnvironment } from "./helpers/test-env.mjs";
 
 applyAuthTestEnvironment();
 
-const [{ app }, metricsModule] = await Promise.all([
+const [{ app }, metricsModule, { resolveHttpRouteTemplate }] = await Promise.all([
     import("../dist/app.js"),
     import("../dist/shared/observability/metrics.js"),
+    import("../dist/shared/middleware/http-metrics.middleware.js"),
 ]);
 
 const {
@@ -38,6 +39,22 @@ async function requestMetrics() {
 
     try {
         return await fetch(`http://127.0.0.1:${address.port}/metrics`);
+    } finally {
+        server.close();
+        await once(server, "close");
+    }
+}
+
+async function requestPath(path) {
+    const server = app.listen(0, "127.0.0.1");
+    await once(server, "listening");
+
+    const address = server.address();
+    assert.notEqual(address, null);
+    assert.equal(typeof address, "object");
+
+    try {
+        return await fetch(`http://127.0.0.1:${address.port}${path}`);
     } finally {
         server.close();
         await once(server, "close");
@@ -103,6 +120,34 @@ test("metric label helpers bound values without reflecting rejected input", () =
             return true;
         },
     );
+});
+
+test("HTTP metrics use registered templates and never raw UUID paths", async () => {
+    const conversationId = "7ca623ab-067c-4f91-909f-1db037ef6304";
+
+    assert.equal(
+        resolveHttpRouteTemplate({
+            baseUrl: "/api/v1/conversations",
+            originalUrl: `/api/v1/conversations/${conversationId}`,
+            route: { path: "/:conversationId" },
+        }),
+        "/api/v1/conversations/:conversationId",
+    );
+
+    await requestPath(`/api/v1/conversations/${conversationId}`);
+    await requestPath(`/unknown/${conversationId}`);
+
+    const body = await metricsRegistry.metrics();
+
+    assert.match(
+        body,
+        /proxiai_http_requests_total\{method="GET",route="\/api\/v1\/conversations\/:conversationId",status_class="4xx"\} 1/,
+    );
+    assert.match(
+        body,
+        /proxiai_http_requests_total\{method="GET",route="unmatched",status_class="4xx"\} 1/,
+    );
+    assert.equal(body.includes(conversationId), false);
 });
 
 test("GET /metrics returns Prometheus text without an API envelope", async () => {
