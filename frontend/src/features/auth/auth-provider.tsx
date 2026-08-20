@@ -10,6 +10,8 @@ import {
     type ReactNode,
 } from "react";
 
+import { ApiError } from "@/lib/errors/api-error";
+
 import {
     loginRequest,
     logoutRequest,
@@ -18,9 +20,9 @@ import {
 } from "./auth.api";
 import type { AuthContext, LoginInput, LoginUser } from "./auth.types";
 
-type AuthStatus = "loading" | "authenticated" | "anonymous";
+type AuthStatus = "loading" | "authenticated" | "anonymous" | "unavailable";
 
-interface AuthState {
+export interface AuthState {
     status: AuthStatus;
     accessToken?: string;
     expiresInSeconds?: number;
@@ -31,12 +33,15 @@ interface AuthState {
 interface AuthValue extends AuthState {
     login(input: LoginInput): Promise<void>;
     logout(): Promise<void>;
+    retrySession(): Promise<void>;
 }
 
 const AuthContextObject = createContext<AuthValue | null>(null);
 let bootstrapPromise: Promise<AuthState> | undefined;
 
-async function bootstrapSession(): Promise<AuthState> {
+async function bootstrapSession(
+    currentState?: AuthState,
+): Promise<AuthState> {
     try {
         const refresh = await refreshRequest();
         const me = await meRequest(refresh.data.accessToken);
@@ -47,9 +52,22 @@ async function bootstrapSession(): Promise<AuthState> {
             expiresInSeconds: refresh.data.expiresInSeconds,
             context: me.data,
         };
-    } catch {
+    } catch (error: unknown) {
+        return resolveRefreshFailure(error, currentState);
+    }
+}
+
+export function resolveRefreshFailure(
+    error: unknown,
+    currentState?: AuthState,
+): AuthState {
+    if (error instanceof ApiError && error.status === 401) {
         return { status: "anonymous" };
     }
+
+    return currentState?.status === "authenticated"
+        ? currentState
+        : { status: "unavailable" };
 }
 
 function getBootstrapPromise(): Promise<AuthState> {
@@ -87,14 +105,14 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
             (state.expiresInSeconds - 60) * 1_000,
         );
         const timeout = window.setTimeout(() => {
-            void bootstrapSession().then((nextState) => {
+            void bootstrapSession(state).then((nextState) => {
                 bootstrapPromise = Promise.resolve(nextState);
                 setState(nextState);
             });
         }, delayMs);
 
         return () => window.clearTimeout(timeout);
-    }, [state.expiresInSeconds, state.status]);
+    }, [state]);
 
     const login = useCallback(async (input: LoginInput) => {
         const response = await loginRequest(input);
@@ -121,9 +139,16 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         }
     }, []);
 
+    const retrySession = useCallback(async () => {
+        const nextPromise = bootstrapSession(state);
+        bootstrapPromise = nextPromise;
+        const nextState = await nextPromise;
+        setState(nextState);
+    }, [state]);
+
     const value = useMemo<AuthValue>(
-        () => ({ ...state, login, logout }),
-        [login, logout, state],
+        () => ({ ...state, login, logout, retrySession }),
+        [login, logout, retrySession, state],
     );
 
     return (

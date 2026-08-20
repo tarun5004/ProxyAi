@@ -21,7 +21,20 @@ export function ProtectedWorkspace({ children }: Readonly<{ children: ReactNode 
                 className="grid min-h-dvh place-items-center text-sm text-text-soft"
                 aria-live="polite"
             >
-                Preparing your secure workspace…
+                {auth.status === "unavailable" ? (
+                    <div className="grid justify-items-center gap-3 text-center">
+                        <p>Session service is temporarily unavailable.</p>
+                        <button
+                            className="rounded-lg bg-brand px-4 py-2 font-semibold text-white"
+                            type="button"
+                            onClick={() => void auth.retrySession()}
+                        >
+                            Try again
+                        </button>
+                    </div>
+                ) : (
+                    "Preparing your secure workspace…"
+                )}
             </main>
         );
     }

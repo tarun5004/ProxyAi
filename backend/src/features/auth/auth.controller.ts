@@ -2,7 +2,10 @@ import type { Request, Response } from "express";
 
 import { AppError } from "../../shared/errors/app-error.js";
 import { createSuccessResponse } from "../../shared/responses/api-response.js";
-import { authService } from "./auth.service.js";
+import {
+    authService,
+    RefreshConcurrencyError,
+} from "./auth.service.js";
 import { loginRateLimiter } from "./login-rate-limit.service.js";
 import { loginRequestSchema } from "./login.schema.js";
 import {
@@ -120,61 +123,73 @@ export async function login(
     );
 }
 
-export async function refresh(
-    request: Request,
-    response: Response,
-): Promise<void> {
-    const rawRefreshToken = getCookieValue(
-        request.headers.cookie,
-        REFRESH_COOKIE_NAME,
-    );
-
-    if (!rawRefreshToken) {
-        request.log.warn(
-            {
-                event: "auth.refresh_failed",
-                reasonCode: "REFRESH_TOKEN_MISSING",
-            },
-            "Refresh failed",
-        );
-        response.clearCookie(
+export function createRefreshHandler(
+    service: Pick<typeof authService, "refreshSession"> = authService,
+) {
+    return async function refreshSession(
+        request: Request,
+        response: Response,
+    ): Promise<void> {
+        const rawRefreshToken = getCookieValue(
+            request.headers.cookie,
             REFRESH_COOKIE_NAME,
-            getRefreshCookieClearOptions(),
         );
 
-        throw createInvalidRefreshTokenError();
-    }
-
-    try {
-        const result = await authService.refreshSession(
-            rawRefreshToken,
-            request.log,
-        );
-
-        response.cookie(
-            REFRESH_COOKIE_NAME,
-            result.refreshToken,
-            getRefreshCookieOptions(),
-        );
-        response.setHeader("Cache-Control", "no-store");
-        response.status(200).json(
-            createSuccessResponse(
+        if (!rawRefreshToken) {
+            request.log.warn(
                 {
-                    accessToken: result.accessToken,
-                    expiresInSeconds: result.expiresInSeconds,
+                    event: "auth.refresh_failed",
+                    reasonCode: "REFRESH_TOKEN_MISSING",
                 },
-                request.requestId,
-            ),
-        );
-    } catch (error: unknown) {
-        response.clearCookie(
-            REFRESH_COOKIE_NAME,
-            getRefreshCookieClearOptions(),
-        );
+                "Refresh failed",
+            );
+            response.clearCookie(
+                REFRESH_COOKIE_NAME,
+                getRefreshCookieClearOptions(),
+            );
 
-        throw error;
-    }
+            throw createInvalidRefreshTokenError();
+        }
+
+        try {
+            const result = await service.refreshSession(
+                rawRefreshToken,
+                request.log,
+            );
+
+            response.cookie(
+                REFRESH_COOKIE_NAME,
+                result.refreshToken,
+                getRefreshCookieOptions(),
+            );
+            response.setHeader("Cache-Control", "no-store");
+            response.status(200).json(
+                createSuccessResponse(
+                    {
+                        accessToken: result.accessToken,
+                        expiresInSeconds: result.expiresInSeconds,
+                    },
+                    request.requestId,
+                ),
+            );
+        } catch (error: unknown) {
+            if (
+                error instanceof AppError
+                && error.statusCode === 401
+                && !(error instanceof RefreshConcurrencyError)
+            ) {
+                response.clearCookie(
+                    REFRESH_COOKIE_NAME,
+                    getRefreshCookieClearOptions(),
+                );
+            }
+
+            throw error;
+        }
+    };
 }
+
+export const refresh = createRefreshHandler();
 
 export async function logout(
     request: Request,
