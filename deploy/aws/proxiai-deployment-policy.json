@@ -25,10 +25,69 @@
         "iam:ListRolePolicies",
         "logs:DescribeLogGroups",
         "logs:DescribeLogStreams",
+        "acm:DescribeCertificate",
+        "acm:ListCertificates",
+        "route53:GetHostedZone",
+        "route53:ListHostedZonesByName",
+        "route53:ListResourceRecordSets",
         "secretsmanager:DescribeSecret",
-        "secretsmanager:ListSecrets"
+        "secretsmanager:ListSecrets",
+        "lightsail:GetBlueprints",
+        "lightsail:GetBundles",
+        "lightsail:GetInstance",
+        "lightsail:GetInstances",
+        "lightsail:GetInstancePortStates",
+        "lightsail:GetInstanceState",
+        "lightsail:GetOperation",
+        "lightsail:GetOperations",
+        "lightsail:GetStaticIp",
+        "lightsail:GetStaticIps"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "ProvisionTaggedProxiAiLightsail",
+      "Effect": "Allow",
+      "Action": [
+        "lightsail:AllocateStaticIp",
+        "lightsail:AttachStaticIp",
+        "lightsail:CreateInstances",
+        "lightsail:PutInstancePublicPorts",
+        "lightsail:StartInstance",
+        "lightsail:StopInstance",
+        "lightsail:RebootInstance",
+        "lightsail:TagResource"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ap-south-1"
+        }
+      }
+    },
+    {
+      "Sid": "TemporaryProxiAiLightsailSsh",
+      "Effect": "Allow",
+      "Action": "lightsail:GetInstanceAccessDetails",
+      "Resource": "arn:aws:lightsail:ap-south-1:851725401338:Instance/*"
+    },
+    {
+      "Sid": "UpdateOnlyProxiAiDnsRecords",
+      "Effect": "Allow",
+      "Action": "route53:ChangeResourceRecordSets",
+      "Resource": "arn:aws:route53:::hostedzone/*",
+      "Condition": {
+        "ForAllValues:StringEquals": {
+          "route53:ChangeResourceRecordSetsActions": ["UPSERT", "DELETE"],
+          "route53:ChangeResourceRecordSetsRecordTypes": "A"
+        },
+        "ForAllValues:StringLike": {
+          "route53:ChangeResourceRecordSetsNormalizedRecordNames": [
+            "proxiai.me",
+            "*.proxiai.me"
+          ]
+        }
+      }
     },
     {
       "Sid": "EcrAuthorization",

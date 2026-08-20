@@ -1,0 +1,80 @@
+name: proxiai-live
+
+services:
+  caddy:
+    image: caddy:2.11.4-alpine
+    environment:
+      CANARY_DOMAIN: ${CANARY_DOMAIN:?CANARY_DOMAIN is required}
+      PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:?PRIMARY_DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    mem_limit: 128m
+    cpus: 0.25
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE digest is required}
+    expose:
+      - "3000"
+    mem_limit: 384m
+    cpus: 0.50
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE digest is required}
+    env_file:
+      - /opt/proxiai/shared/runtime.env
+    environment:
+      COMMIT_SHA: ${COMMIT_SHA:?COMMIT_SHA is required}
+      FRONTEND_ORIGIN: ${APP_ORIGIN:?APP_ORIGIN is required}
+      PORT: "8080"
+      RUNTIME_ROLE: api
+    expose:
+      - "8080"
+    mem_limit: 512m
+    cpus: 0.75
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE digest is required}
+    command: ["/usr/local/bin/node", "dist/worker.js"]
+    env_file:
+      - /opt/proxiai/shared/runtime.env
+    environment:
+      COMMIT_SHA: ${COMMIT_SHA:?COMMIT_SHA is required}
+      RUNTIME_ROLE: worker
+    mem_limit: 512m
+    cpus: 0.50
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  caddy-data:
+  caddy-config:
