@@ -2,7 +2,11 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
-import { RELEASE_STEPS, validateReleaseContract } from "./release-contract.mjs";
+import {
+    RELEASE_STEPS,
+    resolveReleaseCommand,
+    validateReleaseContract,
+} from "./release-contract.mjs";
 
 const rootDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const listOnly = process.argv.includes("--list");
@@ -28,12 +32,13 @@ function terminateProcessTree(childProcess) {
     }
 }
 
-function runBoundedStep(step, command) {
+function runBoundedStep(step, command, shell) {
     return new Promise((resolveStep) => {
         const childProcess = spawn(command, step.args, {
             cwd: resolve(rootDirectory, step.cwd),
             detached: process.platform !== "win32",
             env: { ...process.env, CI: "true", NO_COLOR: "1" },
+            shell,
             stdio: "inherit",
         });
         let timedOut = false;
@@ -80,10 +85,8 @@ const summary = [];
 for (const step of selectedSteps) {
     const startedAt = Date.now();
     process.stdout.write(`\n[release] ${step.id}\n`);
-    const command = process.platform === "win32" && step.command === "npm"
-        ? "npm.cmd"
-        : step.command;
-    const result = await runBoundedStep(step, command);
+    const { command, shell } = resolveReleaseCommand(step);
+    const result = await runBoundedStep(step, command, shell);
     const status = result.status;
     summary.push({
         id: step.id,

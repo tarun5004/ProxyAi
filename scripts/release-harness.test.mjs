@@ -8,6 +8,7 @@ import {
     COVERAGE_THRESHOLDS,
     CRITICAL_BACKEND_MODULES,
     RELEASE_STEPS,
+    resolveReleaseCommand,
     validateReleaseContract,
 } from "./release-contract.mjs";
 
@@ -53,4 +54,19 @@ test("release command manifest references valid workspace scripts", async () => 
     assert.equal(result.stepCount, RELEASE_STEPS.length);
     assert.equal(new Set(RELEASE_STEPS.map(({ id }) => id)).size, RELEASE_STEPS.length);
     assert.ok(RELEASE_STEPS.every(({ timeoutMs }) => timeoutMs > 0));
+});
+
+test("Windows npm steps use the command shell without changing other commands", () => {
+    assert.deepEqual(
+        resolveReleaseCommand({ command: "npm" }, "win32"),
+        { command: "npm", shell: true },
+    );
+    assert.deepEqual(
+        resolveReleaseCommand({ command: "node" }, "win32"),
+        { command: "node", shell: false },
+    );
+    assert.deepEqual(
+        resolveReleaseCommand({ command: "npm" }, "linux"),
+        { command: "npm", shell: false },
+    );
 });

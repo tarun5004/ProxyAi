@@ -94,6 +94,14 @@ export const RELEASE_STEPS = Object.freeze([
     Object.freeze({ id: "container-contract", cwd: ".", command: "node", args: ["scripts/verify-container-contract.mjs"], timeoutMs: 300_000 }),
 ]);
 
+export function resolveReleaseCommand(step, platform = process.platform) {
+    if (platform === "win32" && step.command === "npm") {
+        return Object.freeze({ command: "npm", shell: true });
+    }
+
+    return Object.freeze({ command: step.command, shell: false });
+}
+
 export function assertCoverageAtLeast(actual, required, label) {
     if (!Number.isFinite(actual) || actual < required) {
         throw new Error(`${label} coverage ${actual}% is below ${required}%.`);
