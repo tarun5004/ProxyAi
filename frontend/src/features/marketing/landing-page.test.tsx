@@ -1,7 +1,9 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import LoginPage from "@/app/(auth)/login/page";
 import HomePage from "@/app/page";
+import { LoginScreen } from "@/features/auth/login-screen";
 import { LandingHeader } from "@/features/marketing/components/landing-header";
 
 afterEach(cleanup);
@@ -42,12 +44,7 @@ describe("public landing experience", () => {
         expect(document.body.textContent).not.toMatch(/Trusted by|SOC 2 certified/i);
     });
 
-    it("preserves the existing login route composition", async () => {
-        const [{ default: LoginPage }, { LoginScreen }] = await Promise.all([
-            import("@/app/(auth)/login/page"),
-            import("@/features/auth/login-screen"),
-        ]);
-
+    it("preserves the existing login route composition", () => {
         expect(LoginPage().type).toBe(LoginScreen);
     });
 });
