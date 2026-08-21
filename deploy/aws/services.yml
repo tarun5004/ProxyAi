@@ -255,6 +255,9 @@ Resources:
           Image: !Ref BackendImageUri
           Essential: true
           Command: ["/usr/local/bin/node", "dist/worker.js"]
+          PortMappings:
+            - ContainerPort: 9464
+              Protocol: tcp
           Environment:
             - { Name: NODE_ENV, Value: production }
             - { Name: LOG_LEVEL, Value: !Ref LogLevel }
@@ -262,6 +265,7 @@ Resources:
             - { Name: PROVIDER_REQUEST_TIMEOUT_MS, Value: !Ref ProviderRequestTimeoutMs }
             - { Name: COMMIT_SHA, Value: !Ref CommitSha }
             - { Name: RUNTIME_ROLE, Value: worker }
+            - { Name: WORKER_METRICS_PORT, Value: "9464" }
           Secrets:
             - { Name: MONGO_URI, ValueFrom: !Sub "${RuntimeSecretArn}:MONGO_URI::" }
             - { Name: REDIS_URL, ValueFrom: !Sub "${RuntimeSecretArn}:REDIS_URL::" }

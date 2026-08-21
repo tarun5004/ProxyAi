@@ -58,6 +58,9 @@ services:
       MONGO_URI: ${COMPOSE_MONGO_URI:?Set COMPOSE_MONGO_URI to Atlas or a container-reachable MongoDB URI}
       REDIS_URL: redis://redis:6379
       RUNTIME_ROLE: worker
+      WORKER_METRICS_PORT: "9464"
+    expose:
+      - "9464"
     depends_on:
       redis:
         condition: service_healthy

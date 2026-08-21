@@ -8,6 +8,10 @@ import { connectMongo } from "./shared/lib/mongo.js";
 import { connectRedis } from "./shared/lib/redis.js";
 import { disconnectInfrastructure } from
     "./shared/runtime/infrastructure.js";
+import {
+    closeWorkerMetricsServer,
+    startWorkerMetricsServer,
+} from "./shared/observability/worker-metrics-server.js";
 import { initializeEncryption } from "./shared/security/encryption.js";
 import { assertEncryptionStorageReady } from "./shared/security/encryption-readiness.js";
 
@@ -20,6 +24,7 @@ async function startWorker(): Promise<void> {
     await Promise.all([connectMongo(), connectRedis()]);
     await assertEncryptionStorageReady();
     await startWorkerAsyncInfrastructure();
+    await startWorkerMetricsServer();
 
     logger.info(
         {
@@ -47,7 +52,10 @@ async function shutdown(
         "Worker shutdown started",
     );
 
-    if (!await disconnectInfrastructure()) {
+    const metricsClosed = await closeWorkerMetricsServer();
+    const infrastructureClosed = await disconnectInfrastructure();
+
+    if (!metricsClosed || !infrastructureClosed) {
         process.exitCode = 1;
     }
 

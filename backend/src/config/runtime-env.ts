@@ -15,6 +15,12 @@ export const runtimeEnvSchema = z.object({
         .int()
         .min(1_000)
         .max(120_000),
+    WORKER_METRICS_PORT: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(65_535)
+        .default(9_464),
     MESSAGE_ENCRYPTION_KEYS_JSON: z.string().trim().min(1).optional(),
     MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION: z.coerce
         .number()

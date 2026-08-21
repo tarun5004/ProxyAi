@@ -66,6 +66,9 @@ services:
     environment:
       COMMIT_SHA: ${COMMIT_SHA:?COMMIT_SHA is required}
       RUNTIME_ROLE: worker
+      WORKER_METRICS_PORT: "9464"
+    expose:
+      - "9464"
     mem_limit: 512m
     cpus: 0.50
     restart: unless-stopped

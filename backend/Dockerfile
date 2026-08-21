@@ -36,7 +36,7 @@ COPY --from=build --chown=nonroot:nonroot /app/dist ./dist
 COPY --chown=nonroot:nonroot package.json ./package.json
 
 USER nonroot
-EXPOSE 8080
+EXPOSE 8080 9464
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD ["/usr/local/bin/node", "-e", "if(process.env.RUNTIME_ROLE==='worker'){process.exit(0)}fetch('http://127.0.0.1:8080/health/ready').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))"]
