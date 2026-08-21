@@ -1,0 +1,208 @@
+{
+  "main": {
+    "id": "9c1473806a652fb0",
+    "type": "split",
+    "children": [
+      {
+        "id": "9ccf5c0da61e76ce",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "94591692f7ec3981",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "frontend/node_modules/next/dist/docs/01-app/04-glossary.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "04-glossary"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "22625582e88b7aa7",
+    "type": "split",
+    "children": [
+      {
+        "id": "d0ebad1d076e2558",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9caf603b634d97ad",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "6518a91c383c68e8",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "abaa02ec40034b43",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "2ddc398a29d29bfb",
+    "type": "split",
+    "children": [
+      {
+        "id": "9114324f367ef772",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "90ef3e8ae482c65c",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks"
+            }
+          },
+          {
+            "id": "7fae44b7946b7ae2",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "406c1cd5cea461f3",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "39e01b213b60468f",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "39f6997c7c04398d",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "94591692f7ec3981",
+  "lastOpenFiles": [
+    "backend/src/features/audit/audit.export.service.ts",
+    "backend/src/features/admin/admin.mutation.service.ts",
+    "backend/tests/audit.model.test.mjs",
+    "backend/src/features/audit/audit.service.ts",
+    "backend/src/features/audit/audit.repository.ts",
+    "backend/src/features/audit/audit.model.ts",
+    "backend/src/features/audit/audit.types.ts",
+    "backend/src/features/audit/audit.metadata.ts",
+    "backend/src/features/audit",
+    "backend/tests/encryption.test.mjs",
+    "backend/src/shared/security/encryption.ts",
+    "docs/06_SECURITY_THREAT_MODEL.md",
+    "docs/app/guides/streaming.md",
+    "frontend/node_modules/next/dist/docs/01-app/01-getting-started/08-caching.md",
+    "docs/app/api-reference/adapters/testing-adapters.md",
+    "frontend/node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md",
+    "frontend/node_modules/is-number/README.md"
+  ]
+}
