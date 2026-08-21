@@ -1,0 +1,21 @@
+# Dependencies and build output
+**/node_modules/
+**/dist/
+**/.next/
+**/coverage/
+*.tsbuildinfo
+
+# Local configuration and secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# Runtime and local tool artifacts
+*.log
+.obsidian/
+deploy/aws/.runtime/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp

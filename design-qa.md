@@ -2,9 +2,10 @@
 
 ## Evidence
 
-- Reference: `C:\Users\varun\Downloads\ChatGPT Image Aug 18, 2026, 02_53_13 AM.png`
-- Desktop capture: `C:\tmp\proxiai-landing-desktop-final.png` at `1536x1024`
-- Mobile capture: `C:\tmp\proxiai-landing-mobile-final.png` at `390x844`
+- Reference: user-supplied landing-page image reviewed during implementation.
+- Desktop viewport verified at `1536x1024`.
+- Mobile viewport verified at `390x844`.
+- Local screenshots are intentionally excluded from the repository.
 
 ## Visual Comparison
 

@@ -322,7 +322,7 @@ The approved database design includes:
 
 Important indexes include organisation-and-time compound indexes for request logs and audit logs, conversation-and-time indexes for messages, and organisation-and-period indexes for billing rollups.
 
-See [`docs/04_DATABASE_DESIGN.md`](docs/04_DATABASE_DESIGN.md) for schemas and index details.
+See [`04_DATABASE_DESIGN.md`](04_DATABASE_DESIGN.md) for schemas and index details.
 
 ---
 
@@ -378,7 +378,7 @@ Unknown errors must return a generic message and must not expose a stack trace.
 /health/ready
 ```
 
-The complete contract is defined in [`docs/05_OPENAPI_SPEC.md`](docs/05_OPENAPI_SPEC.md).
+The complete contract is defined in [`05_OPENAPI_SPEC.md`](05_OPENAPI_SPEC.md).
 
 ---
 
@@ -728,7 +728,7 @@ A release must fail if any of these scenarios fail:
 - a BullMQ retry produces duplicate billing;
 - unknown errors expose stack traces.
 
-See [`docs/08_TESTING_STRATEGY.md`](docs/08_TESTING_STRATEGY.md).
+See [`08_TESTING_STRATEGY.md`](08_TESTING_STRATEGY.md).
 
 ---
 
@@ -830,7 +830,7 @@ A continuously polling BullMQ worker runs as a separate always-on ECS service an
 
 Worker task CPU, memory, desired count, and autoscaling are explicit deployment parameters and must be verified through staging queue and heartbeat checks.
 
-See [`docs/07_DEPLOYMENT_ARCHITECTURE.md`](docs/07_DEPLOYMENT_ARCHITECTURE.md).
+See [`07_DEPLOYMENT_ARCHITECTURE.md`](07_DEPLOYMENT_ARCHITECTURE.md).
 
 ---
 
@@ -851,7 +851,7 @@ Every contributor must preserve these invariants:
 11. Provider SDK errors are normalized before leaving the provider layer.
 12. Audit records never contain raw sensitive values.
 
-Read [`docs/06_SECURITY_THREAT_MODEL.md`](docs/06_SECURITY_THREAT_MODEL.md) before changing authentication, tenant access, policy, provider, cache, encryption, audit, export, or deployment code.
+Read [`06_SECURITY_THREAT_MODEL.md`](06_SECURITY_THREAT_MODEL.md) before changing authentication, tenant access, policy, provider, cache, encryption, audit, export, or deployment code.
 
 ---
 
@@ -922,15 +922,15 @@ Do not start payment automation or advanced roadmap features before the core pro
 
 | Document | Purpose |
 |---|---|
-| [`docs/01_PRD.md`](docs/01_PRD.md) | Product goals, scope, personas, requirements, acceptance criteria |
-| [`docs/02_SDD.md`](docs/02_SDD.md) | High-level components, boundaries, and request flow |
-| [`docs/03_TDD.md`](docs/03_TDD.md) | TypeScript-level implementation design |
-| [`docs/04_DATABASE_DESIGN.md`](docs/04_DATABASE_DESIGN.md) | MongoDB collections, indexes, retention, and Redis keys |
-| [`docs/05_OPENAPI_SPEC.md`](docs/05_OPENAPI_SPEC.md) | API contract, errors, streaming, and endpoint schemas |
-| [`docs/06_SECURITY_THREAT_MODEL.md`](docs/06_SECURITY_THREAT_MODEL.md) | Assets, trust boundaries, threats, mitigations, and security gates |
-| [`docs/07_DEPLOYMENT_ARCHITECTURE.md`](docs/07_DEPLOYMENT_ARCHITECTURE.md) | AWS environments, containers, ECS services, workers, rollback, and operations |
-| [`docs/08_TESTING_STRATEGY.md`](docs/08_TESTING_STRATEGY.md) | Unit, integration, security, E2E, performance, and release testing |
-| [`docs/09_README.md`](docs/09_README.md) | Project entry point and developer setup |
+| [`01_PRD.md`](01_PRD.md) | Product goals, scope, personas, requirements, acceptance criteria |
+| [`02_SDD.md`](02_SDD.md) | High-level components, boundaries, and request flow |
+| [`03_TDD.md`](03_TDD.md) | TypeScript-level implementation design |
+| [`04_DATABASE_DESIGN.md`](04_DATABASE_DESIGN.md) | MongoDB collections, indexes, retention, and Redis keys |
+| [`05_OPENAPI_SPEC.md`](05_OPENAPI_SPEC.md) | API contract, errors, streaming, and endpoint schemas |
+| [`06_SECURITY_THREAT_MODEL.md`](06_SECURITY_THREAT_MODEL.md) | Assets, trust boundaries, threats, mitigations, and security gates |
+| [`07_DEPLOYMENT_ARCHITECTURE.md`](07_DEPLOYMENT_ARCHITECTURE.md) | AWS environments, containers, ECS services, workers, rollback, and operations |
+| [`08_TESTING_STRATEGY.md`](08_TESTING_STRATEGY.md) | Unit, integration, security, E2E, performance, and release testing |
+| [`09_README.md`](09_README.md) | Project entry point and developer setup |
 
 When this file is moved to the repository root as `README.md`, update the final row and relative paths if necessary.
 
