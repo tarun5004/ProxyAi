@@ -1,6 +1,10 @@
 import type { Request, Response } from "express";
 
 import { AppError } from "../../shared/errors/app-error.js";
+import {
+    isServerShutdownAbort,
+    registerActiveChatStream,
+} from "../../shared/runtime/active-chat-streams.js";
 import type { StreamChunk } from "../providers/provider.types.js";
 import {
     defaultChatPipelineDependencies,
@@ -42,6 +46,7 @@ export function createChatStreamHandler(
         }
 
         const abortController = new AbortController();
+        const unregisterActiveStream = registerActiveChatStream(abortController);
         let disconnected = false;
         const handleDisconnect = () => {
             if (!response.writableEnded) {
@@ -231,6 +236,11 @@ export function createChatStreamHandler(
                 response.end();
             }
         } catch (error: unknown) {
+            const serverShutdown = isServerShutdownAbort(
+                abortController.signal,
+            );
+            const interrupted = disconnected || serverShutdown;
+
             if (!response.headersSent) {
                 throw error;
             }
@@ -242,7 +252,7 @@ export function createChatStreamHandler(
                     await finalizeChatStream(
                         prepared,
                         {
-                            status: disconnected
+                            status: interrupted
                                 ? "INTERRUPTED"
                                 : "FAILED",
                         },
@@ -252,16 +262,18 @@ export function createChatStreamHandler(
             }
 
             logTerminalEvent(
-                disconnected
+                interrupted
                     ? "chat.stream.interrupted"
                     : "chat.stream.failed",
-                disconnected ? "INTERRUPTED" : "FAILED",
-                disconnected
-                    ? "CLIENT_DISCONNECTED"
-                    : "STREAM_INTERRUPTED",
+                interrupted ? "INTERRUPTED" : "FAILED",
+                serverShutdown
+                    ? "SERVER_SHUTDOWN"
+                    : interrupted
+                        ? "CLIENT_DISCONNECTED"
+                        : "STREAM_INTERRUPTED",
             );
 
-            if (!disconnected) {
+            if (!interrupted) {
                 await writeSseEvent(response, "error", {
                     code: "STREAM_INTERRUPTED",
                     message: "The provider response was interrupted.",
@@ -271,6 +283,7 @@ export function createChatStreamHandler(
                 response.end();
             }
         } finally {
+            unregisterActiveStream();
             request.off("aborted", handleDisconnect);
             response.off("close", handleDisconnect);
         }

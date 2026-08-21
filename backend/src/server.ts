@@ -9,6 +9,8 @@ import { connectMongo } from "./shared/lib/mongo.js";
 import { connectRedis } from "./shared/lib/redis.js";
 import { disconnectInfrastructure } from
     "./shared/runtime/infrastructure.js";
+import { closeHttpServerWithinGrace } from
+    "./shared/runtime/http-server-shutdown.js";
 import { initializeEncryption } from "./shared/security/encryption.js";
 import { assertEncryptionStorageReady } from "./shared/security/encryption-readiness.js";
 
@@ -84,18 +86,19 @@ async function closeHttpServer(): Promise<boolean> {
     }
 
     try {
-        await new Promise<void>((resolve, reject) => {
-            server?.close((error) => {
-                if (error) {
-                    reject(error);
-                    return;
-                }
+        const result = await closeHttpServerWithinGrace(server);
 
-                resolve();
-            });
-        });
+        if (result.forced) {
+            logger.warn(
+                {
+                    abortedStreams: result.abortedStreams,
+                    event: "app.shutdown.forced",
+                },
+                "Application forced remaining HTTP connections closed",
+            );
+        }
 
-        return true;
+        return result.closed;
     } catch {
         logger.error(
             {

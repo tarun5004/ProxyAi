@@ -188,6 +188,7 @@ Resources:
         - Name: api
           Image: !Ref BackendImageUri
           Essential: true
+          StopTimeout: 30
           Command: ["/usr/local/bin/node", "dist/server.js"]
           PortMappings:
             - ContainerPort: 8080
@@ -254,6 +255,7 @@ Resources:
         - Name: worker
           Image: !Ref BackendImageUri
           Essential: true
+          StopTimeout: 30
           Command: ["/usr/local/bin/node", "dist/worker.js"]
           PortMappings:
             - ContainerPort: 9464
