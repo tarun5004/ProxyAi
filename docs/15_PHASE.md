@@ -930,43 +930,78 @@ response, PII, credential, or secret is stored or logged.
 # 17. Phase 11 — Testing and Hardening
 
 **Effort:** ⭐ Ultra
+**Status:** Contract and readiness audit complete; implementation not started
 
-## Required Test Areas
+Phase 11 contains 28 explicit roadmap checks: 14 required test areas, 10
+release-blocking security checks, and 4 exit criteria. It adds test harnesses,
+coverage enforcement, missing negative scenarios, and release evidence only.
+It does not add a product feature, API, collection, index, migration, queue, or
+frontend workflow.
 
-- [ ] PII.
-- [ ] Policy.
-- [ ] Routing.
-- [ ] Retry.
-- [ ] Circuit breaker.
-- [ ] Encryption.
-- [ ] Cursor pagination.
-- [ ] Permissions.
-- [ ] Login and refresh rotation.
-- [ ] Idempotency.
-- [ ] Cache.
-- [ ] Billing replay.
-- [ ] BullMQ.
-- [ ] Audit.
+## Readiness Classification
 
-## Release-Blocking Security Tests
+| Requirement | Classification | Current evidence or required action |
+|---|---|---|
+| PII | `ALREADY_COMPLETE` | Detector, classifier, masker, risk, immutability, safe-event, and metrics tests exist. |
+| Policy | `ALREADY_COMPLETE` | ALLOW, ALLOW_WITH_MASK, BLOCK, budget block, zero-provider, and safe-event tests exist. |
+| Routing | `ALREADY_COMPLETE` | Registry, health gate, ordered fallback, and current production-provider selection are tested. |
+| Retry | `ALREADY_COMPLETE` | Retryable/non-retryable, bounded attempts, jitter, and abort behavior are tested. |
+| Circuit breaker | `ALREADY_COMPLETE` | CLOSED/OPEN/HALF_OPEN transitions and bounded trials are tested. |
+| Encryption | `ALREADY_COMPLETE` | AES-256-GCM, AAD, key versioning, no-plaintext fallback, retained-message isolation, and migration tests exist. |
+| Cursor pagination | `PARTIAL` | Conversation and message cursors are proven; admin boundary, tamper, and stable-tie coverage must be completed. |
+| Permissions | `PARTIAL` | Middleware and admin denials exist; the complete route/permission/IDOR matrix must be release-gated. |
+| Login and refresh rotation | `ALREADY_COMPLETE` | Generic failure, tenant resolution, rotation, reuse revocation, concurrency grace, and cookie behavior are tested. |
+| Idempotency | `ALREADY_COMPLETE` | Real Redis atomic reservation, tenant isolation, fingerprint, TTL, fail-closed, and one-call proof exist. |
+| Cache | `DEFER_APPROVED` | Prompt cache/replay has no executable implementation; tests must not fabricate a cache path or metric. |
+| Billing replay | `ALREADY_COMPLETE` | Sequential/concurrent duplicate jobs and unknown-usage behavior are tested. |
+| BullMQ | `ALREADY_COMPLETE` | Payload validation, bounded retries, failed-set retention, lifecycle, recovery, and worker metrics tests exist. |
+| Audit | `ALREADY_COMPLETE` | Append-only restrictions, atomic mutation rollback, tenant export, and failure metrics are tested. |
+| Cross-tenant conversations denied | `ALREADY_COMPLETE` | List/read/message/title and encrypted-content integration tests use trusted scope. |
+| Cross-tenant request logs denied | `ALREADY_COMPLETE` | Real-Mongo admin repository isolation is proven. |
+| Cross-tenant billing denied | `PARTIAL` | Billing queries are tenant scoped; explicit foreign-tenant integration evidence is still required. |
+| Cross-team access denied | `DEFER_APPROVED` | No team-owned read resource exists; team-lead logs remain deferred pending trusted ownership. |
+| Blocked prompt provider calls = 0 | `ALREADY_COMPLETE` | Chat pipeline fixture proves pre-provider BLOCK. |
+| Masked prompt excludes original secret | `ALREADY_COMPLETE` | Provider receives only masked providerPrompt and sentinel scans pass. |
+| PII prompt not cached | `DEFER_APPROVED` | No cache exists; Phase 11 performs a static absence check, not a fake runtime test. |
+| Duplicate request provider calls = 1 | `ALREADY_COMPLETE` | Ten concurrent real-Redis reservations produce one operation/provider winner. |
+| Encryption failure stores no plaintext | `ALREADY_COMPLETE` | Encryption and Phase 9 integration tests prove fail-closed writes. |
+| Logs contain no secret fixture | `ALREADY_COMPLETE` | Logger and observability leak tests cover credentials, content, payloads, and connection values. |
+| All release-blocking tests pass | `IMPLEMENT_PHASE11` | Create one deterministic release-gate command and retain CI evidence. |
+| No critical defect remains open | `IMPLEMENT_PHASE11` | Run severity triage; Critical/High defects prohibit closure. |
+| Typecheck and build pass | `ALREADY_COMPLETE` | Current baseline passes; the final gate must rerun frontend and backend. |
+| Coverage is acceptable | `BLOCKED` | Coverage tooling/reporting is absent and must be enforced before closure. |
 
-- [ ] Cross-tenant conversations denied.
-- [ ] Cross-tenant request logs denied.
-- [ ] Cross-tenant billing denied.
-- [ ] Cross-team access denied.
-- [ ] Blocked prompt provider calls = 0.
-- [ ] Masked prompt excludes original secret.
-- [ ] PII prompt not cached.
-- [ ] Duplicate request provider calls = 1.
-- [ ] Encryption failure stores no plaintext.
-- [ ] Logs contain no secret fixture.
+## Implementation Tasks
 
-## Exit Criteria
+- [ ] **P11-01 — Coverage and Release Harness:** add backend/frontend coverage commands, justified exclusions, threshold enforcement, and one non-destructive release-gate entry point. Commit: `test(release): add coverage and security gate harness`.
+- [ ] **P11-02 — Tenant and Billing Isolation Matrix:** enumerate current tenant-owned routes/repositories and add missing foreign-tenant billing/IDOR evidence. Commit: `test(security): complete tenant isolation release matrix`.
+- [ ] **P11-03 — Authentication and Permission Matrix:** consolidate role/permission denials, active-state checks, refresh rotation/reuse/concurrency, logout, and audited revocation gates. Commit: `test(auth): harden session and permission release gates`.
+- [ ] **P11-04 — Prompt Egress and Protected Persistence:** gate PII, policy, zero-provider BLOCK, masked-only egress, prompt immutability, AES-GCM failure, retention, migration, AuditLog atomicity, and leak checks. Commit: `test(security): gate prompt egress and encrypted persistence`.
+- [ ] **P11-05 — Provider, Idempotency, Billing, and BullMQ:** run deterministic fake-provider resilience, real-Redis reservation/concurrency, billing replay, worker retry/failed-set, and recovery gates. Commit: `test(reliability): gate provider and async correctness`.
+- [ ] **P11-06 — Pagination and API Boundary Hardening:** complete stable-tie, malformed cursor, maximum limit, generic foreign-resource response, envelope, and bounded-query scenarios. Commit: `test(api): harden pagination and boundary contracts`.
+- [ ] **P11-07 — Frontend Critical Coverage:** enforce frontend coverage and verify auth bootstrap, conversation loading, Markdown safety, stream interruption, admin permission states, and no attachment/cache fiction. Commit: `test(frontend): gate critical authenticated workflows`.
+- [ ] **P11-08 — Integrated Release Gate and Closure:** run all suites, coverage, lint, builds, scans, Docker/index validation, defect triage, and retain a machine-readable release summary. Commits: `test(release): verify ProxiAI hardening gates` and `docs(phase11): close testing and hardening phase`.
 
-- [ ] All release-blocking tests pass.
-- [ ] No critical defect remains open.
-- [ ] Typecheck and build pass.
-- [ ] Coverage is acceptable.
+## Approved Deferrals
+
+- Prompt-cache/replay execution tests remain deferred until an approved implementation exists.
+- Cross-team resource isolation remains deferred until the first team-owned resource maps trusted `{ orgId, teamId }`; that resource cannot complete without the negative gate.
+- External penetration testing, internet-scale load claims, and destructive production security testing are not Phase 11 MVP requirements.
+
+## Completion Gate
+
+- [ ] Backend overall line coverage is at least 75% and frontend overall line coverage is at least 60%.
+- [ ] Policy, risk scoring, routing, retry, circuit breaker, encryption, and permission pure modules meet the 90% branch target or have an approved line-level exclusion.
+- [ ] Every implemented tenant-owned endpoint has an authenticated foreign-tenant/user negative test; billing has explicit real-persistence evidence.
+- [ ] BLOCK makes zero provider calls, MASK excludes the original sentinel, duplicates make one provider call, encryption writes no plaintext on failure, and secret fixtures are absent from every telemetry/persistence boundary.
+- [ ] Login, active-state authentication, refresh rotation/reuse/concurrency, logout, session revocation, and permission denials pass.
+- [ ] Real MongoDB and Redis/BullMQ integration gates pass without production data or paid provider calls.
+- [ ] Cursor/list tests prove stable non-overlapping pages, bounded limits, tamper rejection, and tenant scope.
+- [ ] Frontend/backend lint, typecheck, tests, coverage, and production builds pass; production audit has no Critical/High runtime vulnerability.
+- [ ] Docker images build non-root without `.env` files/secrets; index and deployment-smoke prerequisites pass.
+- [ ] No open Critical/High defect remains; Medium defects require documented acceptance and critical suites have no unexplained flakiness.
+- [ ] Cache and cross-team deferrals remain explicit and are not falsely marked PASS.
+- [ ] Final commands, evidence, limitations, and exact Phase 12 continuation state are recorded before closure.
 
 ---
 
@@ -1163,7 +1198,7 @@ Do not randomly change several files.
 | Phase 8 | Completed | Read-only tenant admin APIs/UI verified; audit-dependent mutations explicitly blocked/deferred to Phase 9 |
 | Phase 9 | Completed | Versioned AES-GCM storage, append-only audit, audited admin mutations, safe export, migration, and tenant/security gates verified |
 | Phase 10 | Completed | Bounded API/worker metrics, dashboard, alerts, dedicated runbooks, redaction/cardinality gates, and private scrape boundaries verified |
-| Phase 11 | Not Started | |
+| Phase 11 | Not Started | Contract/readiness audit complete; P11-01 coverage and release harness is next |
 | Phase 12 | In Progress | P12-01 through P12-08 implementation complete; live AWS rollout/rollback gates remain P12-09 |
 | Phase 13 | Not Started | |
 
@@ -1171,12 +1206,13 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## Phase 11 — Testing and Hardening Planning
+## P11-01 — Coverage and Release Harness
 
-Phase 10 is complete. Phase 11 has not started; run its contract/readiness audit
-before changing test architecture, coverage policy, or release-blocking gates.
-Prompt-cache and completed-response replay metrics remain deferred because those
-execution paths are still deferred.
+Phase 10 is complete and the Phase 11 contract/readiness audit is approved.
+Phase 11 implementation has not started. Add only the coverage and release
+harness defined by P11-01; do not start P11-02 or Phase 12. Prompt cache and
+completed-response replay remain deferred because those execution paths do not
+exist.
 
 ### Active cost-cut migration
 

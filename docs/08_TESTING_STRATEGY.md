@@ -1466,3 +1466,84 @@ The document does not claim that local tests prove enterprise scale, full compli
 The minimum release rule is simple:
 
 > ProxiAI must not be released while any known defect can expose another organisation’s data, send blocked sensitive content to a provider, persist restricted plaintext, bypass authentication or budget controls, or create duplicate paid provider calls.
+
+---
+
+## 35. Phase 11 Testing and Hardening Contract
+
+Phase 11 is a test-and-release-evidence phase. It introduces no product
+feature, schema, index, API, queue, migration, or frontend workflow. Existing
+Phase 1–10 executable behavior is the baseline; tests are added only for a
+concrete coverage or release-gate gap.
+
+### 35.1 Harness and data boundaries
+
+- Backend coverage uses the Node/V8 execution path already used by the suite;
+  frontend coverage uses Vitest's supported V8 provider.
+- Coverage output is a build artifact. Only a compact machine-readable release
+  summary may be retained when approved.
+- Integration databases use dedicated test names and may be dropped only by
+  their owning harness. Production, demo, and developer data are never test
+  cleanup targets.
+- Redis/BullMQ tests isolate their keys/database where supported and never use
+  production Redis.
+- Provider release gates use the fake adapter. Live Groq is deployment smoke,
+  not coverage or concurrency input.
+
+### 35.2 Persistence and API boundary
+
+No Phase 11 model, collection, index, route, permission, encryption format,
+audit action, or queue job is approved. If a test exposes a defect requiring
+one, implementation stops until the owning product contract is updated.
+RequestLog and AuditLog stay append-only; cleanup deletes records only from an
+isolated test database after assertions.
+
+### 35.3 Security risks and required evidence
+
+| Risk | Required Phase 11 evidence |
+|---|---|
+| Cross-tenant/IDOR | Foreign org/user IDs produce generic denial before provider, decryption, mutation, or export for every implemented tenant endpoint. |
+| Privilege escalation | Missing auth and insufficient current DB permissions fail; stale JWT role/permission snapshots never authorize access. |
+| Session replay/race | Rotation has one usable winner, confirmed reuse revokes the family, operational failure preserves safe retry, and logout/revocation is idempotent. |
+| Prompt/secret egress | BLOCK calls no provider; MASK removes the original sentinel; telemetry, queues, audit, and exports contain no raw content or secret fixture. |
+| Async replay/race | Redis reservation and billing/analytics ledgers permit one side effect under sequential and concurrent duplicates. |
+| Audit bypass | Audited mutations roll back when AuditLog append fails; AuditLog update/delete remains rejected. |
+| Encryption boundary | Invalid key/version/AAD/ciphertext fails closed with no plaintext persistence; owner and tenant scope precede decryption. |
+| Unbounded query | Cursors, limits, ranges, and exports reject malformed/oversized input and preserve stable tie-break ordering. |
+| Metric cardinality | No identity, resource, URL, model, error text, content, or PII value becomes a label. |
+| Migration/data loss | Phase 9 migration reruns idempotently, verifies before replacement, and leaves failed rows unchanged; Phase 11 adds no migration. |
+
+### 35.4 Rollout and rollback
+
+Test/tooling commits are independently revertible and do not change runtime
+data. A production defect fix found during hardening must be a separate
+smallest-scope commit paired with its regression test. Schema/data migration is
+prohibited without a new approved contract and rollback plan.
+
+### 35.5 Multi-agent implementation ownership
+
+| Agent | Ownership | Must wait for | Parallel-safe with | Required commit and tests |
+|---|---|---|---|---|
+| `A1 — RELEASE TEST ARCHITECT` | P11-01 coverage config, scripts, exclusions, release-summary schema | None | None; shared harness first | `test(release): add coverage and security gate harness`; threshold/failure self-tests |
+| `A2 — TENANT ISOLATION` | P11-02 endpoint inventory and real-Mongo billing/IDOR negatives | A1 | A3–A6 | `test(security): complete tenant isolation release matrix`; foreign scope fixtures |
+| `A3 — AUTH AND RBAC` | P11-03 login, active-state auth, permissions, refresh race/reuse, logout, revocation | A1 | A2, A4–A6 | `test(auth): harden session and permission release gates`; Mongo/Redis fixtures |
+| `A4 — EGRESS AND ENCRYPTION` | P11-04 PII/policy/provider boundary, retention, encryption, audit/log leak | A1 | A2, A3, A5, A6 | `test(security): gate prompt egress and encrypted persistence`; fake provider/Mongo fixtures |
+| `A5 — PROVIDER AND ASYNC RELIABILITY` | P11-05 provider resilience, idempotency, billing replay, BullMQ/recovery | A1 | A2–A4, A6 | `test(reliability): gate provider and async correctness`; fake provider/Redis/BullMQ |
+| `A6 — API PAGINATION` | P11-06 cursor, limit, envelope, stable ordering, generic not-found | A1 | A2–A5 | `test(api): harden pagination and boundary contracts`; real-Mongo lists |
+| `A7 — FRONTEND RELEASE GATE` | P11-07 frontend coverage and critical authenticated UI behavior | A1 | A2–A6 | `test(frontend): gate critical authenticated workflows`; Vitest only |
+| `A8 — INTEGRATION AND RELEASE` | P11-08 conflict review, full gate, scans, Docker/index checks, triage, closure | A2–A7 | None; final agent | `test(release): verify ProxiAI hardening gates`, then Phase 11 docs closure |
+
+Shared package scripts and coverage configuration belong only to A1 until its
+commit lands. Existing tests are extended only by their owning agent; A8 may
+resolve integration conflicts but does not absorb unrelated feature work.
+
+### 35.6 Approved non-executable gates
+
+- Prompt cache/replay remains deferred. Phase 11 proves no cache execution
+  path/metric exists; it does not invent a cache hit.
+- Cross-team access cannot be runtime-proven until a team-owned resource exists.
+  The first such resource must use trusted `{ orgId, teamId }` and pass the
+  negative gate before completion.
+- External penetration testing and internet-scale capacity certification are
+  outside the beginner MVP. Local checks may reveal correctness/resource bugs
+  but do not prove cloud scale.

@@ -1407,6 +1407,33 @@ A solo developer should use checklists and automated tests to compensate for lac
 - Secret and dependency scans
 - Release-gate checklist
 
+### Step 7 — Phase 11 release security gate
+
+Phase 11 adds no security-sensitive product surface. It converts existing
+controls into one repeatable release gate with mandatory negative evidence:
+
+- every implemented tenant-owned endpoint rejects foreign organisation/user
+  scope before provider, decryption, mutation, or export;
+- current database permissions and active user/organisation state override
+  stale token claims;
+- refresh concurrency yields one usable winner and confirmed replay revokes the
+  token family;
+- BLOCK makes zero provider calls and MASK never sends the original sentinel;
+- idempotency and async ledgers permit one paid/accounting side effect under
+  concurrent duplicate input;
+- encryption, migration, and audited mutations fail closed without plaintext
+  persistence or audit bypass;
+- malformed cursors, oversized limits/ranges, and foreign identifiers produce
+  bounded generic responses;
+- secret fixtures and raw content remain absent from logs, metrics, queues,
+  alerts, audit output, images, and test artifacts.
+
+Prompt-cache execution and cross-team resource tests are approved deferrals
+because neither product surface exists. Their absence must be reported, never
+represented by fake passing fixtures. Any Critical or High finding blocks
+Phase 11 closure; unexplained flakiness in auth, tenancy, encryption,
+provider-egress, idempotency, billing, or audit tests is treated as a defect.
+
 ## 27. Known MVP Security Limitations
 
 1. Regex-based PII detection can miss obfuscated or context-dependent sensitive data.
@@ -1455,7 +1482,9 @@ These questions must be resolved before a public production launch:
 The security baseline is complete when:
 
 - [ ] Every tenant-owned query is demonstrably organisation-scoped.
-- [ ] Cross-organisation and cross-team tests pass.
+- [ ] Cross-organisation tests pass for every tenant-owned endpoint; cross-team
+  tests pass for every implemented team-owned resource, with the current
+  no-resource deferral recorded rather than falsely passed.
 - [ ] Role and permission negative tests pass.
 - [ ] Passwords are strongly hashed.
 - [ ] Refresh tokens are hashed, rotated, and reuse-detected.

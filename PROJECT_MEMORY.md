@@ -4,10 +4,44 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 10 — Observability and Operations
-- **Task:** Phase 10 closure.
-- **Status:** P10-01 through P10-10 completed and release-gated on 2026-08-21.
-  Phase 11 has not started.
+- **Phase:** Phase 10 complete; Phase 11 implementation not started.
+- **Task:** P11-00 — Testing and Hardening contract/readiness audit.
+- **Status:** Phase 11's 28 roadmap checks are classified and its coverage,
+  security, task, agent-ownership, and completion contracts are approved.
+  No Phase 11 production or test implementation has started.
+
+## Latest Task — P11-00 Phase 11 Contract and Readiness Audit
+
+- **Scope:** Documentation-only audit of the 14 required test areas, 10
+  release-blocking security checks, and 4 exit criteria in `docs/15_PHASE.md`.
+- **Already evidenced:** PII, policy, routing, retry, circuit breaker,
+  encryption, login/refresh, idempotency, billing replay, BullMQ, AuditLog,
+  conversation/request-log tenant isolation, zero-provider BLOCK, masked-only
+  provider egress, one-provider duplicate handling, plaintext-fallback denial,
+  and secret-log exclusion.
+- **Implementation gaps:** Coverage tooling/enforcement is absent; admin cursor
+  boundary coverage, the complete route/permission matrix, explicit
+  cross-tenant billing evidence, and one deterministic release-gate command
+  remain Phase 11 work.
+- **Approved deferrals:** Prompt cache/replay execution tests remain deferred
+  because no cache implementation exists. Cross-team resource isolation remains
+  deferred because no team-owned read resource exists; the first such resource
+  inherits the mandatory `{ orgId, teamId }` negative gate.
+- **Coverage contract:** Backend overall 75% line, frontend overall 60% line,
+  and 90% branch targets for policy, risk scoring, routing, retry, circuit
+  breaker, encryption, and permission pure modules. Explicit workflow tests
+  remain mandatory even when percentages pass.
+- **Data contract:** Phase 11 adds no model, index, API, queue, encryption
+  format, audit action, or migration. Isolated test databases/Redis namespaces
+  must never target production, demo, or developer data.
+- **Security closure:** Any open Critical/High defect, unexplained critical-test
+  flakiness, tenant leak, auth/budget bypass, duplicate paid effect, plaintext
+  persistence, audit loss, or secret leak blocks completion.
+- **Implementation order:** P11-01 coverage/release harness; P11-02 tenant and
+  billing isolation; P11-03 auth/RBAC; P11-04 prompt egress/encryption;
+  P11-05 provider/idempotency/billing/BullMQ; P11-06 pagination/API boundaries;
+  P11-07 frontend coverage; P11-08 integrated release gate and closure.
+- **Next task:** P11-01 — Coverage and Release Harness. Phase 12 must not start.
 
 ## Completed Tasks
 
