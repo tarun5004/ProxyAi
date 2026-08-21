@@ -11,19 +11,22 @@ export function HeroSection() {
                     POLICY-AWARE AI PROXY
                 </span>
                 <h1 className="mt-6 max-w-145 text-[clamp(2.65rem,4.25vw,3.75rem)] leading-[1.06] font-bold tracking-[-0.05em] text-text-primary">
-                    Policy-Aware AI for the <span className="text-brand">Modern</span> Enterprise
+                    Govern enterprise AI before sensitive data reaches a provider.
                 </h1>
                 <p className="mt-6 max-w-135 text-base leading-7 text-text-soft sm:text-lg sm:leading-8">
-                    ProxiAI sits between your users and AI providers to enforce policy, protect data, and deliver full visibility.
+                    ProxiAI authenticates users, enforces tenant policy, detects and masks sensitive data, streams approved AI responses, and records encrypted or metadata-only evidence according to organisation retention policy.
                 </p>
                 <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
                     <Link
                         className="inline-flex min-h-12 items-center justify-center gap-4 rounded-lg bg-brand px-6 text-sm font-semibold text-white shadow-[0_10px_28px_rgb(11_143_56_/_18%)] transition-[background,transform] duration-200 hover:-translate-y-px hover:bg-brand-dark focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/25"
                         href="/login"
                     >
-                        Log in to workspace
+                        Try the restricted demo
                         <ArrowRight size={17} weight="bold" aria-hidden="true" />
                     </Link>
+                    <a className="inline-flex min-h-12 items-center justify-center rounded-lg border border-border-default bg-surface px-6 text-sm font-semibold text-text-primary hover:border-brand/30 hover:text-brand-dark focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/25" href="#architecture">
+                        Read architecture
+                    </a>
                     <span className="inline-flex items-center gap-2.5 text-sm text-text-soft">
                         <ShieldCheck size={21} className="text-brand" aria-hidden="true" />
                         Secure. Governed. Observable.

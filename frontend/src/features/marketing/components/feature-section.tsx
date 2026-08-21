@@ -27,13 +27,13 @@ const features = [
 
 export function FeatureSection() {
     return (
-        <section className="border-y border-border-soft py-14 lg:py-15" id="security" aria-labelledby="features-heading">
+        <section className="py-14 lg:py-18" id="security" aria-labelledby="features-heading">
             <div className="mx-auto w-full max-w-295 px-6 lg:px-8">
                 <Reveal className="text-center">
                     <h2 className="text-2xl font-bold tracking-[-0.035em] text-text-primary sm:text-3xl" id="features-heading">
-                        Why ProxiAI?
+                        Security controls before provider access
                     </h2>
-                    <p className="mt-2 text-sm text-text-soft">Built for security, built for scale, built for enterprises.</p>
+                    <p className="mt-2 text-sm text-text-soft">Each decision is tenant-scoped, deterministic, and safe to observe.</p>
                 </Reveal>
 
                 <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

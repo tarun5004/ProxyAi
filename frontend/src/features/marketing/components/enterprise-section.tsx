@@ -15,10 +15,10 @@ export function EnterpriseSection() {
             <div className="mx-auto w-full max-w-295 px-6 lg:px-8">
                 <Reveal className="text-center">
                     <h2 className="text-2xl font-bold tracking-[-0.035em] text-text-primary sm:text-3xl" id="enterprise-heading">
-                        Enterprise ready by design
+                        Enterprise-oriented controls by design
                     </h2>
                     <p className="mx-auto mt-3 max-w-150 text-sm leading-6 text-text-soft">
-                        ProxiAI is designed for modern organisations that need secure access, reliable policy enforcement, and clear operational control.
+                        ProxiAI is designed for organisations that need secure access, reliable policy enforcement, and bounded operational evidence without claiming formal certification or multi-region availability.
                     </p>
                 </Reveal>
 

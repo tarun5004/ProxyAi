@@ -3,8 +3,8 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/layout/brand-logo";
 
 const footerGroups = [
-    { heading: "Product", links: [{ href: "#product", label: "Overview" }, { href: "#security", label: "Security" }, { href: "#enterprise", label: "Enterprise" }] },
-    { heading: "Company", links: [{ href: "#about", label: "About" }, { href: "/login", label: "Workspace login" }] },
+    { heading: "Product", links: [{ href: "#product", label: "Overview" }, { href: "#architecture", label: "Architecture" }, { href: "#security", label: "Security" }] },
+    { heading: "Evidence", links: [{ href: "#evidence", label: "Release gates" }, { href: "#demo", label: "Restricted demo" }, { href: "/login", label: "Workspace login" }] },
 ] as const;
 
 export function LandingFooter() {

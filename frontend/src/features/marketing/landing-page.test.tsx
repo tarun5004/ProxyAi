@@ -1,17 +1,24 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import HomePage from "@/app/page";
 import { LandingHeader } from "@/features/marketing/components/landing-header";
+
+afterEach(cleanup);
 
 describe("public landing experience", () => {
     it("renders the core product story and workspace calls to action", () => {
         render(<HomePage />);
 
-        expect(screen.getByRole("heading", { level: 1, name: /Policy-Aware AI for the Modern Enterprise/i })).toBeInTheDocument();
-        expect(screen.getByRole("heading", { name: "Why ProxiAI?" })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { level: 1, name: /Govern enterprise AI before sensitive data reaches a provider/i })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: /Enterprise AI needs a control plane/i })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Security controls before provider access" })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "How ProxiAI works" })).toBeInTheDocument();
-        expect(screen.getByRole("heading", { name: "Enterprise ready by design" })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: /Security, reliability, and accounting/i })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Security claims backed by deterministic tests." })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Try the real governed chat path." })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Try the restricted demo" })).toHaveAttribute("href", "/login");
+        expect(screen.getByRole("link", { name: "Open demo login" })).toHaveAttribute("href", "/login");
         expect(screen.getAllByRole("link", { name: /Log in/i }).every((link) => link.getAttribute("href") === "/login")).toBe(true);
     });
 
@@ -19,9 +26,20 @@ describe("public landing experience", () => {
         render(<LandingHeader />);
 
         expect(screen.getAllByRole("link", { name: "Product" }).every((link) => link.getAttribute("href") === "#product")).toBe(true);
+        expect(screen.getAllByRole("link", { name: "Architecture" }).every((link) => link.getAttribute("href") === "#architecture")).toBe(true);
         expect(screen.getAllByRole("link", { name: "Security" }).every((link) => link.getAttribute("href") === "#security")).toBe(true);
-        expect(screen.getAllByRole("link", { name: "For Enterprise" }).every((link) => link.getAttribute("href") === "#enterprise")).toBe(true);
-        expect(screen.getAllByRole("link", { name: "About" }).every((link) => link.getAttribute("href") === "#about")).toBe(true);
+        expect(screen.getAllByRole("link", { name: "Evidence" }).every((link) => link.getAttribute("href") === "#evidence")).toBe(true);
+        expect(screen.getAllByRole("link", { name: "Demo" }).every((link) => link.getAttribute("href") === "#demo")).toBe(true);
+    });
+
+    it("shows a restricted employee demo without exposing a password", () => {
+        render(<HomePage />);
+
+        expect(screen.getByText("novastack")).toBeInTheDocument();
+        expect(screen.getByText("demo@novastack.demo")).toBeInTheDocument();
+        expect(screen.getByText(/no admin, billing, audit-export, policy, or team-log permissions/i)).toBeInTheDocument();
+        expect(document.body.textContent).not.toMatch(/DEMO_PUBLIC_PASSWORD|ORG_ADMIN password/i);
+        expect(document.body.textContent).not.toMatch(/Trusted by|SOC 2 certified/i);
     });
 
     it("preserves the existing login route composition", async () => {

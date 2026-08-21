@@ -5,10 +5,10 @@ import { BrandLogo } from "@/components/layout/brand-logo";
 
 const navigationItems = [
     { href: "#product", label: "Product" },
+    { href: "#architecture", label: "Architecture" },
     { href: "#security", label: "Security" },
-    { href: "#security", label: "Compliance" },
-    { href: "#enterprise", label: "For Enterprise" },
-    { href: "#about", label: "About" },
+    { href: "#evidence", label: "Evidence" },
+    { href: "#demo", label: "Demo" },
 ] as const;
 
 export function LandingHeader() {
