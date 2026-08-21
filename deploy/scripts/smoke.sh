@@ -17,10 +17,23 @@ check_status() {
   echo "PASS ${name}"
 }
 
+check_not_public() {
+  local name="$1"
+  local url="$2"
+  local status
+  status="$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' "${url}")"
+  if [[ "${status}" != "404" ]]; then
+    echo "FAIL ${name}: expected HTTP 404, received ${status}" >&2
+    return 1
+  fi
+  echo "PASS ${name}"
+}
+
 check_status "frontend" "${APP_ORIGIN}/"
 check_status "frontend health" "${APP_ORIGIN}/healthz"
 check_status "API liveness" "${APP_ORIGIN}/health/live"
 check_status "API readiness" "${APP_ORIGIN}/health/ready"
+check_not_public "metrics are not publicly routed" "${APP_ORIGIN}/metrics"
 
 jq -n \
   --arg organisationSlug "${SMOKE_ORG_SLUG}" \
