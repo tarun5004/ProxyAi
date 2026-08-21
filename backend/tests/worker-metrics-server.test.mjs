@@ -58,3 +58,35 @@ test("worker metrics listener exposes no application routes", async () => {
     const response = await fetch(`http://127.0.0.1:${address.port}/health/live`);
     assert.equal(response.status, 404);
 });
+
+test("worker health endpoint reflects aggregate heartbeat health", async () => {
+    let healthy = false;
+    const server = await startWorkerMetricsServer({
+        host: "127.0.0.1",
+        port: 0,
+        getHealth: () => ({
+            healthy,
+            healthyWorkers: healthy ? 5 : 4,
+            totalWorkers: 5,
+        }),
+    });
+    const address = server.address();
+
+    assert.notEqual(address, null);
+    assert.equal(typeof address, "object");
+
+    const unavailable = await fetch(`http://127.0.0.1:${address.port}/healthz`);
+    assert.equal(unavailable.status, 503);
+    assert.deepEqual(await unavailable.json(), {
+        status: "unhealthy",
+        workers: { healthy: 4, total: 5 },
+    });
+
+    healthy = true;
+    const ready = await fetch(`http://127.0.0.1:${address.port}/healthz`);
+    assert.equal(ready.status, 200);
+    assert.deepEqual(await ready.json(), {
+        status: "healthy",
+        workers: { healthy: 5, total: 5 },
+    });
+});

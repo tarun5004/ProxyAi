@@ -71,6 +71,12 @@ export interface ManagedWorker {
     getHealth(): WorkerHealthState | undefined;
 }
 
+export interface ManagedWorkerHealthSummary {
+    readonly totalWorkers: number;
+    readonly healthyWorkers: number;
+    readonly healthy: boolean;
+}
+
 export function createManagedQueue<
     DataType,
     ResultType = void,
@@ -414,6 +420,20 @@ export async function disconnectBullMq(): Promise<void> {
     if (results.some((result) => result.status === "rejected")) {
         throw new Error("BullMQ shutdown failed.");
     }
+}
+
+export function getManagedWorkerHealthSummary(): ManagedWorkerHealthSummary {
+    const workers = [...managedWorkers];
+    const healthStates = workers.map((worker) => worker.getHealth());
+    const healthyWorkers = healthStates.filter(
+        (health): health is WorkerHealthState => health?.healthy === true,
+    ).length;
+
+    return Object.freeze({
+        totalWorkers: workers.length,
+        healthyWorkers,
+        healthy: workers.length > 0 && healthyWorkers === workers.length,
+    });
 }
 
 async function collectQueueDepthMetrics(): Promise<void> {

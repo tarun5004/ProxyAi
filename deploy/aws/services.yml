@@ -278,6 +278,15 @@ Resources:
               awslogs-group: !Ref WorkerLogGroupName
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: worker
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - >-
+                node -e "fetch('http://127.0.0.1:9464/healthz').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))"
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
 
   FrontendService:
     Type: AWS::ECS::Service

@@ -1,6 +1,7 @@
 import { createServer, type Server } from "node:http";
 
 import { runtimeEnv } from "../../config/runtime-env.js";
+import { getManagedWorkerHealthSummary } from "../async/bullmq.js";
 import { logger } from "../lib/logger.js";
 import { refreshDependencyReadinessMetrics } from "./dependency-metrics.js";
 import { metricsRegistry } from "./metrics.js";
@@ -12,6 +13,7 @@ let workerMetricsServer: Server | undefined;
 export interface WorkerMetricsServerOptions {
     readonly host?: string;
     readonly port?: number;
+    readonly getHealth?: typeof getManagedWorkerHealthSummary;
 }
 
 export async function startWorkerMetricsServer(
@@ -23,8 +25,28 @@ export async function startWorkerMetricsServer(
 
     const host = options.host ?? WORKER_METRICS_HOST;
     const port = options.port ?? runtimeEnv.WORKER_METRICS_PORT;
+    const getHealth = options.getHealth ?? getManagedWorkerHealthSummary;
     const server = createServer(async (request, response) => {
-        if (request.method !== "GET" || request.url?.split("?", 1)[0] !== "/metrics") {
+        const path = request.url?.split("?", 1)[0];
+
+        if (request.method === "GET" && path === "/healthz") {
+            const health = getHealth();
+
+            response.writeHead(health.healthy ? 200 : 503, {
+                "Content-Type": "application/json; charset=utf-8",
+                "Cache-Control": "no-store",
+            });
+            response.end(JSON.stringify({
+                status: health.healthy ? "healthy" : "unhealthy",
+                workers: {
+                    healthy: health.healthyWorkers,
+                    total: health.totalWorkers,
+                },
+            }));
+            return;
+        }
+
+        if (request.method !== "GET" || path !== "/metrics") {
             response.writeHead(404).end();
             return;
         }
