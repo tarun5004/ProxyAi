@@ -7,6 +7,8 @@ import { applyAuthTestEnvironment } from "./helpers/test-env.mjs";
 applyAuthTestEnvironment();
 process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL = "fatal";
+process.env.REDIS_URL = process.env.WORKER_HEARTBEAT_TEST_REDIS_URL
+    ?? "redis://127.0.0.1:6379/13";
 
 const [{ createManagedWorker }, { createWorkerHeartbeat }] = await Promise.all([
     import("../dist/shared/async/bullmq.js"),
