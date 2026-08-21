@@ -13,9 +13,18 @@ const awsServicesTemplate = await readFile(
 const workerTaskDefinition = awsServicesTemplate.match(
     /WorkerTaskDefinition:[\s\S]*?WorkerService:/u,
 )?.[0];
+const frontendTaskDefinition = awsServicesTemplate.match(
+    /FrontendTaskDefinition:[\s\S]*?ApiTaskDefinition:/u,
+)?.[0];
 
 if (workerTaskDefinition === undefined) {
     throw new Error("deploy/aws/services.yml must define the worker task.");
+}
+if (frontendTaskDefinition === undefined) {
+    throw new Error("deploy/aws/services.yml must define the frontend task.");
+}
+if (!/- Name: HOSTNAME\s*\n\s*Value: 0\.0\.0\.0/u.test(frontendTaskDefinition)) {
+    throw new Error("The ECS frontend task must bind Next.js to every container interface.");
 }
 if (/CMD-SHELL/u.test(workerTaskDefinition)) {
     throw new Error("The distroless worker health check must not require a shell.");
