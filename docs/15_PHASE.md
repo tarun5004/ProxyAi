@@ -1072,36 +1072,29 @@ repository automation as live deployment evidence.
 | P12-01 through P12-08 | 8 | `ALREADY_COMPLETE` | Contracts, immutable frontend configuration, split runtimes, images, Compose, indexes, AWS templates, and workflows exist and passed Phase 11 release validation. |
 | Multi-stage image, non-root runtime, production dependencies, API/worker commands, local Compose | 5 | `ALREADY_COMPLETE` | Both images build as non-root, contain no committed environment file, and run the approved commands. |
 | Create-only index deployment | 1 | `ALREADY_COMPLETE` | Idempotent `createIndexes()` command and dedicated release check pass. |
-| P12-09/P12-10, CI/release execution, immutable current image push, staging API/worker, staging smoke, approval metadata, previous SHA, rollback readiness, visible deployed SHA | 11 | `PARTIAL` | Automation or historical evidence exists, but the current release has not completed these live gates. |
-| Same-digest production promotion, production smoke, 15–30 minute monitoring, green remote CI, healthy staging/production, continuously running worker, executed rollback | 7 | `BLOCKED` | Frontend/API recovered, but the worker cannot remain healthy while the external Redis quota is exhausted. Current remote CI, protected inputs, staging, promotion, and rollback evidence are incomplete. |
+| P12-09/P12-10, CI/release execution, immutable current image push, staging API/worker, staging smoke, approval metadata, previous SHA, rollback readiness, visible deployed SHA | 11 | `PARTIAL` | Immutable images, current ECS revisions, public smoke, previous SHA, rollback, and visible deployed SHA are proven; protected authenticated smoke and final certification remain. |
+| Same-digest production promotion, production smoke, 15–30 minute monitoring, green remote CI, healthy staging/production, continuously running worker, executed rollback | 7 | `PARTIAL` | Worker health, rollback, and 15-minute observation passed. Protected authenticated smoke and remote CI remain blocked; no separate production-service promotion is claimed. |
 
 Total: **32 requirements**.
 
-## Current Runtime Evidence — 2026-08-21
+## Current Runtime Evidence — 2026-08-22
 
 - The non-root `proxiai-deployment` role is active in `ap-south-1`.
 - Immutable scan-on-push ECR repositories and 256 CPU/512 MiB task definitions
   exist.
-- The validated deep-start recovery restored the ALB, NAT Gateway, Route 53,
-  frontend task, and API task. Public frontend, liveness, and readiness checks
-  returned HTTP 200 after DNS/target warm-up.
-- The worker remains at zero running tasks because the Upstash monthly request
-  quota is exhausted. This is an external deployment blocker, not permission
-  to weaken fail-closed Redis/BullMQ behavior.
-- A Redis credential appeared in local diagnostic output and must be rotated;
-  the replacement must update only the protected runtime secret.
-- `proxiai/production` exists, but the Phase 9 encryption keyring selectors are
-  absent. Deployment must fail closed until
-  `MESSAGE_ENCRYPTION_KEYS_JSON` and
-  `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` are populated securely.
-- Atlas and Redis remain external dependencies reached from the approved ECS
-  NAT path. Runtime TLS/auth and BullMQ heartbeat must pass after Redis quota
-  recovery and credential rotation.
+- The immutable current-SHA release runs as API revision 4, worker revision 4,
+  and frontend revision 5. Each service is desired/running `1/1`, pending `0`,
+  with healthy container checks and ALB targets where applicable.
+- `proxiai/production` contains the approved runtime keys and Phase 9
+  encryption selectors. Values were never printed or committed.
+- Atlas and Redis are reached through the approved ECS NAT path; readiness,
+  worker startup, managed heartbeat health, provider-health jobs, and recovery
+  scans passed.
 - `SMOKE_ORG_SLUG`, `SMOKE_EMAIL`, and `SMOKE_PASSWORD` are unavailable in the
   local execution environment. They must be configured as protected deployment
   values and never printed.
-- The latest public GitHub Actions runs failed before deployment and current
-  local Phase 8–11 work is not on `origin/main`; remote CI is not green.
+- The current Git SHA is on `origin/main`, but GitHub Actions cannot start jobs
+  because of an external account billing lock; remote CI is not green.
 
 ## Remaining Implementation Tasks
 
@@ -1365,14 +1358,15 @@ deployment settings, verify GitHub OIDC/environment inputs, confirm Atlas and
 Redis network paths, and validate the ignored ECS recovery snapshot. Do not
 print secret values, mutate application behavior, or start Phase 13.
 
-### Active ECS release recovery
+### Active ECS release certification
 
-ECS/Fargate remains the canonical public architecture. The 2026-08-21
-deep-start restored ALB, NAT, DNS, frontend, and API health, but the worker is
-crash-looping because the external Upstash request quota is exhausted. The
-exposed Redis credential must be rotated and the protected secret updated
-before staging, worker/accounting smoke, production promotion, rollback, and
-observation can run. Lightsail remains an unexecuted optional experiment.
+ECS/Fargate remains the canonical public architecture. The 2026-08-22 manual
+local deployment restored and certified the current immutable SHA for API,
+worker, and frontend. Public health, MongoDB, Redis, worker health, rollback,
+and 15-minute observation passed. Protected authenticated smoke credentials
+remain unavailable to the local deployment session, and GitHub Actions cannot
+execute because of an external GitHub billing lock. Lightsail remains an
+unexecuted optional experiment.
 
 ### 2026-08-21 final remediation evidence
 
@@ -1395,14 +1389,32 @@ startup path.
   HTTP 200; public `/metrics` returns HTTP 404; frontend and API targets are
   healthy.
 
-Phase 12 remains blocked, not complete. The worker is `0/1` and repeatedly
-exits during Redis/BullMQ scheduler startup. The protected runtime secret still
-lacks `MESSAGE_ENCRYPTION_KEYS_JSON` and
-`MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION`; protected smoke inputs are not
-available to this deployment session; and the current remediation commits have
-not been promoted as immutable ECR digests. Redis quota/capacity and the
-previously exposed Redis credential must be corrected externally before any
-current-SHA staging, smoke, rollback, or observation claim.
+### 2026-08-22 manual immutable ECS evidence
+
+- Git SHA: `def0ee85b8bc2ab8df1728ac135c5cc649af25cf`.
+- Frontend digest:
+  `sha256:61e7e0bb73057774f377e38447192e11babe513f1dde0d81dfb7e6593ef0d3ee`.
+- Backend digest:
+  `sha256:cb08a28ecf92c0813372edf463c76d9dd97104fd1e327c10eff71cb471e8fb44`.
+- All 20 local release-harness steps passed; both images scanned with zero
+  Critical and zero High vulnerabilities.
+- API revision 4, worker revision 4, and frontend revision 5 stabilized at
+  desired/running `1/1`, pending `0`; ECS container health and ALB targets are
+  healthy.
+- `/`, `/health/live`, and `/health/ready` passed; deployed `commitSha` matched;
+  MongoDB and Redis were `up`; public `/metrics` returned 404.
+- Deliberate rollback restored the previous
+  `eb9607adaadabdecf3802b42c523cb1d1c146c7e` release healthy, then restored the
+  current revisions healthy.
+- Fifteen public samples over 15 minutes had zero failures and zero ECS restart
+  or unhealthy events. Worker heartbeat health, provider-health updates, and
+  enqueue-recovery scans remained healthy.
+
+Phase 12 remains in progress, not complete. Protected authenticated smoke
+inputs were unavailable, so login, refresh, chat policy, encrypted history,
+billing, and analytics cannot be claimed from this deployment run. Remote CI
+is `BLOCKED_EXTERNAL_GITHUB_BILLING`; this is an external execution blocker,
+not a local test failure.
 
 Critical pre-promotion autopsy gates:
 
@@ -1414,7 +1426,7 @@ Critical pre-promotion autopsy gates:
   recovery snapshots, mandatory atomic read-back validation, a read-only
   snapshot command, and `-WhatIf` validation. The recovery snapshot remains
   ignored and validated before destructive deep-stop operations.
-- [ ] Pass current-SHA ECS staging, public smoke, worker health, and rollback
+- [x] Pass current-SHA ECS staging, public smoke, worker health, and rollback
   proof.
 
 Autopsy closure classification: unknown-usage lockout, Groq terminal stream

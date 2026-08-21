@@ -8,11 +8,40 @@ This file is a progress log. The approved documents in `docs/` remain the source
   certification.
 - **Task:** P12-09 — Certify the immutable ECS staging and production release.
 - **Status:** P12-01 through P12-08 remain implemented. Current live execution
-  is `CODE_READY / DEPLOYMENT_BLOCKED`: all 20 local release gates pass, but
-  Phase 9 encryption secret selectors, protected smoke identity, immutable
-  current image digests, healthy Redis/BullMQ worker capacity, and deployed
-  staging/production/rollback evidence remain unavailable. Phase 13 has not
-  started.
+  is `MANUAL_ECS_RELEASE_VERIFIED / AUTH_SMOKE_BLOCKED`: all 20 local release
+  gates pass; immutable current-SHA images are deployed; API, worker, frontend,
+  MongoDB, Redis, public health, rollback, and 15-minute observation passed.
+  Protected smoke credentials were unavailable to the local deployment session,
+  and remote GitHub Actions remains blocked by an external billing lock. Phase
+  13 has not started.
+
+## Latest Task — Manual Immutable ECS Release
+
+- **Git SHA:** `def0ee85b8bc2ab8df1728ac135c5cc649af25cf`.
+- **Images:** frontend
+  `sha256:61e7e0bb73057774f377e38447192e11babe513f1dde0d81dfb7e6593ef0d3ee`;
+  backend
+  `sha256:cb08a28ecf92c0813372edf463c76d9dd97104fd1e327c10eff71cb471e8fb44`.
+- **Local gate:** `node scripts/verify-release.mjs` passed all 20 release steps;
+  both release images reported zero Critical and zero High vulnerabilities.
+- **Runtime:** current task definitions are API revision 4, worker revision 4,
+  and frontend revision 5. All are desired/running `1/1`, pending `0`, with
+  healthy ECS container checks and healthy ALB targets where applicable.
+- **Public proof:** `/`, `/health/live`, and `/health/ready` passed;
+  `commitSha` matched the Git SHA; MongoDB and Redis reported `up`; public
+  `/metrics` returned 404.
+- **Rollback proof:** API/worker revision 1 plus frontend revision 4 restored the
+  previous `eb9607adaadabdecf3802b42c523cb1d1c146c7e` release healthy; current
+  revisions were then restored successfully.
+- **Observation:** 15 public health samples over 15 minutes had zero failures,
+  with zero ECS restart/unhealthy events. Worker startup, managed heartbeat
+  health, provider-health updates, and enqueue-recovery scans remained healthy.
+- **Defects fixed:** distroless worker health no longer requires a shell; ECS
+  frontend explicitly binds Next.js to `0.0.0.0`; the slow landing coverage
+  test no longer performs a timed dynamic import.
+- **Remaining gates:** authenticated login/chat/encryption/accounting smoke must
+  run with protected `SMOKE_ORG_SLUG`, `SMOKE_EMAIL`, and `SMOKE_PASSWORD`.
+  Remote CI status is `BLOCKED_EXTERNAL_GITHUB_BILLING`, not a test failure.
 
 ## Latest Task — Final Repository Remediation
 
@@ -31,10 +60,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
   encryption/audit, async accounting, observability, ECS architecture,
   certified release evidence, safe demo access, and honest limitations without
   customer, certification, or high-availability claims.
-- **Live blocker:** Rotate the Redis credential exposed during local diagnosis,
-  update protected `REDIS_URL`, and restore BullMQ-compatible quota/capacity.
-  Frontend/API public health recovered; worker remains `0/1` until this external
-  action is complete.
+- **Resolved runtime blocker:** protected Redis connectivity and
+  BullMQ-compatible capacity now pass; API, worker, and frontend are each
+  healthy at `1/1`.
 - **Final local release evidence:** `node scripts/verify-release.mjs` passed all
   20 steps. Backend unit/coverage is 269/269 at 78.24% lines / 83.46% branches;
   frontend is 28/28 across 12 files at 77.62% lines / 69.65% branches; isolated
@@ -44,12 +72,11 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - **Harness defects fixed:** the worker-heartbeat test no longer inherits a
   developer `.env` Redis endpoint, and the frontend runner uses one isolated
   fork worker to remove the reproduced Windows thread startup timeout.
-- **Read-only AWS evidence:** frontend and API are `1/1`, their ALB targets are
-  healthy, `/`, `/health/live`, and `/health/ready` return 200, and public
-  `/metrics` returns 404. Worker remains `0/1` with repeated Redis/BullMQ
-  scheduler-start failures. The production secret contains the original five
-  keys but not the two Phase 9 encryption selectors. Protected smoke inputs
-  were unavailable to this local deployment session.
+- **Current AWS evidence:** frontend, API, and worker are `1/1`; ALB targets are
+  healthy; `/`, `/health/live`, and `/health/ready` return 200; public
+  `/metrics` returns 404. The production secret includes both Phase 9
+  encryption selectors. Protected smoke inputs remain unavailable to this
+  local deployment session.
 
 ## Latest Task — Deep-Start Failure Root Cause and Script Hardening
 

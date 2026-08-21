@@ -10,10 +10,12 @@ This document defines immutable Docker delivery from GitHub Actions to Amazon
 ECR and ECS/Fargate. The actual repository filename is
 `docs/13_CICD_DOCUMENTATION.md`; no duplicate CI/CD document is used.
 
-The 2026-08-21 recovery run restored the ECS ALB/NAT/public path and frontend/API
-health. Current remote CI, worker stability, protected smoke inputs, staging,
-same-digest production promotion, and rollback still require current execution
-evidence before Phase 12 can close.
+The 2026-08-22 manual local release deployed immutable current-SHA frontend and
+backend images to ECS and proved API/worker/frontend stability, public health,
+rollback, and 15-minute observation. Remote GitHub Actions remains unavailable
+because of an external billing lock, and protected authenticated smoke inputs
+were unavailable to the local session. Those two gates remain before Phase 12
+can close; no remote-CI success is implied by the manual release.
 
 ## 2. Release Principles
 
