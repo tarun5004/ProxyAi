@@ -97,7 +97,7 @@ groups:
         annotations:
           summary: ProxiAI provider health is unhealthy
           description: The approved provider health projection has remained explicitly unhealthy.
-          runbook_url: docs/runbooks/provider-circuit-open.md
+          runbook_url: docs/runbooks/provider-health-unhealthy.md
 
   - name: proxiai-audit
     rules:

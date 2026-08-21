@@ -215,6 +215,11 @@ test("Grafana, alerts, and runbooks use only implemented safe metrics", async ()
         /runbook_url:\s*(docs\/runbooks\/[^\s]+)/g,
     )].map((match) => match[1]);
     assert.equal(runbooks.length > 0, true);
+    assert.equal(
+        new Set(runbooks).size,
+        runbooks.length,
+        "Each alert must reference its own incident runbook.",
+    );
     for (const runbook of new Set(runbooks)) {
         const runbookPath = resolve(repositoryRoot, runbook);
         assert.equal(existsSync(runbookPath), true, `Missing runbook: ${runbook}`);
