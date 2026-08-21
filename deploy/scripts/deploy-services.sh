@@ -18,6 +18,14 @@ aws ecs describe-services \
   --query 'services[].{service:serviceName,taskDefinition:taskDefinition}' \
   --output json > previous-task-definitions.json
 
+for service in "${FRONTEND_SERVICE}" "${API_SERVICE}" "${WORKER_SERVICE}"; do
+  match_count="$(jq --arg service "${service}" '[.[] | select(.service == $service)] | length' previous-task-definitions.json)"
+  if [[ "${match_count}" != "1" ]]; then
+    echo "Expected exactly one existing ECS service named '${service}', found ${match_count}." >&2
+    exit 1
+  fi
+done
+
 frontend_task="$(aws ecs register-task-definition \
   --region "${AWS_REGION}" \
   --cli-input-json "file://${frontend_file}" \
@@ -36,19 +44,20 @@ worker_task="$(aws ecs register-task-definition \
 
 "$(dirname "$0")/run-index-task.sh" "${api_task}"
 
-aws ecs update-service --region "${AWS_REGION}" --cluster "${ECS_CLUSTER}" \
-  --service "${FRONTEND_SERVICE}" --task-definition "${frontend_task}" \
-  --force-new-deployment --output json > /dev/null
-aws ecs update-service --region "${AWS_REGION}" --cluster "${ECS_CLUSTER}" \
-  --service "${API_SERVICE}" --task-definition "${api_task}" \
-  --force-new-deployment --output json > /dev/null
-aws ecs update-service --region "${AWS_REGION}" --cluster "${ECS_CLUSTER}" \
-  --service "${WORKER_SERVICE}" --task-definition "${worker_task}" \
-  --force-new-deployment --output json > /dev/null
+deploy_service() {
+  local service="$1"
+  local task_definition="$2"
 
-aws ecs wait services-stable --region "${AWS_REGION}" \
-  --cluster "${ECS_CLUSTER}" \
-  --services "${FRONTEND_SERVICE}" "${API_SERVICE}" "${WORKER_SERVICE}"
+  aws ecs update-service --region "${AWS_REGION}" --cluster "${ECS_CLUSTER}" \
+    --service "${service}" --task-definition "${task_definition}" \
+    --force-new-deployment --output json > /dev/null
+  aws ecs wait services-stable --region "${AWS_REGION}" \
+    --cluster "${ECS_CLUSTER}" --services "${service}"
+}
+
+deploy_service "${API_SERVICE}" "${api_task}"
+deploy_service "${WORKER_SERVICE}" "${worker_task}"
+deploy_service "${FRONTEND_SERVICE}" "${frontend_task}"
 
 printf 'frontend=%s\napi=%s\nworker=%s\n' \
   "${frontend_task}" "${api_task}" "${worker_task}"

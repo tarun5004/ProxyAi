@@ -18,16 +18,17 @@ fi
 : "${API_TASK_DEFINITION:?API_TASK_DEFINITION is required}"
 : "${WORKER_TASK_DEFINITION:?WORKER_TASK_DEFINITION is required}"
 
-aws ecs update-service --region "${AWS_REGION}" --cluster "${ECS_CLUSTER}" \
-  --service "${FRONTEND_SERVICE}" \
-  --task-definition "${FRONTEND_TASK_DEFINITION}" --output json > /dev/null
-aws ecs update-service --region "${AWS_REGION}" --cluster "${ECS_CLUSTER}" \
-  --service "${API_SERVICE}" \
-  --task-definition "${API_TASK_DEFINITION}" --output json > /dev/null
-aws ecs update-service --region "${AWS_REGION}" --cluster "${ECS_CLUSTER}" \
-  --service "${WORKER_SERVICE}" \
-  --task-definition "${WORKER_TASK_DEFINITION}" --output json > /dev/null
+rollback_service() {
+  local service="$1"
+  local task_definition="$2"
 
-aws ecs wait services-stable --region "${AWS_REGION}" \
-  --cluster "${ECS_CLUSTER}" \
-  --services "${FRONTEND_SERVICE}" "${API_SERVICE}" "${WORKER_SERVICE}"
+  aws ecs update-service --region "${AWS_REGION}" --cluster "${ECS_CLUSTER}" \
+    --service "${service}" --task-definition "${task_definition}" \
+    --output json > /dev/null
+  aws ecs wait services-stable --region "${AWS_REGION}" \
+    --cluster "${ECS_CLUSTER}" --services "${service}"
+}
+
+rollback_service "${API_SERVICE}" "${API_TASK_DEFINITION}"
+rollback_service "${WORKER_SERVICE}" "${WORKER_TASK_DEFINITION}"
+rollback_service "${FRONTEND_SERVICE}" "${FRONTEND_TASK_DEFINITION}"
