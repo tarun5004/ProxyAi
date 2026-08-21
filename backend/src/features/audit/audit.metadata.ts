@@ -5,7 +5,9 @@ import type {
     SafeAuditMetadata,
 } from "./audit.types.js";
 
-const reasonSchema = z.strictObject({ reasonCode: z.string().min(1).max(80) });
+const reasonSchema = z.strictObject({
+    reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]{0,79}$/),
+});
 const emptySchema = z.strictObject({});
 const policySchema = z.strictObject({
     riskScore: z.number().int().min(0).max(100),

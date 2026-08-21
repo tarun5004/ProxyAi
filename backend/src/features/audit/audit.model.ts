@@ -108,6 +108,7 @@ for (const operation of [
     "updateOne",
     "updateMany",
     "findOneAndUpdate",
+    "findOneAndReplace",
     "replaceOne",
     "deleteOne",
     "deleteMany",
@@ -117,6 +118,10 @@ for (const operation of [
         throw new Error("AuditLog is append-only.");
     });
 }
+
+auditLogSchema.pre("bulkWrite", function rejectAuditBulkMutation() {
+    throw new Error("AuditLog is append-only.");
+});
 
 auditLogSchema.index({ auditId: 1 }, {
     name: "uniq_audit_logs_audit_id",

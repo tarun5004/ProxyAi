@@ -97,7 +97,7 @@ export function buildAuditCsv(records: readonly AuditLog[]): string {
 }
 
 function csvCell(value: string): string {
-    const neutralized = /^[=+\-@]/.test(value) ? `'${value}` : value;
+    const neutralized = /^\s*[=+\-@]/.test(value) ? `'${value}` : value;
     return `"${neutralized.replaceAll('"', '""')}"`;
 }
 
