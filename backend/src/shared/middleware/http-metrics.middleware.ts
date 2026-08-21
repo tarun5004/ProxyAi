@@ -28,6 +28,11 @@ export function httpMetricsMiddleware(
     response: Response,
     next: NextFunction,
 ): void {
+    if (request.path === "/metrics") {
+        next();
+        return;
+    }
+
     const startedAt = process.hrtime.bigint();
     let observed = false;
 

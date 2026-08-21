@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import type { ClientSession } from "mongoose";
 
 import { AppError } from "../../shared/errors/app-error.js";
+import { metrics } from "../../shared/observability/metrics.js";
 import { auditRepository, type AuditRepository } from "./audit.repository.js";
 import type { NewAuditLog } from "./audit.types.js";
 
@@ -12,7 +13,9 @@ export async function appendAudit(
 ): Promise<void> {
     try {
         await repository.append(input, session);
+        metrics.auditWritesTotal.inc({ outcome: "success" });
     } catch {
+        metrics.auditWritesTotal.inc({ outcome: "failure" });
         throw auditUnavailableError();
     }
 }

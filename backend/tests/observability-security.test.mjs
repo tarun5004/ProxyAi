@@ -98,9 +98,13 @@ test("metrics interactions leak no sensitive input and cannot bypass auth", asyn
     const finalMetrics = await metricsRegistry.metrics();
     assertNoSensitiveSentinels(finalMetrics);
     assert.equal(
-        finalMetrics.includes("proxiai_http_requests_total"),
+        finalMetrics.includes('route="/metrics"'),
         false,
         "GET /metrics must be excluded from HTTP request metrics to prevent scrape feedback.",
+    );
+    assert.match(
+        finalMetrics,
+        /proxiai_http_requests_total\{method="GET",route="(?:unmatched|\/api\/v1\/admin\/summary)",status_class="4xx"\} 1/,
     );
 });
 
