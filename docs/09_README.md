@@ -791,10 +791,14 @@ Core metrics may include:
 - provider latency and error count;
 - circuit-breaker state;
 - fallback count;
-- prompt cache hit ratio;
+- idempotency reservation outcomes;
 - queue depth and failed jobs;
 - billing job duration;
-- active alerts.
+- worker/dependency readiness;
+- AuditLog write outcomes.
+
+Prompt-cache and response-replay metrics remain deferred with their execution
+paths. They are not emitted as fake constant-zero series.
 
 Do not use `orgId`, `userId`, email address, prompt, or request ID as high-cardinality metric labels.
 

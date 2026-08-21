@@ -47,6 +47,10 @@ action and existing path rules to HTTPS redirects as an explicit reviewed AWS
 operation. Worker tasks are private, have no listener or public IP, and use the
 same backend image digest.
 
+The worker task declares internal metrics port `9464` for private scraping only.
+It has no load balancer target group and the task security group must not permit
+public ingress to that port.
+
 ## Secrets
 
 The services read approved JSON keys from one environment-scoped runtime secret.

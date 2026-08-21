@@ -567,7 +567,9 @@ This endpoint should be:
 - free of sensitive labels.
 
 The API and worker use separate process-local registries. The worker metrics
-listener has no public port. The frontend exposes no Prometheus endpoint.
+listener uses validated internal port `9464`, serves only `GET /metrics`, and
+has no ALB, Caddy, target-group, or public-firewall route. The frontend exposes
+no Prometheus endpoint.
 
 ---
 

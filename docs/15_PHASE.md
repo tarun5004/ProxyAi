@@ -900,17 +900,17 @@ response, PII, credential, or secret is stored or logged.
 **Effort:** High
 
 - [x] P10-01 — Audit executable observability paths and approve the exact metric inventory, histogram buckets, private scrape boundary, and bounded label allowlists.
-- [ ] P10-02 — Add process-local Prometheus registries and private API/worker scrape endpoints.
-- [ ] P10-03 — Add normalized HTTP completion and duration instrumentation.
-- [ ] P10-04 — Add chat completion and time-to-first-token instrumentation.
-- [ ] P10-05 — Add provider latency, normalized error, retry, fallback, circuit, and health instrumentation.
-- [ ] P10-06 — Add PII-category and policy-decision instrumentation.
-- [ ] P10-07 — Add idempotency operation instrumentation; prompt-cache/replay metrics remain deferred and must not emit fake zero series.
-- [ ] P10-08 — Add dependency, queue depth/job, worker lifecycle/heartbeat, and audit-write instrumentation.
-- [ ] P10-09 — Add one private Grafana dashboard and bounded alert rules/runbooks for API error rate, MongoDB, Redis, worker heartbeat, queue failures, provider circuit, and audit-write failures.
-- [ ] P10-10 — Verify metric correctness, private endpoint exposure, bounded cardinality, redaction, dashboard panels, and alert/runbook behavior.
+- [x] P10-02 — Add process-local Prometheus registries and private API/worker scrape endpoints.
+- [x] P10-03 — Add normalized HTTP completion and duration instrumentation.
+- [x] P10-04 — Add chat completion and time-to-first-token instrumentation.
+- [x] P10-05 — Add provider latency, normalized error, retry, fallback, circuit, and health instrumentation.
+- [x] P10-06 — Add PII-category and policy-decision instrumentation.
+- [x] P10-07 — Add idempotency operation instrumentation; prompt-cache/replay metrics remain deferred and must not emit fake zero series.
+- [x] P10-08 — Add dependency, queue depth/job, worker lifecycle/heartbeat, and audit-write instrumentation.
+- [x] P10-09 — Add one private Grafana dashboard and bounded alert rules/runbooks for API error rate, MongoDB, Redis, worker heartbeat, queue failures, provider circuit, and audit-write failures.
+- [x] P10-10 — Verify metric correctness, private endpoint exposure, bounded cardinality, redaction, dashboard panels, and alert/runbook behavior.
 - [x] `requestId` already propagates through request-derived jobs; an ad hoc second trace ID is prohibited and full W3C/OpenTelemetry tracing remains deferred pending collector, sampling, retention, and access-control contracts.
-- [x] Provider-health Redis state and worker heartbeat state already exist; Prometheus export remains P10-05/P10-08 work.
+- [x] Provider-health Redis state and worker heartbeat state are exported through the completed P10-05/P10-08 instrumentation.
 - [x] Structured redacted Pino logs, request IDs, liveness/readiness, and seven-day CloudWatch log retention are already complete.
 - [x] MongoDB provider-health history is not required for the MVP because Redis health plus Phase 10 metrics provides bounded operational state without duplicate durable history.
 - [x] Public Bull Board/manual replay tooling remains deferred because it risks exposing safe-but-internal job metadata; failed-set metrics and structured logs are the approved MVP visibility path.
@@ -918,12 +918,12 @@ response, PII, credential, or secret is stored or logged.
 
 ## Exit Criteria
 
-- [ ] Logs are structured and redacted.
-- [ ] Metrics endpoint works.
-- [ ] Dashboard works.
-- [ ] Critical alerts have runbooks.
-- [ ] Metrics endpoints are unreachable through public ALB/Caddy routes.
-- [ ] Label-cardinality and sensitive-value scans pass.
+- [x] Logs are structured and redacted.
+- [x] Metrics endpoint works for the API and private worker listener.
+- [x] Dashboard queries reference implemented metric families only.
+- [x] Each critical alert has one dedicated runbook.
+- [x] Metrics endpoints are absent from public ALB/Caddy routes.
+- [x] Label-cardinality and sensitive-value scans pass.
 
 ---
 
@@ -1162,7 +1162,7 @@ Do not randomly change several files.
 | Phase 7 | Completed | Provider health and durable billing/analytics enqueue recovery verified; email delivery waived to Phase 8 |
 | Phase 8 | Completed | Read-only tenant admin APIs/UI verified; audit-dependent mutations explicitly blocked/deferred to Phase 9 |
 | Phase 9 | Completed | Versioned AES-GCM storage, append-only audit, audited admin mutations, safe export, migration, and tenant/security gates verified |
-| Phase 10 | Not Started | |
+| Phase 10 | Completed | Bounded API/worker metrics, dashboard, alerts, dedicated runbooks, redaction/cardinality gates, and private scrape boundaries verified |
 | Phase 11 | Not Started | |
 | Phase 12 | In Progress | P12-01 through P12-08 implementation complete; live AWS rollout/rollback gates remain P12-09 |
 | Phase 13 | Not Started | |
@@ -1171,11 +1171,12 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
-## Phase 10 — Observability and Operations Planning
+## Phase 11 — Testing and Hardening Planning
 
-Phase 9 is complete. Run the Phase 10 contract/readiness audit before adding
-metrics, tracing, dashboards, or operational alerting. Phase 10 implementation
-has not started.
+Phase 10 is complete. Phase 11 has not started; run its contract/readiness audit
+before changing test architecture, coverage policy, or release-blocking gates.
+Prompt-cache and completed-response replay metrics remain deferred because those
+execution paths are still deferred.
 
 ### Active cost-cut migration
 

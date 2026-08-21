@@ -216,9 +216,15 @@ contracts may differ, but both remain strictly validated.
 
 Prometheus scrapes process-local API and worker registries over private runtime
 networking only. The API may serve `GET /metrics` on its existing container
-port, while the worker may use a dedicated internal-only metrics port. The ALB,
+port, while the worker uses validated internal-only port `9464`. The ALB,
 Caddy, Lightsail firewall, and public security groups must not route or expose
 either endpoint. The frontend has no metrics endpoint.
+
+ECS declares worker container port `9464` without a target group or public
+security-group rule. Lightsail/local Compose expose it only to the private
+container network; Caddy has no `/metrics` route. Any future scraper must use an
+explicit private-network rule rather than changing application authentication
+or public routing.
 
 One Grafana dashboard may consume the Prometheus data after Phase 10
 implementation. It must not query or display raw prompts, responses, tenant IDs,

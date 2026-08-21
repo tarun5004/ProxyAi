@@ -2018,7 +2018,8 @@ Prompt and response content must never be logged.
 
 Phase 10 uses one process-local Prometheus registry per runtime. The API exposes
 `GET /metrics` only inside the private runtime network. The worker exposes a
-separate internal-only metrics listener because it does not run the public API.
+separate internal-only metrics listener on validated
+`WORKER_METRICS_PORT=9464` because it does not run the public API.
 The ALB and Caddy must not route either metrics endpoint publicly. Scrapes do
 not require application authentication because network isolation is mandatory;
 public exposure is a deployment failure.
@@ -2026,6 +2027,11 @@ public exposure is a deployment failure.
 The frontend has no Prometheus registry. Default Node.js process metrics may be
 enabled without custom tenant or request labels. `/metrics` itself is excluded
 from HTTP request metrics to avoid scrape feedback.
+
+The worker listener binds inside the worker container, serves only
+`GET /metrics`, returns `404` for application routes, starts once with worker
+infrastructure, and closes before dependency shutdown. Deployment security
+groups/firewalls must not publish port `9464`.
 
 ### 38.2 Canonical application metric inventory
 

@@ -5,12 +5,20 @@ This file is a progress log. The approved documents in `docs/` remain the source
 ## Current Work
 
 - **Phase:** Phase 10 — Observability and Operations
-- **Task:** P10-01 — Metric inventory and bounded label contract.
-- **Status:** Contract audit completed on 2026-08-21. No Phase 10 production
-  instrumentation has been implemented; P10-02 is next.
+- **Task:** Phase 10 closure.
+- **Status:** P10-01 through P10-10 completed and release-gated on 2026-08-21.
+  Phase 11 has not started.
 
 ## Completed Tasks
 
+- P10-01 through P10-10 — Bounded Prometheus metrics, private API/worker scrape
+  listeners, HTTP/chat/provider/policy/PII/idempotency/dependency/queue/worker/
+  audit instrumentation, Grafana dashboard, alerts, and dedicated incident
+  runbooks completed on 2026-08-21.
+- Phase 10 — Observability and Operations completed on 2026-08-21 after
+  `241/241` backend tests, `30/30` focused observability fixtures, runtime
+  readiness/scrape verification, operations-config validation, and security
+  scans passed.
 - P9-01 through P9-11 — Versioned AES-256-GCM, retention-aware encrypted
   Message storage/read, encrypted Conversation titles and migration,
   append-only AuditLog, audited admin/session/policy/budget/retention/alert
@@ -97,10 +105,9 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Important Decisions
 
-- P10-01 audited executable logging, health, chat, provider, policy, PII,
-  idempotency, BullMQ/worker, AuditLog, and deployment paths before defining
-  metrics. The code currently has no Prometheus dependency, registry, scrape
-  endpoint, Grafana dashboard, or alert rules.
+- Phase 10 implements the P10-01 inventory without aliases: one process-local
+  registry per API/worker runtime, bounded instruments at owning boundaries,
+  one Grafana dashboard, eight alerts, and eight dedicated runbooks.
 - Phase 10 metrics use process-local API and worker registries with private-only
   scrape endpoints. ALB, Caddy, public security groups, and the Lightsail
   firewall must not expose them.
@@ -116,8 +123,12 @@ This file is a progress log. The approved documents in `docs/` remain the source
   Their metric series must not be registered as constant zero while the
   execution paths remain unimplemented.
 - Existing Redis provider health, worker heartbeat state, structured redacted
-  Pino logs, liveness/readiness, and seven-day CloudWatch logs are reusable
-  observability sources. Prometheus export remains Phase 10 implementation.
+  Pino logs, liveness/readiness, and seven-day CloudWatch logs are reused by the
+  completed Prometheus instrumentation.
+- API `/metrics` and worker port `9464` are private runtime endpoints. The API
+  excludes its own scrape from HTTP metrics; the worker listener serves no
+  application routes and closes before dependency shutdown. ALB and Caddy route
+  neither endpoint.
 - MongoDB provider-health history and public Bull Board/manual replay tooling
   are approved-deferred for the MVP; bounded metrics and safe failed-set/log
   visibility avoid duplicate storage and unsafe operational payload exposure.
@@ -390,7 +401,9 @@ npm run dev
 - Compromised/common-password blocklisting remains deferred. Login rate limiting and missing-user timing equalization are now implemented.
 - Argon2 is a native dependency; clean installation succeeded on the current Node 22 Windows environment, but deployment images must verify compatible native binaries.
 - The approved local Argon2 profile averaged 31.78 ms across five manual samples. Production hardware and expected authentication concurrency still require benchmarking.
-- `npm audit --omit=dev` reports zero production vulnerabilities. Full `npm audit` reports one high-severity development-only `brace-expansion` advisory through ESLint; it was not changed because it is unrelated to P2-03.
+- The earlier development-only `brace-expansion` advisory was resolved during
+  the Phase 10 release gate through a safe lockfile-only transitive update;
+  full and production audits now report zero vulnerabilities.
 - JWT claims are authentication assertions, not the final authorization source. P2-06 must reload active User and Organisation state before protected access.
 - Role-to-permission policy mapping remains deferred to P2-07; P2-04 serializes only allowlisted permissions already stored on the User.
 - The fixed-window limiter evaluates IP and account keys independently. A partial Redis write can increment one dimension before another evaluation fails, but login still fails closed.
@@ -1207,7 +1220,7 @@ npm run dev
 ## Latest Phase 9 Task
 
 - **Task:** P9-01 through P9-11 — Complete Phase 9 Retention, Encryption, and Audit.
-- **Status:** Completed on 2026-08-21. Phase 10 was not started.
+- **Status:** Completed on 2026-08-21 before the now-completed Phase 10 work.
 - **Encryption:** Central AES-256-GCM service uses a validated versioned
   application keyring, fresh 12-byte IVs, 16-byte tags, canonical base64url,
   and tenant/resource-bound AAD. Missing keys, wrong AAD, tampering, malformed
@@ -1250,19 +1263,54 @@ npm run dev
 - **Operational limitations:** The MVP uses one application-level versioned
   keyring. BYOK, per-organisation keys, KMS/HSM envelope encryption, automatic
   rotation/re-encryption, custom retention/TTL deletion, prompt cache, response
-  replay, and email remain deferred. Backend build-only dependencies retain one
-  pre-existing high-severity `brace-expansion` advisory; production dependency
-  audit is clean.
+  replay, and email remain deferred. The transitive development-only
+  `brace-expansion` advisory was resolved to `5.0.9`; full and production
+  dependency audits are clean.
 - **Local environment note:** The developer `.env` currently contains a
   malformed duplicated Redis assignment prefix. Verification used the healthy
   local Redis service through an explicit process-only `REDIS_URL` override;
   no `.env` or secret file was modified or committed.
 
+## Latest Phase 10 Task
+
+- **Task:** P10-01 through P10-10 — Complete Phase 10 Observability and
+  Operations.
+- **Status:** Completed on 2026-08-21. Phase 11 has not started.
+- **Instrumentation:** The API and worker use bounded process-local Prometheus
+  registries. HTTP, chat, TTFT, provider resilience/health, policy, PII,
+  idempotency, dependency readiness, queue/job, worker lifecycle/heartbeat,
+  and audit-write owning boundaries emit without request, user, organisation,
+  resource, model, raw path, prompt, response, or secret labels.
+- **Runtime boundaries:** API `/metrics` and worker port `9464` are private.
+  `/metrics` does not instrument itself, and the worker listener exposes no
+  application route and shuts down cleanly before shared dependencies.
+- **Operations:** One validated Grafana dashboard contains 20 panels. Eight
+  bounded alert rules each map to one dedicated incident runbook. Public
+  ALB/Caddy routes and power-control scripts remain unchanged.
+- **Verification:** Focused observability fixtures passed `30/30`; the full
+  backend suite passed `241/241`; lint, typecheck, build, diff-check, dashboard
+  JSON, alert YAML/metric references, runbook mapping, runtime health/scrape,
+  cardinality, sensitive-data, and secret scans passed. Full and production
+  dependency audits report zero vulnerabilities.
+- **Runtime evidence:** Local API checks returned `200` for `/health/live` and
+  `/health/ready`; MongoDB and Redis readiness gauges reached `1`; normal and
+  unmatched HTTP series changed while repeated `/metrics` scrapes created no
+  self-series. Focused fixtures proved successful chat, BLOCK with zero
+  provider calls, masked provider input, provider retry, and worker-job metric
+  changes without a paid provider call.
+- **Deferred:** Prompt-cache/completed-replay metrics remain absent until those
+  execution paths are implemented. Full OpenTelemetry tracing, managed
+  monitoring/notification delivery, and public Bull Board remain separately
+  deferred; no fake zero series or Phase 11 implementation was added.
+- **Local environment note:** The ignored developer `.env` still contains a
+  malformed duplicated Redis assignment prefix. Release verification used a
+  process-only local Redis override and did not modify or expose the file.
+
 ## Recommended Next Task
 
-- Run the Phase 10 Observability and Operations contract/readiness audit. Do
-  not implement Phase 10 until that audit is approved. P12-09A deployment work
-  remains a separate operational track.
+- Run the Phase 11 Testing and Hardening contract/readiness audit. Do not start
+  Phase 11 implementation until its release-gate and coverage contracts are
+  approved. P12-09A deployment work remains a separate operational track.
 
 ## Active Lightsail Cost-Cut Migration
 

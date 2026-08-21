@@ -25,6 +25,9 @@ Lightsail instance without changing product behavior.
 3. Configure protected `SMOKE_EMAIL` and `SMOKE_PASSWORD` secrets.
 4. Keep application runtime values only in `proxiai/production`.
 
+The worker exposes Prometheus port `9464` only on the Compose network. Caddy and
+the Lightsail firewall do not route or publish it.
+
 ## Provision
 
 Check mode is the default:
