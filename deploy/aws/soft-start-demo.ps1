@@ -7,7 +7,9 @@ param(
     [string]$FrontendServiceName = "proxiai-staging-frontend",
     [string]$ApiServiceName = "proxiai-staging-api",
     [string]$WorkerServiceName = "proxiai-staging-worker",
-    [string]$PublicUrl = "https://proxiai.me"
+    [string]$PublicUrl = "https://proxiai.me",
+    [ValidateRange(1, 90)]
+    [int]$PublicSmokeMaximumAttempts = 12
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,9 +25,12 @@ Wait-ProxiServicesStable -Profile $Profile -Region $Region -ClusterName $Cluster
 Set-ProxiServiceCount -Profile $Profile -Region $Region -ClusterName $ClusterName -ServiceName $FrontendServiceName -DesiredCount 1
 $serviceNames = @($ApiServiceName, $WorkerServiceName, $FrontendServiceName)
 $services = Wait-ProxiServicesStable -Profile $Profile -Region $Region -ClusterName $ClusterName -ServiceNames $serviceNames
-$smoke = Test-ProxiPublicEndpoints -BaseUrl $PublicUrl
+$smoke = Test-ProxiPublicEndpoints `
+    -BaseUrl $PublicUrl `
+    -MaximumAttempts $PublicSmokeMaximumAttempts
 if (-not $smoke.Passed) {
-    throw "Public ProxiAI smoke verification failed."
+    $summary = Get-ProxiPublicSmokeSummary -Smoke $smoke
+    throw "Public ProxiAI smoke verification failed. $summary"
 }
 
 [pscustomobject]@{

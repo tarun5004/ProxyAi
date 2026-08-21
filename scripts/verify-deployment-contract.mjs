@@ -39,6 +39,13 @@ for (const path of powershellScripts) {
     ]);
 }
 
+run(powershell, [
+    "-NoProfile",
+    "-NonInteractive",
+    "-File",
+    resolve(rootDirectory, "deploy/aws/tests/demo-power-common.test.ps1"),
+]);
+
 const bash = findBash();
 
 for (const path of shellScripts) {

@@ -71,6 +71,21 @@ Use no-charge gateway endpoints where applicable.
 
 ## 5. Managed Redis
 
+The current demo endpoint is Upstash. On 2026-08-21 its monthly request quota
+was exhausted, so new authenticated Redis connections failed and the ECS worker
+entered a startup crash loop. This is an external capacity blocker, not a
+condition the application may bypass. Before another deployment start:
+
+1. upgrade/reset the approved Upstash quota or provision an approved compatible
+   endpoint;
+2. rotate the Redis credential because deployment diagnostics exposed the old
+   credential locally, then update only the `REDIS_URL` key in
+   `proxiai/production` without printing it;
+3. verify TLS/auth, BullMQ scheduler creation, worker heartbeat, and bounded
+   queue processing from the deployed network;
+4. keep Redis-dependent auth, idempotency, rate limiting, provider health, and
+   workers fail closed until those checks pass.
+
 Initial candidate: one node-based ElastiCache for Valkey `cache.t4g.micro`
 node, cluster mode disabled, zero replicas, TLS enabled, authentication enabled,
 and an approved `noeviction` parameter group. It provides 0.5 GiB memory and is

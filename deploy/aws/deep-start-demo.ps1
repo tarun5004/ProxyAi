@@ -345,7 +345,8 @@ foreach ($changeId in $route53Changes) {
     -FrontendServiceName $FrontendServiceName `
     -ApiServiceName $ApiServiceName `
     -WorkerServiceName $WorkerServiceName `
-    -PublicUrl "https://$DomainName" | Out-Null
+    -PublicUrl "https://$DomainName" `
+    -PublicSmokeMaximumAttempts 90 | Out-Null
 
 $frontendHealth = Get-ProxiTargetHealthSummary -Profile $Profile -Region $Region -TargetGroupArn $state.targetGroups.frontendArn
 $apiHealth = Get-ProxiTargetHealthSummary -Profile $Profile -Region $Region -TargetGroupArn $state.targetGroups.apiArn
@@ -355,7 +356,8 @@ if (@($frontendHealth | Where-Object State -eq "healthy").Count -lt 1 -or @($api
 $services = Get-ProxiServices -Profile $Profile -Region $Region -ClusterName $ClusterName -ServiceNames $serviceNames
 $smoke = Test-ProxiPublicEndpoints -BaseUrl "https://$DomainName"
 if (-not $smoke.Passed) {
-    throw "Public ProxiAI smoke verification failed after deep start."
+    $summary = Get-ProxiPublicSmokeSummary -Smoke $smoke
+    throw "Public ProxiAI smoke verification failed after deep start. $summary"
 }
 
 [pscustomobject]@{

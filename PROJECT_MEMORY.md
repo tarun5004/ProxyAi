@@ -8,8 +8,34 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - **Task:** P12-09.1 — Protected Runtime and Release Prerequisites.
 - **Status:** P12-01 through P12-08 remain implemented. Current live execution
   is blocked on Phase 9 encryption secret selectors, protected smoke identity,
-  green remote CI/current image digests, restored ECS rollback infrastructure,
+  green remote CI/current image digests, healthy Redis/BullMQ worker capacity,
   and deployed staging/Lightsail evidence. Phase 13 has not started.
+
+## Latest Task — Deep-Start Failure Root Cause and Script Hardening
+
+- **Observed failure:** `demo-power.ps1 deep-start -Apply` reconstructed the NAT,
+  ALB, HTTPS listeners/rules, Route 53 alias, and desired ECS counts, then
+  reported generic public-smoke failure from `soft-start-demo.ps1`.
+- **Public-smoke root cause:** Route 53 authoritative change completion and ECS
+  service stability did not guarantee that the local recursive DNS cache and
+  ALB targets were ready for an immediate one-shot probe. The same frontend,
+  `/health/live`, and `/health/ready` endpoints later returned HTTP 200 without
+  an application change.
+- **Worker root cause:** Upstash rejected new Redis authentication because its
+  monthly 500,000-request quota was exhausted. The worker therefore exits
+  fail-closed during Redis/BullMQ startup and ECS repeatedly replaces it.
+- **Fix:** deployment helpers now require three consecutive expected ECS count
+  observations after the AWS waiter, retry public smoke with bounded safe
+  status metadata, and allow deep-start up to the Route 53 negative-cache
+  window. Focused PowerShell helper tests and the deployment contract verifier
+  pass; `deep-start -WhatIf` remains mutation-free.
+- **Security action:** a local diagnostic exposed the previous Redis credential
+  in terminal output. Rotate it at the provider, update only the protected
+  `proxiai/production` `REDIS_URL`, and never reuse or print the old value.
+- **Current AWS state:** NAT, ALB, Route 53, frontend, and API are restored;
+  public health is HTTP 200. Worker remains `0/1` and staging is not releasable
+  until Redis quota/capacity and credential rotation are resolved and worker
+  heartbeat plus schedulers pass.
 
 ## Latest Task — Phase 12 Contract and Readiness Audit
 

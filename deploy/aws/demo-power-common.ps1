@@ -122,9 +122,14 @@ function Wait-ProxiServiceCounts {
         [Parameter(Mandatory)]
         [ValidateRange(0, 1)]
         [int]$ExpectedCount,
-        [int]$MaximumAttempts = 120
+        [int]$MaximumAttempts = 120,
+        [ValidateRange(1, 12)]
+        [int]$ConsecutiveReadyChecks = 1,
+        [ValidateRange(0, 60)]
+        [int]$PollIntervalSeconds = 5
     )
 
+    $consecutiveReady = 0
     for ($attempt = 0; $attempt -lt $MaximumAttempts; $attempt++) {
         $services = Get-ProxiServices -Profile $Profile -Region $Region -ClusterName $ClusterName -ServiceNames $ServiceNames
         $ready = @($services | Where-Object {
@@ -133,12 +138,23 @@ function Wait-ProxiServiceCounts {
             $_.pendingCount -eq 0
         }).Count -eq $ServiceNames.Count
         if ($ready) {
-            return $services
+            $consecutiveReady++
+            if ($consecutiveReady -ge $ConsecutiveReadyChecks) {
+                return $services
+            }
         }
-        Start-Sleep -Seconds 5
+        else {
+            $consecutiveReady = 0
+        }
+        if ($attempt + 1 -lt $MaximumAttempts -and $PollIntervalSeconds -gt 0) {
+            Start-Sleep -Seconds $PollIntervalSeconds
+        }
     }
 
-    throw "ECS services did not reach expected count $ExpectedCount."
+    $serviceSummary = @($services | ForEach-Object {
+        "$($_.serviceName)=$($_.runningCount)/$($_.desiredCount),pending=$($_.pendingCount)"
+    }) -join "; "
+    throw "ECS services did not sustain expected count $ExpectedCount. $serviceSummary"
 }
 
 function Wait-ProxiServicesStable {
@@ -162,7 +178,13 @@ function Wait-ProxiServicesStable {
         throw "ECS services did not become stable."
     }
 
-    return Get-ProxiServices -Profile $Profile -Region $Region -ClusterName $ClusterName -ServiceNames $ServiceNames
+    return Wait-ProxiServiceCounts `
+        -Profile $Profile `
+        -Region $Region `
+        -ClusterName $ClusterName `
+        -ServiceNames $ServiceNames `
+        -ExpectedCount 1 `
+        -ConsecutiveReadyChecks 3
 }
 
 function Get-ProxiLoadBalancer {
@@ -611,22 +633,52 @@ function Assert-ProxiPowerState {
 function Test-ProxiPublicEndpoints {
     param(
         [Parameter(Mandatory)]
-        [string]$BaseUrl
+        [string]$BaseUrl,
+        [ValidateRange(1, 60)]
+        [int]$MaximumAttempts = 12,
+        [ValidateRange(0, 60)]
+        [int]$RetryDelaySeconds = 10
     )
 
-    $checks = [ordered]@{}
-    foreach ($path in @("/", "/health/live", "/health/ready")) {
-        try {
-            $response = Invoke-WebRequest -Uri "$BaseUrl$path" -TimeoutSec 30
-            $checks[$path] = $response.StatusCode
+    for ($attempt = 1; $attempt -le $MaximumAttempts; $attempt++) {
+        $checks = [ordered]@{}
+        foreach ($path in @("/", "/health/live", "/health/ready")) {
+            try {
+                $response = Invoke-WebRequest `
+                    -Uri "$BaseUrl$path" `
+                    -TimeoutSec 30 `
+                    -UseBasicParsing
+                $checks[$path] = $response.StatusCode
+            }
+            catch {
+                $checks[$path] = "FAIL"
+            }
         }
-        catch {
-            $checks[$path] = "FAIL"
+
+        $passed = @($checks.Values | Where-Object { $_ -ne 200 }).Count -eq 0
+        if ($passed -or $attempt -eq $MaximumAttempts) {
+            return [pscustomobject]@{
+                Passed = $passed
+                Checks = $checks
+                Attempts = $attempt
+            }
+        }
+        if ($RetryDelaySeconds -gt 0) {
+            Start-Sleep -Seconds $RetryDelaySeconds
         }
     }
+}
 
-    $passed = @($checks.Values | Where-Object { $_ -ne 200 }).Count -eq 0
-    return [pscustomobject]@{ Passed = $passed; Checks = $checks }
+function Get-ProxiPublicSmokeSummary {
+    param(
+        [Parameter(Mandatory)]
+        [object]$Smoke
+    )
+
+    $checks = @($Smoke.Checks.GetEnumerator() | ForEach-Object {
+        "$($_.Key)=$($_.Value)"
+    }) -join ", "
+    return "attempts=$($Smoke.Attempts); $checks"
 }
 
 function Write-ProxiJsonFile {
