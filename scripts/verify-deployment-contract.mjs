@@ -6,6 +6,23 @@ import { fileURLToPath } from "node:url";
 
 const rootDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dockerfiles = ["frontend/Dockerfile", "backend/Dockerfile"];
+const awsServicesTemplate = await readFile(
+    resolve(rootDirectory, "deploy/aws/services.yml"),
+    "utf8",
+);
+const workerTaskDefinition = awsServicesTemplate.match(
+    /WorkerTaskDefinition:[\s\S]*?WorkerService:/u,
+)?.[0];
+
+if (workerTaskDefinition === undefined) {
+    throw new Error("deploy/aws/services.yml must define the worker task.");
+}
+if (/CMD-SHELL/u.test(workerTaskDefinition)) {
+    throw new Error("The distroless worker health check must not require a shell.");
+}
+if (!/HealthCheck:\s*\n\s*Command:\s*\n\s*- CMD\s*\n\s*- \/usr\/local\/bin\/node\s*\n\s*- -e/u.test(workerTaskDefinition)) {
+    throw new Error("The worker health check must execute Node directly.");
+}
 
 for (const path of dockerfiles) {
     const contents = await readFile(resolve(rootDirectory, path), "utf8");
