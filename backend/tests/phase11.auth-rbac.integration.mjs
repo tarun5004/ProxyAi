@@ -183,7 +183,10 @@ test("every Phase 8 and 9 admin route enforces canonical role permissions at run
     for (const input of guardedRequests) {
         const response = await request(input.path, {
             ...input.options,
-            headers: bearer(adminToken),
+            headers: {
+                ...(input.options.headers ?? {}),
+                ...bearer(adminToken),
+            },
         });
         assert.notEqual(response.status, 401, `${input.options.method ?? "GET"} ${input.path}`);
         assert.notEqual(response.status, 403, `${input.options.method ?? "GET"} ${input.path}`);
@@ -202,7 +205,10 @@ test("foreign admin resource identifiers return generic not found without mutati
     await assertError(
         await request(`/api/v1/admin/users/${fixture.foreignUserId}/role`, {
             method: "PATCH",
-            headers: bearer(adminToken),
+            headers: {
+                ...bearer(adminToken),
+                "content-type": "application/json",
+            },
             body: JSON.stringify({ role: "ORG_ADMIN" }),
         }),
         404,

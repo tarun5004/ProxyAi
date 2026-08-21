@@ -41,7 +41,10 @@ export const CRITICAL_BACKEND_MODULES = Object.freeze([
     Object.freeze({
         name: "aes-gcm-encryption",
         source: "dist/shared/security/encryption.js",
-        tests: ["tests/encryption.test.mjs"],
+        tests: [
+            "tests/encryption.test.mjs",
+            "tests/encryption-unconfigured.test.mjs",
+        ],
     }),
     Object.freeze({
         name: "permission-authorization",
@@ -50,6 +53,21 @@ export const CRITICAL_BACKEND_MODULES = Object.freeze([
             "tests/admin.phase8.test.mjs",
             "tests/conversation.create.test.mjs",
         ],
+    }),
+    Object.freeze({
+        name: "admin-cursor",
+        source: "dist/features/admin/admin.cursor.js",
+        tests: ["tests/cursor-security.test.mjs"],
+    }),
+    Object.freeze({
+        name: "conversation-cursor",
+        source: "dist/features/conversations/conversation.cursor.js",
+        tests: ["tests/cursor-security.test.mjs"],
+    }),
+    Object.freeze({
+        name: "message-cursor",
+        source: "dist/features/messages/message.cursor.js",
+        tests: ["tests/cursor-security.test.mjs"],
     }),
 ]);
 
@@ -60,7 +78,7 @@ export const RELEASE_STEPS = Object.freeze([
     Object.freeze({ id: "backend-tests", cwd: "backend", command: "npm", args: ["test"], timeoutMs: 600_000 }),
     Object.freeze({ id: "backend-coverage", cwd: "backend", command: "npm", args: ["run", "test:coverage"], timeoutMs: 600_000 }),
     Object.freeze({ id: "backend-critical-coverage", cwd: "backend", command: "npm", args: ["run", "test:coverage:critical"], timeoutMs: 600_000 }),
-    Object.freeze({ id: "backend-integration", cwd: "backend", command: "npm", args: ["run", "test:integration"], timeoutMs: 600_000 }),
+    Object.freeze({ id: "backend-integration", cwd: ".", command: "node", args: ["scripts/verify-phase11-integration.mjs"], timeoutMs: 900_000 }),
     Object.freeze({ id: "backend-build", cwd: "backend", command: "npm", args: ["run", "build"], timeoutMs: 300_000 }),
     Object.freeze({ id: "frontend-audit", cwd: "frontend", command: "npm", args: ["audit", "--omit=dev", "--audit-level=high"], timeoutMs: 300_000 }),
     Object.freeze({ id: "frontend-lint", cwd: "frontend", command: "npm", args: ["run", "lint"], timeoutMs: 300_000 }),
@@ -69,9 +87,11 @@ export const RELEASE_STEPS = Object.freeze([
     Object.freeze({ id: "frontend-coverage", cwd: "frontend", command: "npm", args: ["run", "test:coverage"], timeoutMs: 600_000 }),
     Object.freeze({ id: "frontend-build", cwd: "frontend", command: "npm", args: ["run", "build"], timeoutMs: 600_000 }),
     Object.freeze({ id: "security-scan", cwd: ".", command: "node", args: ["scripts/security-scan.mjs"], timeoutMs: 120_000 }),
+    Object.freeze({ id: "deployment-contract", cwd: ".", command: "node", args: ["scripts/verify-deployment-contract.mjs"], timeoutMs: 300_000 }),
     Object.freeze({ id: "diff-check", cwd: ".", command: "git", args: ["diff", "--check"], timeoutMs: 120_000 }),
     Object.freeze({ id: "frontend-container", cwd: ".", command: "docker", args: ["build", "--tag", "proxiai-frontend:phase11", "frontend"], timeoutMs: 900_000 }),
     Object.freeze({ id: "backend-container", cwd: ".", command: "docker", args: ["build", "--tag", "proxiai-backend:phase11", "backend"], timeoutMs: 900_000 }),
+    Object.freeze({ id: "container-contract", cwd: ".", command: "node", args: ["scripts/verify-container-contract.mjs"], timeoutMs: 300_000 }),
 ]);
 
 export function assertCoverageAtLeast(actual, required, label) {

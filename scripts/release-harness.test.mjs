@@ -29,6 +29,9 @@ test("release contract exposes the approved thresholds and critical modules", ()
             "provider-circuit-breaker",
             "aes-gcm-encryption",
             "permission-authorization",
+            "admin-cursor",
+            "conversation-cursor",
+            "message-cursor",
         ],
     );
 });

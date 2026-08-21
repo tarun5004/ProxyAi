@@ -216,3 +216,127 @@ test("ordered fallback does not switch provider after streamed token", async () 
     ]);
     assert.equal(secondary.getCallCount(), 0);
 });
+
+test("fallback rejects an empty candidate chain before provider execution", async () => {
+    await assert.rejects(
+        completeWithOrderedFallback(createRequest(), [], noWaitOptions),
+        /requires at least one candidate/,
+    );
+    assert.throws(
+        () => streamWithOrderedFallback(createRequest(), [], noWaitOptions),
+        /requires at least one candidate/,
+    );
+});
+
+test("stream fallback switches only when the primary fails before its first token", async () => {
+    const events = [];
+    const primary = new FakeProviderAdapter({
+        providerId: "groq",
+        model: "groq-test-model",
+        mode: "server_error",
+    });
+    const secondary = new FakeProviderAdapter({
+        providerId: "third",
+        model: "fake-model",
+        streamTokens: ["safe"],
+    });
+    const chunks = [];
+
+    for await (const chunk of streamWithOrderedFallback(
+        createRequest(),
+        [
+            createCandidate(primary, "groq-test-model"),
+            createCandidate(secondary, "fake-model"),
+        ],
+        {
+            ...noWaitOptions,
+            recordEvent: (event) => events.push(event),
+        },
+    )) {
+        chunks.push(chunk);
+    }
+
+    assert.deepEqual(chunks.map(({ type }) => type), ["token", "done"]);
+    assert.deepEqual(events.map(({ type }) => type), [
+        "provider.fallback_candidate_failed",
+        "provider.fallback_candidate_succeeded",
+    ]);
+    assert.equal(events[0].errorCategory, "provider_error");
+    assert.equal(events[0].statusCode, 500);
+});
+
+test("fallback records non-provider failures without leaking an arbitrary error", async () => {
+    const events = [];
+    const adapter = {
+        providerId: "third",
+        async complete() {
+            throw new Error("private sdk detail");
+        },
+        stream() {
+            throw new Error("unused");
+        },
+        async checkHealth() {
+            throw new Error("unused");
+        },
+        getCapabilities() {
+            throw new Error("unused");
+        },
+    };
+
+    await assert.rejects(
+        completeWithOrderedFallback(
+            createRequest(),
+            [createCandidate(adapter, "plain-error-model")],
+            { ...noWaitOptions, recordEvent: (event) => events.push(event) },
+        ),
+        (error) => error instanceof AllProvidersUnavailableError,
+    );
+
+    assert.equal(events[0].errorCategory, "provider_error");
+    assert.equal("statusCode" in events[0], false);
+    assert.equal(JSON.stringify(events).includes("private sdk detail"), false);
+});
+
+test("fallback reports every skipped OPEN candidate and never calls it", async () => {
+    const circuitBreaker = new ProviderCircuitBreaker({
+        policy: {
+            failureThreshold: 1,
+            cooldownMs: 10_000,
+            halfOpenMaxTrials: 1,
+        },
+        now: () => 1_000,
+    });
+    const adapter = new FakeProviderAdapter({
+        providerId: "groq",
+        model: "groq-test-model",
+    });
+    const events = [];
+
+    await assert.rejects(
+        circuitBreaker.execute("groq", async () => {
+            throw createProviderError();
+        }),
+    );
+    await assert.rejects(
+        completeWithOrderedFallback(
+            createRequest(),
+            [
+                createCandidate(adapter, "groq-test-model"),
+                createCandidate(adapter, "groq-test-model"),
+            ],
+            {
+                ...noWaitOptions,
+                circuitBreaker,
+                recordEvent: (event) => events.push(event),
+            },
+        ),
+        (error) => error instanceof AllProvidersUnavailableError,
+    );
+
+    assert.equal(adapter.getCallCount(), 0);
+    assert.deepEqual(events.map(({ type }) => type), [
+        "provider.fallback_candidate_skipped",
+        "provider.fallback_candidate_skipped",
+        "provider.fallback_all_unavailable",
+    ]);
+});

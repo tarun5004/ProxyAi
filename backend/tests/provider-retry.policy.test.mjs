@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const {
+    calculateRetryDelayMs,
+    isProviderError,
     ProviderRetryAbortedError,
     retryProviderOperation,
+    shouldRetryProviderError,
 } = await import("../dist/features/providers/provider-retry.policy.js");
 
 function createProviderError(overrides = {}) {
@@ -123,4 +126,55 @@ test("retry policy respects abort during backoff", async () => {
     );
 
     assert.equal(attempts, 1);
+});
+
+test("retry classification permits only approved transient failures", () => {
+    assert.equal(isProviderError(null), false);
+    assert.equal(isProviderError({ isProviderError: false }), false);
+    assert.equal(shouldRetryProviderError(createProviderError({ category: "rate_limit" })), true);
+    assert.equal(shouldRetryProviderError(createProviderError({ category: "unavailable" })), true);
+    assert.equal(shouldRetryProviderError(createProviderError({ category: "provider_error", statusCode: 502 })), true);
+    assert.equal(shouldRetryProviderError(createProviderError({ category: "provider_error", statusCode: 501 })), false);
+    assert.equal(shouldRetryProviderError(createProviderError({ category: "invalid_request" })), false);
+    assert.equal(shouldRetryProviderError(createProviderError({ retryable: false })), false);
+});
+
+test("retry delay clamps unsafe jitter and rejects invalid policies", () => {
+    const policy = {
+        maxAttempts: 3,
+        baseDelayMs: 100,
+        maxDelayMs: 150,
+        maxJitterMs: 20,
+    };
+
+    assert.equal(calculateRetryDelayMs(2, policy, () => 99), 170);
+    assert.equal(calculateRetryDelayMs(1, policy, () => -5), 100);
+    assert.equal(calculateRetryDelayMs(1, policy, () => Number.NaN), 100);
+    assert.throws(
+        () => calculateRetryDelayMs(1, { ...policy, maxAttempts: 0 }),
+        /Invalid provider retry policy/,
+    );
+});
+
+test("already-aborted retry fails before invoking the provider", async () => {
+    const abortController = new AbortController();
+    abortController.abort();
+    let attempts = 0;
+
+    await assert.rejects(
+        retryProviderOperation(
+            async () => {
+                attempts += 1;
+                return "unexpected";
+            },
+            {
+                providerId: "groq",
+                model: "test-model",
+                signal: abortController.signal,
+            },
+        ),
+        (error) => error instanceof ProviderRetryAbortedError
+            && error.model === "test-model",
+    );
+    assert.equal(attempts, 0);
 });
