@@ -9,8 +9,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --pool=threads --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000",
-    "test:coverage": "vitest run --coverage --pool=threads --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000"
+    "test": "vitest run --pool=forks --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000",
+    "test:coverage": "vitest run --coverage --pool=forks --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
