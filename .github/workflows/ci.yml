@@ -33,7 +33,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test -- --pool=threads --maxWorkers=1 --no-file-parallelism --testTimeout=30000
+      - run: npm run test:coverage
       - run: npm run build
 
   backend:
@@ -97,7 +97,10 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      - run: npm run test:release-harness
+      - run: npm run test:coverage
+      - run: npm run test:coverage:critical
+      - run: npm run test:integration
       - run: npm run build
 
   containers:
