@@ -1572,3 +1572,55 @@ The bounded harness passed all 20 steps and fails non-zero on any failed gate.
 No external penetration test, internet-scale load certification, destructive
 production test, prompt-cache runtime, or nonexistent cross-team resource gate
 is claimed by this evidence.
+
+## 36. Phase 12 Deployment Verification Contract
+
+Phase 12 preserves every Phase 11 threshold and security gate. It adds
+environment evidence, not weaker substitutes for application tests.
+
+### 36.1 Required focused evidence
+
+1. **Runtime prerequisites:** required secret keys exist without being printed;
+   MongoDB and Redis TLS/auth succeed from the deployed network; smoke identity
+   values are protected and non-personal.
+2. **Immutable release:** current Git SHA, frontend digest, backend digest, API
+   and worker shared digest, image scan result, and deployed SHA are identical
+   to the approved release record.
+3. **ECS staging:** health, login/refresh/me/logout, tenant denial,
+   Conversation create/list/read, encrypted history, ALLOW/MASK/BLOCK,
+   RequestLog/BillingRollup, billing/analytics/anomaly/provider-health/recovery,
+   heartbeat, and leak checks pass.
+4. **Rollback:** an intentionally selected previous release restores all three
+   services without rebuilding images or mutating data; post-rollback smoke
+   passes.
+5. **Lightsail canary/public:** Caddy TLS, same-origin auth cookie, frontend,
+   API, worker, Atlas, Redis, Groq, accounting, and private metrics boundaries
+   pass before and after DNS cutover.
+6. **Observation:** public health, worker heartbeat, queue outcomes, memory,
+   restart count, and safe logs remain healthy for 15–30 minutes.
+
+### 36.2 Negative deployment tests
+
+- missing encryption selector blocks task/host startup;
+- mutable image tag or digest mismatch blocks deployment;
+- failed image scan/index/staging/canary blocks promotion;
+- foreign tenant and insufficient permission remain denied after deployment;
+- BLOCK makes zero provider calls and MASK excludes the raw sentinel;
+- worker and `/metrics`/`9464` are unreachable from the public origin;
+- failed public smoke restores DNS/release metadata;
+- concurrent release attempts serialize rather than race;
+- missing or invalid recovery snapshot blocks ECS reconstruction/deep stop;
+- no secret, prompt, response, token, cookie, encryption key, or provider body
+  appears in workflows, artifacts, image layers, container logs, or release
+  evidence.
+
+### 36.3 Final commands and evidence
+
+The final certifier runs `node scripts/verify-release.mjs`, workflow/shell/
+PowerShell/template validation, image scans/builds, index checks, authenticated
+deployment smoke, worker outcome verification, rollback smoke, and a bounded
+post-cutover monitor. Generated credentials, environment files, DNS backups,
+coverage reports, and AWS recovery snapshots are never committed.
+
+Phase 12 cannot close from local simulation alone. Remote CI, deployed runtime,
+rollback, and public HTTPS evidence must all be current for the release SHA.

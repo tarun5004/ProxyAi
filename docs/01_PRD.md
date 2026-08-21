@@ -221,7 +221,7 @@ The MVP should keep this role minimal and should not create a full platform-mana
 | Audit | Append-only audit records for important actions |
 | Dashboard | Basic KPIs, logs, filters, cursor pagination, alerts |
 | Observability | Pino logs and core Prometheus metrics |
-| Deployment | Docker Compose and AWS ECS/Fargate through GitHub Actions |
+| Deployment | Docker Compose, immutable ECR images, ECS/Fargate staging and rollback, and one Lightsail public-demo host through GitHub Actions |
 
 ### 8.2 Not included in MVP
 
@@ -980,7 +980,8 @@ Deliverables:
 - Liveness and readiness endpoints.
 - Multi-stage Dockerfile.
 - Docker Compose local environment.
-- Parameterized AWS ECS/Fargate deployment instructions.
+- Parameterized AWS ECS/Fargate staging/rollback instructions and the
+  cost-optimized Lightsail public-demo release path.
 - Final testing and README.
 
 Exit criteria:

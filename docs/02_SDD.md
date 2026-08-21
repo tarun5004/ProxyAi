@@ -45,7 +45,8 @@ The system design is intentionally limited to the already approved MVP.
   template approval
 - Append-only audit logging
 - Basic admin dashboard APIs
-- Structured logs, core metrics, Docker Compose, and AWS ECS/Fargate deployment
+- Structured logs, core metrics, Docker Compose, ECS/Fargate release proof,
+  and the Lightsail public-demo path
 
 ### 3.2 Explicitly deferred
 
@@ -1289,34 +1290,43 @@ Docker Compose
   ├── frontend
   ├── backend-api
   ├── backend-worker
-  ├── mongo
   ├── redis
-  ├── bull-board (development only)
-  ├── prometheus (optional)
-  └── grafana (optional)
+  └── nginx gateway
 ```
 
 ### Local rules
 
 - Use `.env` locally, never commit it.
 - Provide `.env.example` with placeholder names only.
-- Persist MongoDB and Redis through named volumes.
+- The checked-in production-like Compose stack requires an explicit
+  container-reachable MongoDB URI and persists local Redis through a named
+  volume. It does not bundle Bull Board, Prometheus, or Grafana.
 - Use hot reload only in development targets.
 
 ## 15.2 Production MVP on AWS
 
 ```text
-Browser
-  -> Route 53 / ACM / public ALB
-       -> ECS/Fargate frontend service
-       -> ECS/Fargate API service
-            -> MongoDB Atlas
-            -> managed Redis compatible with BullMQ
-            -> external LLM providers
-  -> ECS/Fargate worker service in private subnets
-       -> Redis/BullMQ
-       -> MongoDB Atlas
+Immutable frontend/backend images -> Amazon ECR
+
+Release proof / rollback baseline:
+  Route 53 / ACM / ALB
+    -> private ECS/Fargate frontend
+    -> private ECS/Fargate API
+    -> private ECS/Fargate worker
+
+Cost-optimized public demo after ECS proof:
+  Route 53 -> one Lightsail static IP -> Caddy
+    -> Compose frontend
+    -> Compose API
+    -> private Compose worker
+
+API and worker -> MongoDB Atlas / managed Redis / Groq
 ```
+
+ECS is the staging and rollback architecture. The approved low-traffic public
+demo may cut over to one 2 GB Lightsail host only after immutable-digest canary,
+authenticated smoke, worker/accounting proof, and rollback evidence pass. ECS
+cleanup remains a separate destructive approval.
 
 ### Production container rules
 
@@ -1329,7 +1339,11 @@ Browser
 
 ### Scaling rule
 
-Start with one API instance if circuit-breaker consistency is required. Increase instances only after shared-state limitations are understood and accepted.
+Use one frontend, API, and worker process for the MVP. ECS desired counts are
+one while active and zero only during an explicit cost stop. Lightsail starts
+on the measured 2 GB plan and moves to 4 GB only after sustained memory/OOM
+evidence. Increase concurrency only after shared-state limitations are
+understood and accepted.
 
 ## 16. Health Checks
 
@@ -1423,7 +1437,7 @@ The process must fail startup when a required production configuration is missin
 - Health endpoints
 - Docker Compose
 - Multi-stage Dockerfile
-- AWS ECS/Fargate deployment
+- AWS ECS/Fargate staging/rollback and Lightsail public-demo deployment
 - End-to-end tests
 - Security review
 - Documentation cleanup
@@ -1480,7 +1494,7 @@ The full testing strategy will be a separate document. Minimum system-design cov
 | Messaging | BullMQ job publication | Simpler than separate Pub/Sub plus queues |
 | Pagination | Cursor-based | Stable and index-friendly |
 | Content protection | AES-256-GCM | Authenticated encryption |
-| Deployment | Docker plus AWS ECS/Fargate | Separate long-running API and worker services |
+| Deployment | Docker, ECR, ECS/Fargate, and Lightsail | Separate long-running API and worker containers with immutable digest promotion |
 
 ## 21. Known Limitations
 
@@ -1532,7 +1546,7 @@ These must be resolved before or during implementation without expanding feature
 | Anomaly alerts | Anomaly worker and Alert collection |
 | Admin dashboard | Admin APIs and frontend pages |
 | Observability | Pino, metrics, health endpoints |
-| Deployment | Docker Compose and AWS ECS/Fargate |
+| Deployment | Docker Compose, ECS/Fargate release proof, and Lightsail public demo |
 
 ## 24. Definition of System-Design Completion
 

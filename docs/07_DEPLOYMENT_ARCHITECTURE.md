@@ -1,9 +1,9 @@
 # ProxiAI AWS Deployment Architecture
 
 **Document ID:** DEPLOY-001
-**Status:** Approved deployment baseline with cost-optimized live-demo path
-**Target:** Docker on AWS Lightsail for the public demo; ECS/Fargate remains the
-rollback architecture until migration cleanup is explicitly approved
+**Status:** Approved deployment contract; live release certification pending
+**Target:** Immutable ECR images, ECS/Fargate staging and rollback proof, then
+Docker on AWS Lightsail for the low-traffic public demo
 
 ## 1. Purpose
 
@@ -13,17 +13,38 @@ Phase 8 or later product features.
 
 ## 2. Canonical Platform
 
-The canonical deployment target is:
+The canonical deployment system is:
 
 - Docker images in Amazon ECR;
-- three Amazon ECS/Fargate services;
-- an internet-facing Application Load Balancer;
+- three Amazon ECS/Fargate services for staging/release proof and rollback;
+- an internet-facing Application Load Balancer while the ECS baseline is active;
+- one 2 GB Lightsail Compose host for the approved low-traffic public demo
+  after canary and rollback proof;
 - Route 53 and ACM-managed TLS;
 - AWS Secrets Manager runtime secret injection;
 - CloudWatch logs;
 - MongoDB Atlas;
 - a managed Redis service compatible with BullMQ;
 - GitHub Actions using AWS OIDC rather than long-lived AWS keys.
+
+## 2.1 Current Readiness State
+
+The 2026-08-21 read-only audit found the repository deployment implementation
+ahead of the live environment:
+
+- ECR repositories and immutable staging task definitions exist;
+- staging frontend/API/worker services exist at desired count zero;
+- the previous ALB and NAT Gateway are absent, and the validated ignored
+  recovery snapshot is required to reconstruct them;
+- no Lightsail instance exists;
+- `proxiai.me` has no A/alias record and is not serving the application;
+- Redis is reachable, while Atlas must allowlist each approved stable deployed
+  egress IP;
+- the production secret lacks the Phase 9 encryption keyring selectors;
+- protected smoke credentials and current green remote CI evidence are absent.
+
+This state is not production-ready and is not an active ECS rollback boundary.
+P12-09 restores and certifies ECS before P12-09A can cut over to Lightsail.
 
 GCP and Cloud Run are no longer approved deployment targets.
 
@@ -292,7 +313,10 @@ limitation remains fail closed and unchanged.
 
 Deployment is ready only when containers, worker separation, index deployment,
 AWS infrastructure definitions, CI/CD, secret injection, health checks,
-staging smoke tests, production approval, and rollback verification all pass.
+staging smoke tests, same-digest promotion, rollback verification, Lightsail
+canary/public HTTPS, worker/accounting evidence, and 15–30 minute observation
+all pass for the current Git SHA. Local or historical evidence cannot replace
+current deployed evidence.
 
 ## 16. Cost-Optimized Lightsail Live Demo
 
@@ -328,8 +352,11 @@ or swap activity is an explicit upgrade trigger to the 4 GB plan.
 
 ### 16.2 Migration safety
 
-- Existing ECS, ALB, NAT, target groups, and tasks stay unchanged until the
-  Lightsail deployment passes direct/canary and public-domain smoke checks.
+- The current deep-stopped ECS environment must be reconstructed from the
+  validated recovery snapshot and pass staging/promotion/rollback smoke before
+  it is called a rollback environment. ECS services, ALB, NAT, target groups,
+  and task definitions then remain available until the Lightsail deployment
+  passes direct/canary and public-domain smoke checks.
 - `proxiai.me` DNS is changed only after a temporary HTTPS canary hostname has
   proven login, refresh, chat, policy, accounting, and worker behavior.
 - Application images remain immutable ECR digests derived from one Git SHA.

@@ -208,11 +208,12 @@ IPv4, two vCPUs, and 60 GB SSD. AWS currently lists this bundle at USD 12/month
 before taxes and region-specific transfer overages. The attached Lightsail
 static IPv4 has no separate charge while attached.
 
-Before provisioning, an account administrator must extend only the ProxiAI
-deployment and GitHub OIDC roles with the repository policy's explicit
-Lightsail and Route 53 actions. The current non-root role cannot call
-`lightsail:GetInstances` or `lightsail:GetBundles`; do not fall back to root for
-normal provisioning.
+Before provisioning, an account administrator must confirm that both the local
+ProxiAI deployment role and GitHub OIDC role retain only the repository
+policy's explicit Lightsail and Route 53 actions. The 2026-08-21 read-only
+audit confirmed the local non-root role can call `lightsail:GetInstances` and
+`lightsail:GetBundles`; GitHub OIDC execution remains unproven. Do not fall
+back to root for normal provisioning.
 
 Required manual values/actions:
 
@@ -226,8 +227,11 @@ Required manual values/actions:
 5. Approve the Route 53 apex cutover only after the canary is green.
 6. Wait for public stability, then separately approve any ECS/ALB/NAT cleanup.
 
-Do not delete or scale down the existing ECS services, ALB, NAT gateway, target
-groups, or their rollback metadata during this migration task.
+The 2026-08-21 audit found ECS services already scaled to zero and the previous
+ALB/NAT absent, with target groups, task definitions, ECR, hosted zone, and the
+ignored recovery snapshot retained. Do not perform further destructive cleanup.
+Reconstruct and smoke-test the ECS baseline from the validated snapshot before
+treating it as the Lightsail rollback environment.
 
 ### Post-cutover cleanup approval matrix
 

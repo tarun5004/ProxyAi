@@ -1,14 +1,21 @@
 # ProxiAI AWS CI/CD Documentation
 
 **Document ID:** CICD-001
-**Status:** Approved AWS deployment baseline with Lightsail live-demo delivery
+**Status:** Approved delivery contract; current remote release gates pending
 **Related deployment contract:** `docs/07_DEPLOYMENT_ARCHITECTURE.md`
 
 ## 1. Purpose
 
 This document defines immutable Docker delivery from GitHub Actions to Amazon
-ECR and ECS/Fargate. The actual repository filename is
+ECR, ECS/Fargate release proof, and the Lightsail public-demo host. The actual repository filename is
 `docs/13_CICD_DOCUMENTATION.md`; no duplicate CI/CD document is used.
+
+The 2026-08-21 readiness audit found 44 local commits not yet present on
+`origin/main` before this documentation commit; recent public CI runs failed before deployment. ECS staging
+services are scaled to zero, the prior ALB/NAT/public DNS are absent, and no
+Lightsail host exists. Workflow files are implemented, but Phase 12 cannot
+claim green CI, staging, production, or rollback until current remote execution
+evidence passes.
 
 ## 2. Release Principles
 
@@ -76,7 +83,8 @@ Validate
 → register production task definitions with the same digests
 → deploy production services
 → run production smoke tests
-→ monitor and record release metadata
+→ monitor health, worker heartbeat, queue outcomes, and safe logs for 15–30 minutes
+→ record release metadata
 ```
 
 `latest` may be omitted entirely and is never used as deployment identity.
@@ -272,7 +280,9 @@ must expose these as parameters and must not invent production values.
 
 CI/CD is release-ready when PR validation, deterministic images, scans, ECR
 push, staging deployment, index step, smoke tests, protected same-digest
-production promotion, production smoke, and rollback verification all pass.
+promotion, rollback verification, Lightsail canary/public smoke, deployed-SHA
+visibility, and a healthy 15–30 minute observation all pass for the current
+release.
 
 ## 20. Implemented Release Files
 

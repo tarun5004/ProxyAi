@@ -4,11 +4,58 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 11 complete.
-- **Task:** P11-08 — Integration and Release Certification.
-- **Status:** All four Phase 11 exits pass: coverage, ten security gates,
-  isolated Mongo/Redis/BullMQ integration, and deterministic release quality.
-  Phase 12 was not started or modified by this closure.
+- **Phase:** Phase 12 in progress; contract/readiness audit complete.
+- **Task:** P12-09.1 — Protected Runtime and Release Prerequisites.
+- **Status:** P12-01 through P12-08 remain implemented. Current live execution
+  is blocked on Phase 9 encryption secret selectors, protected smoke identity,
+  green remote CI/current image digests, restored ECS rollback infrastructure,
+  and deployed staging/Lightsail evidence. Phase 13 has not started.
+
+## Latest Task — Phase 12 Contract and Readiness Audit
+
+- **Scope:** Documentation-only reconciliation of all 32 Phase 12 roadmap
+  checks: 10 tasks, 17 delivery checks, and 5 exits. No application behavior,
+  model, index, API, queue, frontend screen, or migration was added.
+- **Classification:** Fourteen checks are already complete, eleven are partial,
+  and seven live release/exit checks are blocked. P12-01 through P12-08 are
+  regression baselines; remaining work is P12-09 ECS release proof, P12-09A
+  Lightsail public cutover, and P12-10 certification.
+- **Read-only AWS evidence (2026-08-21):** the non-root deployment role and
+  immutable scan-on-push ECR repositories are available. Three 256/512 staging
+  task definitions/services exist, but all service desired/running counts are
+  zero. No ProxiAI ALB, NAT Gateway, Lightsail instance, or apex A/alias record
+  is active. `proxiai.me` is not serving the application.
+- **Recovery boundary:** the ignored deep-stop snapshot exists with VPC,
+  public/private subnets, ALB, target groups, HTTPS/rules, Route 53, NAT/EIP,
+  route table, and desired-count data. It must be validated and used through
+  the approved reconstruction path before ECS is called a rollback baseline.
+- **Runtime inputs:** `proxiai/production` exists, but
+  `MESSAGE_ENCRYPTION_KEYS_JSON` and
+  `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` are absent. Redis connectivity passes.
+  Local Atlas connectivity is blocked by network allowlisting as expected;
+  restored NAT and future Lightsail static IPs require approved Atlas entries.
+  `SMOKE_ORG_SLUG`, `SMOKE_EMAIL`, and `SMOKE_PASSWORD` are not available in
+  the local environment and must remain protected.
+- **CI evidence:** before this audit commit, the local branch contained 44
+  commits not present on `origin/main`. Recent public CI runs failed before
+  deployment, so green current-SHA CI, image push, staging, promotion, monitor,
+  and rollback cannot be claimed.
+- **Canonical rollout:** protected inputs and GitHub/OIDC readiness -> restore
+  ECS baseline -> current-SHA immutable staging smoke -> same-digest promotion
+  and rollback proof -> provision one 2 GB `small_3_1` Lightsail host -> canary
+  HTTPS -> explicit apex cutover -> public smoke/host rollback -> 15–30 minute
+  observation -> separately approved ECS cost cleanup.
+- **Migration:** no data migration. The existing create-only index step remains
+  mandatory and destructive schema/data rollback remains prohibited.
+- **Security:** Phase 11 thresholds and ten gates remain release blocking.
+  Deployment additionally proves secret/image integrity, private worker and
+  metrics, Atlas/Redis TLS/auth, serialized release/DNS changes, deployed SHA,
+  rollback, cost bounds, and absence of secret/content leakage.
+- **Agents planned:** A1 runtime prerequisites, A2 CI/immutable images, A3 ECS
+  staging/rollback, A4 Lightsail canary/public cutover, and A5 final integration
+  certification. A1/A2 may run in parallel; A3 -> A4 -> A5 is sequential.
+- **Next:** P12-09.1 only. Do not provision or deploy until protected runtime
+  inputs and recovery prerequisites pass. Do not start Phase 13.
 
 ## Latest Task — P11-08 Integration and Release Certification
 
@@ -1395,18 +1442,21 @@ npm run dev
 - **Target topology:** Caddy exposes only 80/443 and routes to private Compose
   frontend/API services; worker exposes no port. Atlas, Upstash, Groq, ECR,
   Route 53, and the existing production secret remain authoritative.
-- **Migration safety:** No ECS service, ALB, NAT gateway, target group, ECR
-  repository, hosted zone, or IAM/OIDC history is removed or scaled down until
-  canary and public smoke pass and destructive cleanup receives explicit
-  approval.
-- **Current blocker:** The non-root `proxiai-deployment-role` lacks the reviewed
-  Lightsail and Route 53 permissions. Provisioning must not use root; the
-  scoped policy update must first be attached to the local deployment role and
-  GitHub OIDC role.
-- **Live baseline:** `https://proxiai.me/`, `/health/live`, and
-  `/health/ready` returned HTTP 200 before migration work.
-- **Current release:** Git SHA
-  `eb9607adaadabdecf3802b42c523cb1d1c146c7e`; existing ECS stays live.
+- **Migration safety:** This was the pre-deep-stop contract. The current audit
+  found ECS services at zero with ALB/NAT/public DNS absent. The retained
+  snapshot and approved reconstruction path must restore and certify ECS before
+  it is treated as the rollback boundary. No further destructive cleanup is
+  permitted before Lightsail canary/public smoke and separate approval.
+- **Current blockers:** The local non-root role can read Lightsail resources,
+  but GitHub OIDC execution remains unproven. Production encryption selectors,
+  protected smoke credentials, green current-SHA CI, ECS reconstruction,
+  staging/rollback proof, Atlas static-IP allowlisting, and Lightsail
+  provisioning remain required.
+- **Historical live baseline:** `https://proxiai.me/`, `/health/live`, and
+  `/health/ready` returned HTTP 200 before the later deep-stop state.
+- **Historical release:** Git SHA
+  `eb9607adaadabdecf3802b42c523cb1d1c146c7e`; it is rollback metadata, not a
+  currently running public release.
 - **Repository verification:** Lightsail Compose and Caddy validation,
   PowerShell parsing, IAM-policy JSON parsing, actionlint, ShellCheck, and both
   local production image builds passed. Frontend typecheck and production

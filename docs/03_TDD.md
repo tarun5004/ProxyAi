@@ -75,7 +75,7 @@ The goal is to let one developer implement the MVP without repeatedly redesignin
 | Logging | Pino | Structured JSON with redaction |
 | Metrics | prom-client | `/metrics` endpoint |
 | Containers | Docker + Compose | Local parity with deployment |
-| Deployment | AWS ECS/Fargate | GitHub Actions with protected production promotion |
+| Deployment | AWS ECS/Fargate + Lightsail | GitHub Actions with protected immutable-digest promotion |
 
 ## 5. Backend Project Structure
 
@@ -2352,30 +2352,17 @@ This keeps tests deterministic and avoids real provider cost.
 
 ### 44.1 Backend Dockerfile
 
-Use a multi-stage build:
+The executable Dockerfiles are canonical. Frontend and backend use pinned
+Node 22 Debian-slim build stages and a distroless non-root runtime. Only
+production dependencies and build output enter the final images. `.env`, Git,
+tests, local data, and development output are excluded by `.dockerignore`.
 
-```dockerfile
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine AS runtime
-WORKDIR /app
-ENV NODE_ENV=production
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY --from=build /app/dist ./dist
-USER node
-EXPOSE 8080
-CMD ["node", "dist/server.js"]
-```
+The backend image defaults to `/usr/local/bin/node dist/server.js` and exposes
+the API on `8080`. The same immutable digest runs the worker with
+`/usr/local/bin/node dist/worker.js`; the worker has no public application
+port. The frontend standalone image serves `3000`. Health checks use
+dependency-free frontend `/healthz`, API `/health/ready`, and worker lifecycle
+plus heartbeat/queue evidence.
 
 A separate command runs workers:
 
@@ -2385,27 +2372,34 @@ node dist/worker.js
 
 ### 44.2 Docker Compose services
 
-- `backend`
+- `gateway`
+- `api`
 - `worker`
 - `frontend`
-- `mongo`
 - `redis`
-- Optional `prometheus`
-- Optional `grafana`
 
-The API and worker use the same image but different commands.
+The production-like local stack uses an explicit external/container-reachable
+MongoDB URI; it does not silently create a different database authority. The
+API and worker use the same image but different commands. Redis runs with AOF
+and `noeviction`. Nginx mirrors the approved same-origin production routing.
+Prometheus/Grafana and Bull Board are not part of this Compose contract.
 
-## 45. AWS ECS/Fargate MVP Deployment
+## 45. AWS ECS/Fargate and Lightsail MVP Deployment
 
 Recommended services:
 
 1. `proxiai-api`
 2. `proxiai-worker`
-3. Frontend hosted separately or as a static build service
+3. `proxiai-frontend`
 
 The API and BullMQ worker run as separate ECS services from the same backend image. The worker has no HTTP listener, uses an explicit desired-count deployment parameter, and must remain continuously available. Deployment readiness requires worker heartbeat and queue-processing smoke evidence.
 
-The API may use minimum instances `0` during development and demo. Increase to `1` only when cold-start latency matters.
+Active staging/rollback proof uses one 256 CPU/512 MiB frontend, API, and worker
+task with no autoscaling. Desired count zero is a deliberate cost-stop state,
+not a healthy deployed environment. The cost-optimized public demo uses one
+measured 2 GB Lightsail Compose host only after ECS staging and rollback proof.
+One frontend, API, worker, and Caddy container run from immutable ECR digests;
+the worker and metrics endpoints remain private.
 
 ## 46. Implementation Sequence
 
@@ -2472,7 +2466,7 @@ Exit gate: end-to-end demo works in browser for employee and organisation admin.
 4. Health endpoints
 5. Docker multi-stage builds
 6. Docker Compose cleanup
-7. ECS/Fargate deployment test
+7. ECS/Fargate staging/rollback and Lightsail canary deployment tests
 8. Final integration and E2E tests
 9. Documentation updates
 
