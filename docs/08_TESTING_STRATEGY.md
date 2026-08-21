@@ -1624,3 +1624,27 @@ coverage reports, and AWS recovery snapshots are never committed.
 
 Phase 12 cannot close from local simulation alone. Remote CI, deployed runtime,
 rollback, and public HTTPS evidence must all be current for the release SHA.
+
+### 36.4 Final remediation revalidation
+
+On 2026-08-21 the current remediation candidate passed the complete 20-step
+release harness:
+
+- backend unit/coverage 269/269, 78.24% lines, 83.46% branches;
+- frontend 28/28 across 12 files, 77.62% lines, 69.65% branches;
+- critical branches: policy evaluator 93.75%, PII risk scorer 100%, provider
+  fallback 90.74%, retry 93.18%, circuit breaker 92.45%, AES-GCM 91.67%,
+  permission authorization 90%, and admin/conversation/message cursors 100%;
+- isolated MongoDB replica-set plus Redis/BullMQ integration 63/63;
+- zero high-severity dependency-audit findings, security scan pass, build pass,
+  deployment/index contract pass, and non-root secret-free image checks pass.
+
+A reproduced Vitest thread-worker startup timeout was classified as a test
+runner defect after the affected file and complete suite passed independently.
+The canonical runner now uses one isolated fork worker and the complete harness
+then passed. The worker-heartbeat unit test was also isolated from developer
+`.env` Redis configuration before certification.
+
+This evidence certifies the code candidate only. Phase 12 still requires
+current immutable images, protected runtime inputs, healthy ECS worker,
+authenticated smoke, rollback, and observation evidence.

@@ -8,9 +8,11 @@ This file is a progress log. The approved documents in `docs/` remain the source
   certification.
 - **Task:** P12-09 — Certify the immutable ECS staging and production release.
 - **Status:** P12-01 through P12-08 remain implemented. Current live execution
-  is blocked on Phase 9 encryption secret selectors, protected smoke identity,
-  green remote CI/current image digests, healthy Redis/BullMQ worker capacity,
-  and deployed staging/production/rollback evidence. Phase 13 has not started.
+  is `CODE_READY / DEPLOYMENT_BLOCKED`: all 20 local release gates pass, but
+  Phase 9 encryption secret selectors, protected smoke identity, immutable
+  current image digests, healthy Redis/BullMQ worker capacity, and deployed
+  staging/production/rollback evidence remain unavailable. Phase 13 has not
+  started.
 
 ## Latest Task — Final Repository Remediation
 
@@ -33,6 +35,21 @@ This file is a progress log. The approved documents in `docs/` remain the source
   update protected `REDIS_URL`, and restore BullMQ-compatible quota/capacity.
   Frontend/API public health recovered; worker remains `0/1` until this external
   action is complete.
+- **Final local release evidence:** `node scripts/verify-release.mjs` passed all
+  20 steps. Backend unit/coverage is 269/269 at 78.24% lines / 83.46% branches;
+  frontend is 28/28 across 12 files at 77.62% lines / 69.65% branches; isolated
+  MongoDB/Redis/BullMQ integration is 63/63. Critical branch gates remain
+  policy 93.75%, risk 100%, fallback 90.74%, retry 93.18%, circuit breaker
+  92.45%, AES-GCM 91.67%, permissions 90%, and cursor modules 100%.
+- **Harness defects fixed:** the worker-heartbeat test no longer inherits a
+  developer `.env` Redis endpoint, and the frontend runner uses one isolated
+  fork worker to remove the reproduced Windows thread startup timeout.
+- **Read-only AWS evidence:** frontend and API are `1/1`, their ALB targets are
+  healthy, `/`, `/health/live`, and `/health/ready` return 200, and public
+  `/metrics` returns 404. Worker remains `0/1` with repeated Redis/BullMQ
+  scheduler-start failures. The production secret contains the original five
+  keys but not the two Phase 9 encryption selectors. Protected smoke inputs
+  were unavailable to this local deployment session.
 
 ## Latest Task — Deep-Start Failure Root Cause and Script Hardening
 

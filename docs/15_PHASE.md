@@ -1374,6 +1374,36 @@ exposed Redis credential must be rotated and the protected secret updated
 before staging, worker/accounting smoke, production promotion, rollback, and
 observation can run. Lightsail remains an unexecuted optional experiment.
 
+### 2026-08-21 final remediation evidence
+
+The code release candidate passed all 20 steps in
+`node scripts/verify-release.mjs` after two deterministic test-harness fixes:
+the worker-heartbeat unit test now uses isolated local Redis, and frontend
+Vitest uses one isolated fork worker instead of the flaky Windows thread-pool
+startup path.
+
+- Backend unit/coverage: 269/269; 78.24% lines and 83.46% branches.
+- Frontend: 28/28 across 12 files; 77.62% lines and 69.65% branches.
+- Critical branch gates: policy 93.75%, risk 100%, fallback 90.74%, retry
+  93.18%, circuit breaker 92.45%, AES-GCM 91.67%, permissions 90%, and all
+  three cursor modules 100%.
+- Real integration: 63/63 against disposable MongoDB replica-set and isolated
+  Redis/BullMQ.
+- Dependency audits, lint, typecheck, builds, security scan, deployment/index
+  checks, non-root Docker images, and embedded-secret checks passed.
+- Public read-only evidence: `/`, `/health/live`, and `/health/ready` return
+  HTTP 200; public `/metrics` returns HTTP 404; frontend and API targets are
+  healthy.
+
+Phase 12 remains blocked, not complete. The worker is `0/1` and repeatedly
+exits during Redis/BullMQ scheduler startup. The protected runtime secret still
+lacks `MESSAGE_ENCRYPTION_KEYS_JSON` and
+`MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION`; protected smoke inputs are not
+available to this deployment session; and the current remediation commits have
+not been promoted as immutable ECR digests. Redis quota/capacity and the
+previously exposed Redis credential must be corrected externally before any
+current-SHA staging, smoke, rollback, or observation claim.
+
 Critical pre-promotion autopsy gates:
 
 - [x] Unknown usage uses a conservative provider/model liability reservation
