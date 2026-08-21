@@ -52,6 +52,15 @@ for (const path of shellScripts) {
     run(bash, ["-n", resolve(rootDirectory, path)]);
 }
 
+const shellBehaviorTests = run("git", [
+    "ls-files",
+    "deploy/scripts/tests/*.test.sh",
+]).trim().split(/\r?\n/u).filter(Boolean);
+
+for (const path of shellBehaviorTests) {
+    run(bash, [resolve(rootDirectory, path)]);
+}
+
 run(process.execPath, [
     "--test",
     "--test-timeout=30000",
