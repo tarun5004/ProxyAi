@@ -32,8 +32,8 @@ export function decodeAdminCursor(value: string): AdminListCursor {
     } catch {
         throw new AppError(
             400,
-            "VALIDATION_ERROR",
-            "Request validation failed.",
+            "INVALID_CURSOR",
+            "Pagination cursor is invalid.",
             [{ field: "cursor", message: "Invalid pagination cursor." }],
         );
     }
