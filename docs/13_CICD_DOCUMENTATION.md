@@ -7,15 +7,13 @@
 ## 1. Purpose
 
 This document defines immutable Docker delivery from GitHub Actions to Amazon
-ECR, ECS/Fargate release proof, and the Lightsail public-demo host. The actual repository filename is
+ECR and ECS/Fargate. The actual repository filename is
 `docs/13_CICD_DOCUMENTATION.md`; no duplicate CI/CD document is used.
 
-The 2026-08-21 readiness audit found 44 local commits not yet present on
-`origin/main` before this documentation commit; recent public CI runs failed before deployment. ECS staging
-services are scaled to zero, the prior ALB/NAT/public DNS are absent, and no
-Lightsail host exists. Workflow files are implemented, but Phase 12 cannot
-claim green CI, staging, production, or rollback until current remote execution
-evidence passes.
+The 2026-08-21 recovery run restored the ECS ALB/NAT/public path and frontend/API
+health. Current remote CI, worker stability, protected smoke inputs, staging,
+same-digest production promotion, and rollback still require current execution
+evidence before Phase 12 can close.
 
 ## 2. Release Principles
 
@@ -280,9 +278,8 @@ must expose these as parameters and must not invent production values.
 
 CI/CD is release-ready when PR validation, deterministic images, scans, ECR
 push, staging deployment, index step, smoke tests, protected same-digest
-promotion, rollback verification, Lightsail canary/public smoke, deployed-SHA
-visibility, and a healthy 15–30 minute observation all pass for the current
-release.
+promotion, rollback verification, public ECS smoke, deployed-SHA visibility,
+and a healthy 15–30 minute observation all pass for the current release.
 
 ## 20. Implemented Release Files
 
@@ -303,36 +300,10 @@ Static workflow and shell validation is required before merge. Actual AWS
 OIDC, ECR, ECS, Secrets Manager, Atlas, Redis, smoke-account, production
 approval, and rollback execution remain P12-09 environment gates.
 
-## 21. Lightsail Live-Demo Delivery
+## 21. Archived Lightsail Experiment
 
-The cost-optimized public demo uses `.github/workflows/lightsail-deploy.yml`.
-It keeps the existing CI and immutable ECR build contract, but deploys the
-frontend and backend digests to one Lightsail host instead of registering new
-Fargate task definitions.
-
-The release workflow:
-
-1. accepts one explicitly selected, tested Git SHA;
-2. builds/scans/pushes immutable frontend and backend images when absent;
-3. resolves both ECR digests;
-4. assumes the repository-scoped GitHub OIDC role;
-5. opens SSH only to the ephemeral runner IPv4 for the deployment window;
-6. obtains temporary SSH credentials from Lightsail;
-7. transfers deployment manifests and a mode-`0600` generated runtime env;
-8. supplies a short-lived ECR login token without logging it;
-9. deploys and health-checks Caddy, frontend, API, and worker;
-10. runs authenticated smoke checks against the selected HTTPS origin; and
-11. closes public SSH access in an `always()` cleanup step.
-
-Lightsail releases are serialized so two workflows cannot race on DNS or host
-state. The workflow retains the pre-cutover DNS record as a seven-day artifact
-and restores it on deployment failure or cancellation after DNS mutation.
-
-No static SSH private key, AWS access key, runtime secret, or `.env` file is
-stored in GitHub. The Lightsail workflow remains manually dispatchable during
-migration and does not automatically cut over production. The legacy ECS
-release workflow is separately variable-gated so a push cannot deploy both
-platforms.
-
-Rollback uses the previous host release record and exact image digests. It does
-not rebuild, delete databases, change DNS, or remove the ECS fallback.
+`.github/workflows/lightsail-deploy.yml` and `deploy/lightsail/` are retained as
+an unexecuted cost experiment. They are not called by the canonical ECS release
+workflow, do not satisfy a Phase 12 gate, and must not mutate production DNS or
+replace ECS without a new approved architecture decision. The active release
+path remains immutable ECR digests promoted through ECS staging and production.

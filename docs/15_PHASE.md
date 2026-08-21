@@ -135,11 +135,11 @@ Update this block at the end of every work session.
 
 ```text
 Current Phase: Phase 12 — Docker, CI/CD, and Deployment (Accelerated)
-Current Task: P12-09A — Cost-Optimized Lightsail Live-Demo Migration
-Current Status: Repository-side Lightsail release path is under verification; existing ECS deployment remains live and unchanged
-Current Blocker: The non-root local and GitHub deployment roles require the reviewed scoped Lightsail and Route 53 permissions before parallel provisioning
-Last Completed Task: P12-08 — GitHub Actions Validation, Deployment, Smoke, and Rollback
-Last Completed Commit: ci(deploy): add immutable AWS release and rollback pipelines
+Current Task: P12-09 — Certify the immutable ECS staging and production release
+Current Status: Repository remediation is in progress; frontend/API recovered, worker and live release gates remain blocked
+Current Blocker: Rotate the exposed Redis credential, update the protected secret, and restore BullMQ-compatible quota/capacity before deployment
+Last Completed Task: Phase 11 — Testing and Hardening
+Last Completed Commit: feat(frontend): build technical recruiter-focused landing page
 ```
 
 ---
@@ -922,7 +922,7 @@ response, PII, credential, or secret is stored or logged.
 - [x] Metrics endpoint works for the API and private worker listener.
 - [x] Dashboard queries reference implemented metric families only.
 - [x] Each critical alert has one dedicated runbook.
-- [x] Metrics endpoints are absent from public ALB/Caddy routes.
+- [x] Metrics endpoints are absent from public ALB routes.
 - [x] Label-cardinality and sensitive-value scans pass.
 
 ---
@@ -1021,9 +1021,9 @@ frontend workflow.
 
 Phase 12 contains 32 explicit roadmap checks: 10 task checks, 17 concrete
 delivery checks, and 5 exit criteria. P12-01 through P12-08 are implemented and
-remain regression inputs. P12-09, P12-09A, and final certification are the only
-remaining execution scope. Phase 12 adds no product API, model, index, queue,
-frontend screen, or data migration.
+remain regression inputs. P12-09 and final certification are the only remaining
+execution scope. Phase 12 adds no product API, model, index, queue, frontend
+screen, or data migration.
 
 - [x] P12-01 — Align AWS ECS/Fargate deployment and CI/CD contracts.
 - [x] P12-02 — Make frontend configuration immutable across environments.
@@ -1034,9 +1034,7 @@ frontend screen, or data migration.
 - [x] P12-07 — Add parameterized AWS infrastructure definitions.
 - [x] P12-08 — Add GitHub Actions validation, deployment, smoke, and rollback.
 - [ ] P12-09 — Verify staging/production-like release smoke and rollback.
-- [ ] P12-09A — Migrate the low-traffic live demo to one 2 GB Lightsail host,
-  prove canary/public smoke, and preserve ECS until destructive cleanup is
-  separately approved.
+- [ ] P12-10 — Certify the current immutable ECS release and close Phase 12.
 
 - [x] Multi-stage backend Dockerfile.
 - [x] Non-root runtime.
@@ -1074,28 +1072,31 @@ repository automation as live deployment evidence.
 | P12-01 through P12-08 | 8 | `ALREADY_COMPLETE` | Contracts, immutable frontend configuration, split runtimes, images, Compose, indexes, AWS templates, and workflows exist and passed Phase 11 release validation. |
 | Multi-stage image, non-root runtime, production dependencies, API/worker commands, local Compose | 5 | `ALREADY_COMPLETE` | Both images build as non-root, contain no committed environment file, and run the approved commands. |
 | Create-only index deployment | 1 | `ALREADY_COMPLETE` | Idempotent `createIndexes()` command and dedicated release check pass. |
-| P12-09, P12-09A, CI/release execution, immutable current image push, staging API/worker, staging smoke, approval metadata, previous SHA, rollback readiness, visible deployed SHA | 11 | `PARTIAL` | Automation or historical evidence exists, but the current Phase 11 release has not completed these live gates. |
-| Same-digest production promotion, production smoke, 15–30 minute monitoring, green remote CI, healthy staging/production, continuously running worker, executed rollback | 7 | `BLOCKED` | Current AWS state has staging services at desired count zero, no ALB/NAT/Lightsail instance, and no apex A/alias record. Latest public GitHub CI evidence is failing and the local branch is ahead of `origin/main`. |
+| P12-09/P12-10, CI/release execution, immutable current image push, staging API/worker, staging smoke, approval metadata, previous SHA, rollback readiness, visible deployed SHA | 11 | `PARTIAL` | Automation or historical evidence exists, but the current release has not completed these live gates. |
+| Same-digest production promotion, production smoke, 15–30 minute monitoring, green remote CI, healthy staging/production, continuously running worker, executed rollback | 7 | `BLOCKED` | Frontend/API recovered, but the worker cannot remain healthy while the external Redis quota is exhausted. Current remote CI, protected inputs, staging, promotion, and rollback evidence are incomplete. |
 
 Total: **32 requirements**.
 
 ## Current Runtime Evidence — 2026-08-21
 
 - The non-root `proxiai-deployment` role is active in `ap-south-1`.
-- Immutable scan-on-push ECR repositories and 256 CPU/512 MiB staging task
-  definitions exist.
-- All three ECS staging services exist but have desired/running count zero.
-- No active ProxiAI ALB or NAT Gateway was discovered; `proxiai.me` has no A or
-  alias record and is not serving HTTPS.
-- No Lightsail instance exists. The account exposes the approved public-IPv4
-  2 GB `small_3_1` bundle.
+- Immutable scan-on-push ECR repositories and 256 CPU/512 MiB task definitions
+  exist.
+- The validated deep-start recovery restored the ALB, NAT Gateway, Route 53,
+  frontend task, and API task. Public frontend, liveness, and readiness checks
+  returned HTTP 200 after DNS/target warm-up.
+- The worker remains at zero running tasks because the Upstash monthly request
+  quota is exhausted. This is an external deployment blocker, not permission
+  to weaken fail-closed Redis/BullMQ behavior.
+- A Redis credential appeared in local diagnostic output and must be rotated;
+  the replacement must update only the protected runtime secret.
 - `proxiai/production` exists, but the Phase 9 encryption keyring selectors are
   absent. Deployment must fail closed until
   `MESSAGE_ENCRYPTION_KEYS_JSON` and
   `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` are populated securely.
-- Redis connectivity succeeds. Local MongoDB connectivity is expected to fail
-  because Atlas is network-restricted; the restored ECS NAT EIP and future
-  Lightsail static IP require explicit Atlas allowlisting.
+- Atlas and Redis remain external dependencies reached from the approved ECS
+  NAT path. Runtime TLS/auth and BullMQ heartbeat must pass after Redis quota
+  recovery and credential rotation.
 - `SMOKE_ORG_SLUG`, `SMOKE_EMAIL`, and `SMOKE_PASSWORD` are unavailable in the
   local execution environment. They must be configured as protected deployment
   values and never printed.
@@ -1104,34 +1105,20 @@ Total: **32 requirements**.
 
 ## Remaining Implementation Tasks
 
-### P12-09 — Restore and Certify the ECS Release Baseline
+### P12-09 — Certify the ECS Staging and Production Release
 
-**Goal:** Prove the immutable staging-to-production-like release and rollback
-path before using ECS as a Lightsail rollback boundary.
+**Goal:** Prove the immutable ECS staging-to-production release and rollback
+path for the current Git SHA.
 
 - P12-09.1 — Reconcile protected runtime inputs: encryption selectors,
   smoke identity, Atlas allowlist, Redis, GitHub OIDC/environment variables,
   and the reviewed recovery snapshot.
-- P12-09.2 — Push the current tested Git SHA, resolve image digests, restore
-  the single-NAT/ALB ECS baseline from approved identifiers, deploy staging,
-  and run the full authenticated smoke matrix.
+- P12-09.2 — Push the current tested Git SHA, resolve image digests, verify the
+  single-NAT/ALB ECS baseline, deploy staging, and run the full authenticated
+  smoke matrix.
 - P12-09.3 — Prove same-digest promotion and deliberate rollback without
   destructive data/index changes; retain previous revisions and monitor the
   healthy runtime for 15–30 minutes.
-
-### P12-09A — Cost-Optimized Lightsail Public Demo
-
-**Goal:** Move the low-traffic public demo to one 2 GB Lightsail Compose host
-without losing the verified ECS rollback path.
-
-- P12-09A.1 — Provision one `small_3_1` Linux instance and attached static
-  IPv4 through the non-root deployment role; bootstrap Docker/Compose and keep
-  only 80/443 public outside the bounded deployment window.
-- P12-09A.2 — Deploy the exact tested frontend/backend digests, Caddy, API,
-  and worker; add the static IP to Atlas; run direct/canary HTTPS smoke.
-- P12-09A.3 — Cut over `proxiai.me` only after canary PASS, rerun public
-  smoke, prove host rollback to the previous release, and keep ECS available
-  until a separate destructive-cleanup approval.
 
 ### P12-10 — Deployment Release Certification
 
@@ -1153,12 +1140,6 @@ P12-09.1 runtime inputs   GitHub/OIDC readiness
                  |
    P12-09.3 promotion + rollback proof
                  |
-       P12-09A.1 Lightsail provision
-                 |
-       P12-09A.2 canary deployment
-                 |
-       P12-09A.3 DNS/public rollback
-                 |
        P12-10 final certification
 ```
 
@@ -1168,9 +1149,8 @@ P12-09.1 runtime inputs   GitHub/OIDC readiness
 |---|---|---|---|
 | A1 — Runtime Prerequisite Auditor | Protected runtime selectors, smoke identity presence, Atlas/Redis network checks, AWS recovery snapshot | Parallel with A2; no workflow or application ownership | `chore(deploy): validate protected runtime prerequisites`; secret-presence and connectivity checks |
 | A2 — CI and Immutable Release Operator | GitHub OIDC/environments, green CI, current SHA image build/scan/push, digest evidence | Parallel with A1 until deployment | `ci(deploy): certify immutable phase 12 release inputs`; workflow/static/release checks |
-| A3 — ECS Staging and Rollback Operator | Restore approved ECS network/ALB baseline, staging deployment, worker/index/smoke, same-digest rollback | Waits for A1+A2 | `chore(deploy): verify ECS staging promotion and rollback`; full staging smoke and rollback proof |
-| A4 — Lightsail Migration Operator | Provisioning, Compose/Caddy deployment, Atlas allowlist input, canary, DNS cutover, host rollback | Waits for A3 | `chore(deploy): complete Lightsail canary and public cutover`; direct/canary/public smoke |
-| A5 — Integration and Release Certifier | Final regressions, 15–30 minute observation, evidence, cost inventory, docs closure | Runs last | `test(release): certify phase 12 deployment gates`, then `docs(phase12): close deployment phase` |
+| A3 — ECS Staging and Rollback Operator | Verify approved ECS network/ALB baseline, staging deployment, worker/index/smoke, same-digest production and rollback | Waits for A1+A2 | `chore(deploy): verify ECS staging promotion and rollback`; full staging/public smoke and rollback proof |
+| A4 — Integration and Release Certifier | Final regressions, 15–30 minute observation, evidence, cost inventory, docs closure | Runs last | `test(release): certify phase 12 deployment gates`, then `docs(phase12): close deployment phase` |
 
 File ownership must remain disjoint. External configuration evidence may be
 recorded without committing secret values, credentials, DNS backups, coverage
@@ -1186,16 +1166,16 @@ output, or ignored recovery state.
 - **Tenant/security:** smoke uses a dedicated trusted organisation/user and
   includes cross-tenant denial, BLOCK zero-provider, MASK sanitized-egress,
   encryption, append-only accounting/audit, and secret/log scans.
-- **Failure semantics:** failed CI/image scan/index/staging/canary blocks the
+- **Failure semantics:** failed CI/image scan/index/staging/promotion blocks the
   next stage. Failed service/public smoke restores the recorded previous
   release. No deployment failure mutates or deletes MongoDB, Redis, ECR,
   Secrets Manager, task definitions, or audit/accounting records.
 - **Observability:** liveness/readiness, deployed SHA, worker heartbeat, queue
   outcomes, bounded metrics, and safe logs are required. API/worker metrics
   remain private.
-- **Rollout:** current SHA -> immutable ECR digests -> ECS staging -> rollback
-  proof -> Lightsail canary -> explicit DNS cutover -> public smoke -> retained
-  ECS rollback -> separately approved cost cleanup.
+- **Rollout:** current SHA -> immutable ECR digests -> ECS staging ->
+  same-digest production -> public smoke -> deliberate ECS rollback proof ->
+  separately approved power controls.
 
 ## Contract Completion Gate
 
@@ -1208,9 +1188,9 @@ output, or ignored recovery state.
   anomaly, provider-health, recovery, heartbeat, and leak checks.
 - Same-digest promotion and rollback complete without rebuilding images or
   mutating data; previous task definitions/digests remain recorded.
-- Lightsail direct/canary HTTPS and public `proxiai.me` smoke pass with one
-  frontend/API/worker instance set and private worker/metrics boundaries.
-- Frontend/API/worker remain healthy for 15–30 minutes after public cutover;
+- Public `proxiai.me` smoke passes on ECS with one frontend/API/worker task and
+  private worker/metrics boundaries.
+- Frontend/API/worker remain healthy for 15–30 minutes after promotion;
   worker heartbeat and queue outcomes remain fresh.
 - Atlas and Redis TLS/auth connectivity pass from the deployed runtime;
   Atlas allowlists only approved stable egress IPs.
@@ -1218,8 +1198,8 @@ output, or ignored recovery state.
   tenant leak, duplicate accounting effect, or unexplained critical flake
   remains.
 - Phase 11 release thresholds remain unchanged and green.
-- Cost inventory and deferred ECS cleanup are documented; no destructive
-  cleanup occurs without separate approval.
+- ECS cost inventory and power controls are documented; no destructive cleanup
+  occurs without separate approval and a validated recovery snapshot.
 
 ---
 
@@ -1369,7 +1349,7 @@ Do not randomly change several files.
 | Phase 9 | Completed | Versioned AES-GCM storage, append-only audit, audited admin mutations, safe export, migration, and tenant/security gates verified |
 | Phase 10 | Completed | Bounded API/worker metrics, dashboard, alerts, dedicated runbooks, redaction/cardinality gates, and private scrape boundaries verified |
 | Phase 11 | Completed | Coverage, ten security gates, isolated Mongo/Redis/BullMQ integration, Docker, and deterministic release verification passed |
-| Phase 12 | In Progress | Contract audit complete; P12-01 through P12-08 are implemented, while P12-09 ECS proof, P12-09A Lightsail cutover, and P12-10 certification remain |
+| Phase 12 | In Progress | P12-01 through P12-08 are implemented; P12-09 ECS proof and P12-10 certification remain |
 | Phase 13 | Not Started | |
 
 ---
@@ -1385,17 +1365,16 @@ deployment settings, verify GitHub OIDC/environment inputs, confirm Atlas and
 Redis network paths, and validate the ignored ECS recovery snapshot. Do not
 print secret values, mutate application behavior, or start Phase 13.
 
-### Active cost-cut migration
+### Active ECS release recovery
 
-P12-09A keeps deployed product behavior unchanged while replacing the
-high-fixed-cost ECS/ALB/NAT runtime with one Docker Compose Lightsail host.
-The 2026-08-21 read-only audit found ECS deep-stopped, no ALB/NAT/public DNS,
-and no Lightsail instance. P12-09 must first reconstruct and certify the ECS
-rollback baseline. Lightsail canary HTTPS, public DNS cutover, authenticated
-application smoke, worker/accounting smoke, and rollback proof then run before
-any separately approved cleanup.
+ECS/Fargate remains the canonical public architecture. The 2026-08-21
+deep-start restored ALB, NAT, DNS, frontend, and API health, but the worker is
+crash-looping because the external Upstash request quota is exhausted. The
+exposed Redis credential must be rotated and the protected secret updated
+before staging, worker/accounting smoke, production promotion, rollback, and
+observation can run. Lightsail remains an unexecuted optional experiment.
 
-Critical pre-cutover autopsy gates:
+Critical pre-promotion autopsy gates:
 
 - [x] Unknown usage uses a conservative provider/model liability reservation
   without synthesizing actual tokens or unconditionally locking the tenant.
@@ -1403,10 +1382,10 @@ Critical pre-cutover autopsy gates:
 - [x] Complete remaining verified P0/P1 runtime fixes and full regression.
 - [x] Add reviewed soft/deep manual ECS demo power controls with non-secret
   recovery snapshots, mandatory atomic read-back validation, a read-only
-  snapshot command, and `-WhatIf` validation. The current deep-stopped AWS
-  state retains the ignored reconstruction snapshot and must be restored by
-  the approved start path before it is treated as a rollback environment.
-- [ ] Pass Lightsail canary, public smoke, and rollback proof.
+  snapshot command, and `-WhatIf` validation. The recovery snapshot remains
+  ignored and validated before destructive deep-stop operations.
+- [ ] Pass current-SHA ECS staging, public smoke, worker health, and rollback
+  proof.
 
 Autopsy closure classification: unknown-usage lockout, Groq terminal stream
 errors, accounting/idempotency ordering, refresh concurrency, transient refresh

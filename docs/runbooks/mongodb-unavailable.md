@@ -47,11 +47,9 @@ affected.
 4. For ECS fallback, verify private route/NAT state against
    `deploy/aws/.runtime/demo-power-state.json`. Do not recreate networking from
    memory or release the preserved NAT EIP.
-5. For Lightsail, verify the API and worker containers are running and inspect
-   only redacted logs for connection categories.
-6. Check Atlas cluster availability, connection limits, TLS, and the approved
+5. Check Atlas cluster availability, connection limits, TLS, and the approved
    source-IP allowlist.
-7. If only one release fails, compare its validated environment contract with
+6. If only one release fails, compare its validated environment contract with
    the previous immutable release.
 
 ## Safe Recovery

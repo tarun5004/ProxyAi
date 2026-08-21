@@ -54,7 +54,7 @@ It does not claim that ProxiAI is SOC 2, ISO 27001, PCI DSS, HIPAA, or any other
 - Prompt cache and idempotency keys
 - Request logs and append-only audit logs
 - Admin dashboard and CSV audit export
-- Docker, AWS ECS/Fargate release proof, and Lightsail public-demo deployment
+- Docker and AWS ECS/Fargate release proof
 - Pino logging and Prometheus metrics
 - Email notifications only after an approved provider, validated runtime
   configuration, trusted `ORG_ADMIN` recipient lookup, and allowlisted template
@@ -1502,12 +1502,12 @@ release blocking:
 |---|---|---|
 | Secret/image leakage | Runtime selectors only; no build args, logs, artifacts, frontend bundle, host release directory, or image layer contains a secret | Secret scan plus image/filesystem inspection using sentinels |
 | Mutable or substituted image | Current tested Git SHA resolves to recorded frontend/backend ECR digests; API and worker share the exact backend digest | ECR/task/Compose digest comparison and deployed SHA health check |
-| Public worker/metrics exposure | Worker has no application listener; API `/metrics` and worker `9464` stay off ALB/Caddy/public firewall rules | Route, security-group, Caddy, and external negative checks |
+| Public worker/metrics exposure | Worker has no application listener; API `/metrics` and worker `9464` stay off ALB/public security-group rules | Route, security-group, and external negative checks |
 | Broken tenant/policy boundary after deploy | Existing trusted-org, RBAC, BLOCK, MASK, encryption, audit, and accounting behavior is unchanged | Authenticated smoke plus foreign-tenant, BLOCK-zero-call, MASK-sentinel, ciphertext, and append-only checks |
 | Replay or duplicate rollout | One serialized release per environment; deterministic job/request keys and previous release metadata remain intact | Concurrent-workflow guard and duplicate request/job regression |
 | Partial deployment | Index/staging/canary failure blocks promotion; service/public failure restores recorded previous revisions/digests | Injected failure and executed rollback smoke |
 | Unsafe infrastructure reconstruction | Deep-start consumes the validated non-secret snapshot and refuses missing/ambiguous identifiers | Snapshot validation, `-WhatIf`, and reconstruction verification |
-| Atlas/Redis exposure | TLS/auth required; Atlas allowlists only restored NAT EIP and approved Lightsail static IP; no broad CIDR | Deployed-network connectivity and allowlist review |
+| Atlas/Redis exposure | TLS/auth required; Atlas allowlists only the restored NAT EIP or an explicitly approved private path; no broad CIDR | Deployed-network connectivity and allowlist review |
 | Privilege escalation | GitHub/local automation assumes scoped non-root roles; no root or long-lived AWS key | STS/OIDC trust and IAM policy review |
 | Resource exhaustion/cost surprise | One task/container per role, bounded memory/CPU, no autoscaling, one NAT during ECS proof, 7-day logs | Runtime memory/health observation and AWS cost-resource inventory |
 | DNS/TLS cutover failure | Canary HTTPS passes before apex mutation; previous DNS and release are retained and restorable | Canary certificate check, DNS backup, public smoke, and rollback |

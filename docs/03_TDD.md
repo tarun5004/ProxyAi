@@ -75,7 +75,7 @@ The goal is to let one developer implement the MVP without repeatedly redesignin
 | Logging | Pino | Structured JSON with redaction |
 | Metrics | prom-client | `/metrics` endpoint |
 | Containers | Docker + Compose | Local parity with deployment |
-| Deployment | AWS ECS/Fargate + Lightsail | GitHub Actions with protected immutable-digest promotion |
+| Deployment | AWS ECS/Fargate | GitHub Actions with protected immutable-digest promotion |
 
 ## 5. Backend Project Structure
 
@@ -2020,7 +2020,7 @@ Phase 10 uses one process-local Prometheus registry per runtime. The API exposes
 `GET /metrics` only inside the private runtime network. The worker exposes a
 separate internal-only metrics listener on validated
 `WORKER_METRICS_PORT=9464` because it does not run the public API.
-The ALB and Caddy must not route either metrics endpoint publicly. Scrapes do
+The ALB must not route either metrics endpoint publicly. Scrapes do
 not require application authentication because network isolation is mandatory;
 public exposure is a deployment failure.
 
@@ -2384,7 +2384,7 @@ API and worker use the same image but different commands. Redis runs with AOF
 and `noeviction`. Nginx mirrors the approved same-origin production routing.
 Prometheus/Grafana and Bull Board are not part of this Compose contract.
 
-## 45. AWS ECS/Fargate and Lightsail MVP Deployment
+## 45. AWS ECS/Fargate MVP Deployment
 
 Recommended services:
 
@@ -2396,10 +2396,9 @@ The API and BullMQ worker run as separate ECS services from the same backend ima
 
 Active staging/rollback proof uses one 256 CPU/512 MiB frontend, API, and worker
 task with no autoscaling. Desired count zero is a deliberate cost-stop state,
-not a healthy deployed environment. The cost-optimized public demo uses one
-measured 2 GB Lightsail Compose host only after ECS staging and rollback proof.
-One frontend, API, worker, and Caddy container run from immutable ECR digests;
-the worker and metrics endpoints remain private.
+not a healthy deployed environment. Production promotes the same tested image
+digests to one task per service. Reviewed snapshot-driven power controls manage
+demo cost; worker and metrics endpoints remain private.
 
 ## 46. Implementation Sequence
 
@@ -2466,7 +2465,7 @@ Exit gate: end-to-end demo works in browser for employee and organisation admin.
 4. Health endpoints
 5. Docker multi-stage builds
 6. Docker Compose cleanup
-7. ECS/Fargate staging/rollback and Lightsail canary deployment tests
+7. ECS/Fargate staging, production, and rollback deployment tests
 8. Final integration and E2E tests
 9. Documentation updates
 

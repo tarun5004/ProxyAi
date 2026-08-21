@@ -4,12 +4,35 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 12 in progress; contract/readiness audit complete.
-- **Task:** P12-09.1 — Protected Runtime and Release Prerequisites.
+- **Phase:** Phase 12 in progress; repository remediation and live ECS release
+  certification.
+- **Task:** P12-09 — Certify the immutable ECS staging and production release.
 - **Status:** P12-01 through P12-08 remain implemented. Current live execution
   is blocked on Phase 9 encryption secret selectors, protected smoke identity,
   green remote CI/current image digests, healthy Redis/BullMQ worker capacity,
-  and deployed staging/Lightsail evidence. Phase 13 has not started.
+  and deployed staging/production/rollback evidence. Phase 13 has not started.
+
+## Latest Task — Final Repository Remediation
+
+- **Architecture:** ECS/Fargate is the canonical staging, production, and
+  rollback platform. Lightsail is an unexecuted optional cost experiment and
+  is not a Phase 12 completion gate.
+- **Deployment fixes:** Task-definition preparation now rejects missing or
+  duplicate container matches; API and worker roll out and stabilize before
+  frontend; the worker exposes private heartbeat-backed `/healthz`; API SSE
+  shutdown is bounded inside the ECS stop budget.
+- **Demo safety:** The NovaStack public identity is a dedicated `EMPLOYEE`
+  with only `chat:send` and `chat:view_own`. Legacy privileged demo users are
+  disabled when the seed runs. Passwords remain runtime-only and reset only
+  through explicit opt-in.
+- **Landing:** The public page now explains the problem, request controls,
+  encryption/audit, async accounting, observability, ECS architecture,
+  certified release evidence, safe demo access, and honest limitations without
+  customer, certification, or high-availability claims.
+- **Live blocker:** Rotate the Redis credential exposed during local diagnosis,
+  update protected `REDIS_URL`, and restore BullMQ-compatible quota/capacity.
+  Frontend/API public health recovered; worker remains `0/1` until this external
+  action is complete.
 
 ## Latest Task — Deep-Start Failure Root Cause and Script Hardening
 
@@ -44,8 +67,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
   model, index, API, queue, frontend screen, or migration was added.
 - **Classification:** Fourteen checks are already complete, eleven are partial,
   and seven live release/exit checks are blocked. P12-01 through P12-08 are
-  regression baselines; remaining work is P12-09 ECS release proof, P12-09A
-  Lightsail public cutover, and P12-10 certification.
+  regression baselines; remaining work is P12-09 ECS release proof and P12-10
+  certification.
 - **Read-only AWS evidence (2026-08-21):** the non-root deployment role and
   immutable scan-on-push ECR repositories are available. Three 256/512 staging
   task definitions/services exist, but all service desired/running counts are
@@ -59,18 +82,17 @@ This file is a progress log. The approved documents in `docs/` remain the source
   `MESSAGE_ENCRYPTION_KEYS_JSON` and
   `MESSAGE_ENCRYPTION_ACTIVE_KEY_VERSION` are absent. Redis connectivity passes.
   Local Atlas connectivity is blocked by network allowlisting as expected;
-  restored NAT and future Lightsail static IPs require approved Atlas entries.
+  restored NAT egress requires an approved Atlas network entry.
   `SMOKE_ORG_SLUG`, `SMOKE_EMAIL`, and `SMOKE_PASSWORD` are not available in
   the local environment and must remain protected.
 - **CI evidence:** before this audit commit, the local branch contained 44
   commits not present on `origin/main`. Recent public CI runs failed before
   deployment, so green current-SHA CI, image push, staging, promotion, monitor,
   and rollback cannot be claimed.
-- **Canonical rollout:** protected inputs and GitHub/OIDC readiness -> restore
-  ECS baseline -> current-SHA immutable staging smoke -> same-digest promotion
-  and rollback proof -> provision one 2 GB `small_3_1` Lightsail host -> canary
-  HTTPS -> explicit apex cutover -> public smoke/host rollback -> 15–30 minute
-  observation -> separately approved ECS cost cleanup.
+- **Canonical rollout:** protected inputs and GitHub/OIDC readiness -> verify
+  ECS baseline -> current-SHA immutable staging smoke -> same-digest production
+  promotion -> public smoke -> deliberate ECS rollback proof -> 15–30 minute
+  observation.
 - **Migration:** no data migration. The existing create-only index step remains
   mandatory and destructive schema/data rollback remains prohibited.
 - **Security:** Phase 11 thresholds and ten gates remain release blocking.
@@ -78,8 +100,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
   metrics, Atlas/Redis TLS/auth, serialized release/DNS changes, deployed SHA,
   rollback, cost bounds, and absence of secret/content leakage.
 - **Agents planned:** A1 runtime prerequisites, A2 CI/immutable images, A3 ECS
-  staging/rollback, A4 Lightsail canary/public cutover, and A5 final integration
-  certification. A1/A2 may run in parallel; A3 -> A4 -> A5 is sequential.
+  staging/production/rollback, and A4 final integration certification. A1/A2
+  may run in parallel; A3 -> A4 is sequential.
 - **Next:** P12-09.1 only. Do not provision or deploy until protected runtime
   inputs and recovery prerequisites pass. Do not start Phase 13.
 
@@ -252,8 +274,8 @@ This file is a progress log. The approved documents in `docs/` remain the source
   registry per API/worker runtime, bounded instruments at owning boundaries,
   one Grafana dashboard, eight alerts, and eight dedicated runbooks.
 - Phase 10 metrics use process-local API and worker registries with private-only
-  scrape endpoints. ALB, Caddy, public security groups, and the Lightsail
-  firewall must not expose them.
+  scrape endpoints. ALB listeners and public security groups must not expose
+  them.
 - The canonical Phase 10 inventory and histogram buckets are fixed in the TDD.
   Labels are allowlisted domain/platform dimensions only. Tenant, user,
   request, resource, model, raw route/query, job, provider-request, prompt,
@@ -270,7 +292,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
   completed Prometheus instrumentation.
 - API `/metrics` and worker port `9464` are private runtime endpoints. The API
   excludes its own scrape from HTTP metrics; the worker listener serves no
-  application routes and closes before dependency shutdown. ALB and Caddy route
+  application routes and closes before dependency shutdown. The ALB routes
   neither endpoint.
 - MongoDB provider-health history and public Bull Board/manual replay tooling
   are approved-deferred for the MVP; bounded metrics and safe failed-set/log
@@ -1430,7 +1452,7 @@ npm run dev
   application route and shuts down cleanly before shared dependencies.
 - **Operations:** One validated Grafana dashboard contains 20 panels. Eight
   bounded alert rules each map to one dedicated incident runbook. Public
-  ALB/Caddy routes and power-control scripts remain unchanged.
+  ALB routes and power-control scripts remain unchanged.
 - **Verification:** Focused observability fixtures passed `30/30`; the full
   backend suite passed `241/241`; lint, typecheck, build, diff-check, dashboard
   JSON, alert YAML/metric references, runbook mapping, runtime health/scrape,
@@ -1452,14 +1474,18 @@ npm run dev
 
 ## Recommended Next Task
 
-- Run a Phase 12 contract/readiness audit before any new Phase 12 implementation.
-  Existing P12-09A deployment history remains a separate operational record;
-  Phase 11 closure did not start or modify it.
+- Complete the current release harness, then unblock Redis/BullMQ and run the
+  immutable ECS staging, production, rollback, and observation gates.
 
-## Active Lightsail Cost-Cut Migration
+## Superseded Historical Lightsail Experiment — Not Active
 
-- **Task:** P12-09A — Replace the low-traffic public ECS demo with one
-  cost-optimized Lightsail Docker Compose host while preserving ECS rollback.
+This section records an earlier cost-cut proposal only. ECS/Fargate is now the
+canonical architecture; none of the historical Lightsail items below is a
+current deployment prerequisite or completion gate.
+
+- **Historical task:** P12-09A proposed replacing the low-traffic public ECS
+  demo with one Lightsail Docker Compose host. It was never completed and is no
+  longer active.
 - **Sizing evidence:** The current production images started together against
   isolated MongoDB/Redis dependencies and consumed approximately 35 MiB
   frontend, 54 MiB API, and 57 MiB worker memory at idle. The approved initial
@@ -1468,16 +1494,11 @@ npm run dev
 - **Target topology:** Caddy exposes only 80/443 and routes to private Compose
   frontend/API services; worker exposes no port. Atlas, Upstash, Groq, ECR,
   Route 53, and the existing production secret remain authoritative.
-- **Migration safety:** This was the pre-deep-stop contract. The current audit
-  found ECS services at zero with ALB/NAT/public DNS absent. The retained
-  snapshot and approved reconstruction path must restore and certify ECS before
-  it is treated as the rollback boundary. No further destructive cleanup is
-  permitted before Lightsail canary/public smoke and separate approval.
-- **Current blockers:** The local non-root role can read Lightsail resources,
-  but GitHub OIDC execution remains unproven. Production encryption selectors,
-  protected smoke credentials, green current-SHA CI, ECS reconstruction,
-  staging/rollback proof, Atlas static-IP allowlisting, and Lightsail
-  provisioning remain required.
+- **Historical migration safety:** The proposal required ECS rollback proof
+  before any alternate-host cutover. That principle remains useful, but no
+  Lightsail cutover is currently approved.
+- **Historical blockers:** Lightsail permissions, provisioning, and static-IP
+  allowlisting were never completed. They are no longer release prerequisites.
 - **Historical live baseline:** `https://proxiai.me/`, `/health/live`, and
   `/health/ready` returned HTTP 200 before the later deep-stop state.
 - **Historical release:** Git SHA
@@ -1559,9 +1580,9 @@ npm run dev
 - **Verification:** PowerShell parsing passed for all demo-control scripts;
   policy JSON parsing, live deep-stop preview, reconstructed deep-start preview,
   wrapper preview, current topology discovery, and `git diff --check` passed.
-- **Next action:** Attach the scoped power policy, use soft mode for routine
-  savings, and run deep stop only when accepting the longer ALB/NAT rebuild
-  window. P12-09A Lightsail canary/public cutover remains incomplete.
+- **Next action:** Use soft mode for routine savings and deep stop only when
+  accepting the longer ALB/NAT rebuild window. Certify the current ECS release;
+  do not pursue Lightsail without a new architecture decision.
 
 ## Do Not Forget
 

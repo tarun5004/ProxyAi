@@ -1593,9 +1593,9 @@ environment evidence, not weaker substitutes for application tests.
 4. **Rollback:** an intentionally selected previous release restores all three
    services without rebuilding images or mutating data; post-rollback smoke
    passes.
-5. **Lightsail canary/public:** Caddy TLS, same-origin auth cookie, frontend,
-   API, worker, Atlas, Redis, Groq, accounting, and private metrics boundaries
-   pass before and after DNS cutover.
+5. **Production promotion:** same-digest frontend, API, and worker services,
+   HTTPS, same-origin auth cookies, Atlas, Redis, Groq, accounting, and private
+   metrics boundaries pass after ECS promotion.
 6. **Observation:** public health, worker heartbeat, queue outcomes, memory,
    restart count, and safe logs remain healthy for 15–30 minutes.
 

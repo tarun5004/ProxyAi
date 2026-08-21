@@ -561,15 +561,15 @@ GET /metrics
 
 This endpoint should be:
 
-- unreachable from public ALB, Caddy, firewall, and security-group routes;
+- unreachable from public ALB and public security-group routes;
 - protected by mandatory private-network controls;
 - excluded from normal public API documentation;
 - free of sensitive labels.
 
 The API and worker use separate process-local registries. The worker metrics
-listener uses validated internal port `9464`, serves only `GET /metrics`, and
-has no ALB, Caddy, target-group, or public-firewall route. The frontend exposes
-no Prometheus endpoint.
+listener uses validated internal port `9464`, serves only `GET /metrics` and
+`GET /healthz`, and has no ALB or target-group route. The frontend exposes no
+Prometheus endpoint.
 
 ---
 

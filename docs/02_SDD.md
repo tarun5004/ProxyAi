@@ -45,8 +45,7 @@ The system design is intentionally limited to the already approved MVP.
   template approval
 - Append-only audit logging
 - Basic admin dashboard APIs
-- Structured logs, core metrics, Docker Compose, ECS/Fargate release proof,
-  and the Lightsail public-demo path
+- Structured logs, core metrics, Docker Compose, and ECS/Fargate release proof
 
 ### 3.2 Explicitly deferred
 
@@ -992,8 +991,8 @@ Redact:
 
 Phase 10 adds process-local Prometheus registries to the API and worker. The API
 registry is scraped from the API container; worker metrics use a separate
-internal-only worker endpoint. Neither endpoint is routed by the public ALB or
-Caddy configuration. Prometheus labels are platform-wide operational
+internal-only worker endpoint. Neither endpoint is routed by the public ALB.
+Prometheus labels are platform-wide operational
 dimensions only and are never tenant reporting data.
 
 The approved inventory covers HTTP count/duration, chat outcome/completion/TTFT,
@@ -1314,19 +1313,13 @@ Release proof / rollback baseline:
     -> private ECS/Fargate API
     -> private ECS/Fargate worker
 
-Cost-optimized public demo after ECS proof:
-  Route 53 -> one Lightsail static IP -> Caddy
-    -> Compose frontend
-    -> Compose API
-    -> private Compose worker
-
 API and worker -> MongoDB Atlas / managed Redis / Groq
 ```
 
-ECS is the staging and rollback architecture. The approved low-traffic public
-demo may cut over to one 2 GB Lightsail host only after immutable-digest canary,
-authenticated smoke, worker/accounting proof, and rollback evidence pass. ECS
-cleanup remains a separate destructive approval.
+ECS/Fargate is the canonical staging, production, and rollback architecture.
+The low-traffic public demo uses one task per service and reviewed soft/deep
+power controls to bound idle cost. The previous Lightsail path remains an
+unexecuted cost experiment and is not a release requirement.
 
 ### Production container rules
 
@@ -1339,11 +1332,9 @@ cleanup remains a separate destructive approval.
 
 ### Scaling rule
 
-Use one frontend, API, and worker process for the MVP. ECS desired counts are
-one while active and zero only during an explicit cost stop. Lightsail starts
-on the measured 2 GB plan and moves to 4 GB only after sustained memory/OOM
-evidence. Increase concurrency only after shared-state limitations are
-understood and accepted.
+Use one frontend, API, and worker task for the MVP. ECS desired counts are one
+while active and zero only during an explicit cost stop. Increase concurrency
+only after shared-state limitations and measured load justify it.
 
 ## 16. Health Checks
 
@@ -1437,7 +1428,7 @@ The process must fail startup when a required production configuration is missin
 - Health endpoints
 - Docker Compose
 - Multi-stage Dockerfile
-- AWS ECS/Fargate staging/rollback and Lightsail public-demo deployment
+- AWS ECS/Fargate staging, production, and rollback deployment
 - End-to-end tests
 - Security review
 - Documentation cleanup
@@ -1494,7 +1485,7 @@ The full testing strategy will be a separate document. Minimum system-design cov
 | Messaging | BullMQ job publication | Simpler than separate Pub/Sub plus queues |
 | Pagination | Cursor-based | Stable and index-friendly |
 | Content protection | AES-256-GCM | Authenticated encryption |
-| Deployment | Docker, ECR, ECS/Fargate, and Lightsail | Separate long-running API and worker containers with immutable digest promotion |
+| Deployment | Docker, ECR, and ECS/Fargate | Separate long-running API and worker containers with immutable digest promotion |
 
 ## 21. Known Limitations
 
@@ -1546,7 +1537,7 @@ These must be resolved before or during implementation without expanding feature
 | Anomaly alerts | Anomaly worker and Alert collection |
 | Admin dashboard | Admin APIs and frontend pages |
 | Observability | Pino, metrics, health endpoints |
-| Deployment | Docker Compose, ECS/Fargate release proof, and Lightsail public demo |
+| Deployment | Docker Compose and ECS/Fargate release proof |
 
 ## 24. Definition of System-Design Completion
 

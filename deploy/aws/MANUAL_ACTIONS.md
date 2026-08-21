@@ -216,52 +216,31 @@ After deployment:
 - Atlas Flex limitations:
   <https://www.mongodb.com/docs/atlas/reference/flex-limitations/>
 
-## 12. Lightsail Cost-Cut Migration
+## 12. ECS Demo Cost Controls and Current Blockers
 
-The approved demo replacement is one 2 GB Linux Lightsail instance with public
-IPv4, two vCPUs, and 60 GB SSD. AWS currently lists this bundle at USD 12/month
-before taxes and region-specific transfer overages. The attached Lightsail
-static IPv4 has no separate charge while attached.
+The canonical public demo remains ECS/Fargate with one 256 CPU/512 MiB task per
+service, no autoscaling, one ALB, one NAT Gateway, and seven-day logs. Use soft
+stop for routine savings and deep stop only when the longer ALB/NAT recovery
+window is acceptable. ECR, target groups, ACM, Route 53, IAM/OIDC, and the
+validated ignored recovery snapshot remain recovery dependencies.
 
-Before provisioning, an account administrator must confirm that both the local
-ProxiAI deployment role and GitHub OIDC role retain only the repository
-policy's explicit Lightsail and Route 53 actions. The 2026-08-21 read-only
-audit confirmed the local non-root role can call `lightsail:GetInstances` and
-`lightsail:GetBundles`; GitHub OIDC execution remains unproven. Do not fall
-back to root for normal provisioning.
+Before another deployment attempt:
 
-Required manual values/actions:
+1. Rotate the Redis credential that appeared in local diagnostic output.
+2. Update only `REDIS_URL` in `proxiai/production`; never print the value.
+3. Reset/upgrade the Upstash request quota or provide another explicitly
+   approved BullMQ-compatible TLS/auth endpoint.
+4. Verify BullMQ worker startup and heartbeat before service promotion.
+5. Populate the Phase 9 encryption selectors and protected smoke credentials.
+6. Push the current branch and require green current-SHA CI.
+7. Run staging, same-digest production promotion, rollback, public smoke, and
+   the 15–30 minute observation gate.
 
-1. Attach the reviewed updated deployment policy to
-   `proxiai-deployment-role` and the GitHub deployment role.
-2. Set `LIGHTSAIL_INSTANCE_NAME=proxiai-demo`, the Route 53 hosted-zone ID,
-   `LIGHTSAIL_CANARY_DOMAIN`, and the production domain in GitHub variables.
-3. Keep `SMOKE_EMAIL` and `SMOKE_PASSWORD` only in the protected GitHub
-   environment.
-4. Run the canary deployment and full smoke before changing `proxiai.me`.
-5. Approve the Route 53 apex cutover only after the canary is green.
-6. Wait for public stability, then separately approve any ECS/ALB/NAT cleanup.
+The retained Lightsail scripts are an unexecuted experiment, not a deployment
+prerequisite. Do not provision or cut DNS to Lightsail without a new approved
+architecture decision.
 
-The 2026-08-21 audit found ECS services already scaled to zero and the previous
-ALB/NAT absent, with target groups, task definitions, ECR, hosted zone, and the
-ignored recovery snapshot retained. Do not perform further destructive cleanup.
-Reconstruct and smoke-test the ECS baseline from the validated snapshot before
-treating it as the Lightsail rollback environment.
-
-### Post-cutover cleanup approval matrix
-
-| Resource | Main recurring-cost reason | Safe before stable cutover | Rollback impact |
-|---|---|---:|---|
-| ECS services/tasks | Fargate CPU and memory | No | Immediate rollback unavailable |
-| NAT Gateway/EIP | Hourly and per-GB egress | No | ECS loses external dependency access |
-| ALB | Hourly, LCU, public IPv4 | No | Previous HTTPS endpoint disappears |
-| Target groups | Operational clutter | No | Previous ALB routing cannot be restored quickly |
-| CloudWatch logs | Ingest/storage | No | Migration evidence lost |
-| Task definitions | Negligible idle cost | No | Revision rollback metadata lost |
-
-ECR, Route 53, and IAM/OIDC remain required by the Lightsail delivery path and
-are not cleanup candidates.
-# Demo power-control IAM
+## 13. Demo Power-Control IAM
 
 Before using deep power control, an account administrator must create or update
 the managed policy from `deploy/aws/proxiai-demo-power-policy.json` and attach

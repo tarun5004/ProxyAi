@@ -51,16 +51,14 @@ clients receive repeated standard error envelopes from multiple API routes.
    metrics before assuming an API regression.
 6. For admin or policy-write failures, check
    `proxiai_audit_writes_total{outcome="failure"}` and MongoDB readiness.
-7. Compare the failure start with the current task definition or Lightsail
-   release SHA. Confirm the previous immutable revision remains available.
+7. Compare the failure start with the current ECS task-definition release SHA.
+   Confirm the previous immutable revision remains available.
 
 ## Safe Recovery
 
 - Restore the failed dependency or correct the validated runtime configuration.
 - If the active release caused the spike, roll back to the last verified image
-  digest using `deploy/scripts/rollback-services.sh` for ECS or
-  `/opt/proxiai/releases/$(cat /opt/proxiai/current-release)/rollback.sh` on
-  Lightsail.
+  digest using `deploy/scripts/rollback-services.sh`.
 - After recovery, rerun liveness, readiness, authentication, conversation, and
   chat smoke checks. Confirm the `5xx` ratio returns to baseline.
 - Do not convert dependency, audit, encryption, or policy failures into success.

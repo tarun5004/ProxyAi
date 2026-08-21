@@ -2,8 +2,8 @@
 
 **Document ID:** DEPLOY-001
 **Status:** Approved deployment contract; live release certification pending
-**Target:** Immutable ECR images, ECS/Fargate staging and rollback proof, then
-Docker on AWS Lightsail for the low-traffic public demo
+**Target:** Immutable ECR images promoted through ECS/Fargate staging,
+production, and rollback
 
 ## 1. Purpose
 
@@ -16,10 +16,8 @@ Phase 8 or later product features.
 The canonical deployment system is:
 
 - Docker images in Amazon ECR;
-- three Amazon ECS/Fargate services for staging/release proof and rollback;
-- an internet-facing Application Load Balancer while the ECS baseline is active;
-- one 2 GB Lightsail Compose host for the approved low-traffic public demo
-  after canary and rollback proof;
+- three Amazon ECS/Fargate services for staging, production, and rollback;
+- an internet-facing Application Load Balancer while the public demo is active;
 - Route 53 and ACM-managed TLS;
 - AWS Secrets Manager runtime secret injection;
 - CloudWatch logs;
@@ -29,22 +27,14 @@ The canonical deployment system is:
 
 ## 2.1 Current Readiness State
 
-The 2026-08-21 read-only audit found the repository deployment implementation
-ahead of the live environment:
-
-- ECR repositories and immutable staging task definitions exist;
-- staging frontend/API/worker services exist at desired count zero;
-- the previous ALB and NAT Gateway are absent, and the validated ignored
-  recovery snapshot is required to reconstruct them;
-- no Lightsail instance exists;
-- `proxiai.me` has no A/alias record and is not serving the application;
-- Redis is reachable, while Atlas must allowlist each approved stable deployed
-  egress IP;
-- the production secret lacks the Phase 9 encryption keyring selectors;
-- protected smoke credentials and current green remote CI evidence are absent.
-
-This state is not production-ready and is not an active ECS rollback boundary.
-P12-09 restores and certifies ECS before P12-09A can cut over to Lightsail.
+The 2026-08-21 recovery run restored the ALB, NAT Gateway, Route 53 record,
+frontend task, and API task. Public frontend and API health subsequently
+returned HTTP 200. The worker cannot currently remain healthy because the
+external Upstash request quota is exhausted; the exposed Redis credential must
+also be rotated before another release attempt. Current-SHA CI, protected smoke
+credentials, encryption selectors, worker health, and staging/rollback evidence
+remain live release gates. No Lightsail instance is required or approved as the
+canonical Phase 12 target.
 
 GCP and Cloud Run are no longer approved deployment targets.
 
@@ -229,23 +219,22 @@ contracts may differ, but both remain strictly validated.
 - Provider health is routing/operational state and does not make the base API
   process unready.
 - Frontend ALB health uses the dependency-free `/healthz` route.
-- Worker health uses ECS process state plus the existing Redis heartbeat and an
-  operational queue-processing smoke check; no public worker HTTP endpoint is
-  required.
+- Worker health uses the private heartbeat-backed `/healthz` endpoint on port
+  `9464`; ECS marks the task unhealthy when any managed worker heartbeat is
+  unavailable or stale.
 
 ## 11.1 Phase 10 metrics boundary
 
 Prometheus scrapes process-local API and worker registries over private runtime
 networking only. The API may serve `GET /metrics` on its existing container
-port, while the worker uses validated internal-only port `9464`. The ALB,
-Caddy, Lightsail firewall, and public security groups must not route or expose
-either endpoint. The frontend has no metrics endpoint.
+port, while the worker uses validated internal-only port `9464`. The ALB and
+public security groups must not route or expose either endpoint. The frontend
+has no metrics endpoint.
 
 ECS declares worker container port `9464` without a target group or public
-security-group rule. Lightsail/local Compose expose it only to the private
-container network; Caddy has no `/metrics` route. Any future scraper must use an
-explicit private-network rule rather than changing application authentication
-or public routing.
+security-group rule. Local Compose exposes it only to the private container
+network. Any future scraper must use an explicit private-network rule rather
+than changing application authentication or public routing.
 
 One Grafana dashboard may consume the Prometheus data after Phase 10
 implementation. It must not query or display raw prompts, responses, tenant IDs,
@@ -313,78 +302,22 @@ limitation remains fail closed and unchanged.
 
 Deployment is ready only when containers, worker separation, index deployment,
 AWS infrastructure definitions, CI/CD, secret injection, health checks,
-staging smoke tests, same-digest promotion, rollback verification, Lightsail
-canary/public HTTPS, worker/accounting evidence, and 15–30 minute observation
-all pass for the current Git SHA. Local or historical evidence cannot replace
-current deployed evidence.
+staging smoke tests, same-digest ECS promotion, rollback verification, public
+HTTPS, worker/accounting evidence, and 15–30 minute observation all pass for
+the current Git SHA. Local or historical evidence cannot replace current
+deployed evidence.
 
-## 16. Cost-Optimized Lightsail Live Demo
+## 16. Cost-Controlled ECS Demo Operations
 
 For expected portfolio/interview traffic of approximately 0–10 occasional
-users, the approved live-demo target is one Linux Lightsail instance in
-`ap-south-1` running Docker Compose:
+users, the active public ECS deployment uses one 256 CPU/512 MiB task for each
+of frontend, API, and worker, no autoscaling, one ALB, one NAT Gateway, and
+seven-day logs. Reviewed `soft-stop`, `deep-stop`, `soft-start`, and
+`deep-start` commands control idle cost. Deep stop requires a validated ignored
+recovery snapshot before any mutation and preserves ECR, target groups, ACM,
+Route 53, and task-definition recovery metadata.
 
-```text
-Internet
-  -> Lightsail firewall (80/443)
-  -> Caddy automatic HTTPS
-     -> frontend:3000
-     -> api:8080 for /api/* and /health/*
-
-worker -> MongoDB Atlas / Upstash Redis / Groq
-api    -> MongoDB Atlas / Upstash Redis / Groq
-```
-
-The frontend, API, worker, and Caddy remain separate containers. The worker has
-no published port. MongoDB Atlas and Upstash remain external authoritative
-services; no duplicate database or Redis service is created on Lightsail.
-
-### 16.1 Capacity decision
-
-The initial bundle is the public-IPv4 2 GB Linux plan. The current immutable
-images were measured together in an isolated production-mode startup at about
-146 MiB idle application memory: frontend about 35 MiB, API about 54 MiB, and
-worker about 57 MiB. Each backend process is still capped at 512 MiB, the
-frontend is capped below its previous 512 MiB Fargate allocation, and Caddy is
-bounded separately. This leaves operating-system and burst headroom on a 2 GB
-host for the approved low traffic. Sustained memory pressure, OOM termination,
-or swap activity is an explicit upgrade trigger to the 4 GB plan.
-
-### 16.2 Migration safety
-
-- The current deep-stopped ECS environment must be reconstructed from the
-  validated recovery snapshot and pass staging/promotion/rollback smoke before
-  it is called a rollback environment. ECS services, ALB, NAT, target groups,
-  and task definitions then remain available until the Lightsail deployment
-  passes direct/canary and public-domain smoke checks.
-- `proxiai.me` DNS is changed only after a temporary HTTPS canary hostname has
-  proven login, refresh, chat, policy, accounting, and worker behavior.
-- Application images remain immutable ECR digests derived from one Git SHA.
-- The previous release SHA and image digests remain on the host for rollback.
-- Destructive ECS/ALB/NAT cleanup requires a separate explicit approval after
-  public stability is proven.
-
-### 16.3 Secrets and host storage
-
-The GitHub OIDC deployment role reads only the existing
-`proxiai/production` secret. A release job transfers a mode-`0600` runtime env
-file over an authenticated temporary Lightsail SSH certificate. Secret values
-never enter Git, Docker build arguments, image layers, or workflow logs.
-Lightsail does not receive long-lived AWS access keys. ECR login uses a
-short-lived token delivered over the same authenticated deployment session.
-
-### 16.4 HTTPS and DNS
-
-Caddy terminates TLS and obtains certificates automatically after Route 53
-points the approved hostname to the attached Lightsail static IPv4 address. A
-temporary canary hostname is used before apex cutover. HTTP redirects to HTTPS.
-The API `FRONTEND_ORIGIN` always equals the exact active HTTPS origin.
-
-### 16.5 Operations and rollback
-
-Deployments retain release directories by Git SHA, update Compose with exact
-frontend/backend image digests, wait for container health, and then run the
-authenticated smoke suite. Rollback selects the previous recorded release and
-never rebuilds images or mutates data. Caddy certificate state is persisted in
-named volumes. Host backups/snapshots are optional costed safeguards and must
-be approved separately.
+Lightsail automation remains in the repository as an unexecuted cost
+experiment. It is not part of the current deployment completion gate, is not
+triggered by the canonical release workflow, and must not replace ECS without
+a new approved architecture decision and complete canary evidence.
