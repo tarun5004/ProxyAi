@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ApiError } from "@/lib/errors/api-error";
 
 import { ChatWorkspace } from "./chat-workspace";
 
@@ -63,6 +65,10 @@ function envelope(data: unknown) {
 }
 
 describe("conversation workspace loading", () => {
+    afterEach(() => {
+        cleanup();
+    });
+
     beforeEach(() => {
         vi.clearAllMocks();
         conversationApi.listConversations.mockResolvedValue(
@@ -148,5 +154,81 @@ describe("conversation workspace loading", () => {
         });
         expect(await screen.findByRole("heading", { name: "Provider analysis" })).toBeInTheDocument();
         expect(conversationApi.createConversation).not.toHaveBeenCalled();
+    });
+
+    it("renders masked policy and a successful terminal stream without exposing a raw provider payload", async () => {
+        chatApi.streamChat.mockImplementationOnce(async function* () {
+            yield {
+                type: "policy",
+                data: {
+                    action: "ALLOW_WITH_MASK",
+                    riskScore: 32,
+                    categories: ["CONTACT_INFO"],
+                    masked: true,
+                },
+            };
+            yield {
+                type: "routing",
+                data: { provider: "groq", routingReason: "ordered", fallbackPosition: 0 },
+            };
+            yield { type: "token", data: { text: "Sanitized " } };
+            yield { type: "token", data: { text: "answer" } };
+            yield {
+                type: "done",
+                data: {
+                    requestId: "55555555-5555-4555-8555-555555555555",
+                    provider: "groq",
+                    model: "openai/gpt-oss-20b",
+                    routingReason: "ordered",
+                    usage: { inputTokens: 5, outputTokens: 2, totalTokens: 7 },
+                    latencyMs: 120,
+                    cacheHit: false,
+                    masked: true,
+                },
+            };
+        });
+        render(<ChatWorkspace initialConversationId={firstConversation.conversationId} />);
+
+        await screen.findByRole("heading", { name: "Security review" });
+        fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+            target: { value: "Contact alice@example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+        expect(await screen.findByText("Sanitized answer")).toBeInTheDocument();
+        expect(screen.getByText("ALLOW WITH MASK")).toBeInTheDocument();
+        expect(screen.getByText("CONTACT INFO")).toBeInTheDocument();
+        expect(screen.getByText("Applied")).toBeInTheDocument();
+        expect(screen.getByText("7")).toBeInTheDocument();
+        expect(chatApi.streamChat).toHaveBeenCalledWith(expect.objectContaining({
+            prompt: "Contact alice@example.com",
+        }));
+    });
+
+    it("shows a safe BLOCK decision when the backend rejects before streaming", async () => {
+        chatApi.streamChat.mockImplementationOnce(async function* () {
+            throw new ApiError({
+                status: 403,
+                code: "POLICY_BLOCKED",
+                message: "Policy blocked.",
+                requestId: "66666666-6666-4666-8666-666666666666",
+                details: { riskScore: 75, categories: ["CREDENTIAL", "UNSUPPORTED"] },
+            });
+        });
+        render(<ChatWorkspace initialConversationId={firstConversation.conversationId} />);
+
+        await screen.findByRole("heading", { name: "Security review" });
+        fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+            target: { value: "blocked sentinel" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+        expect(await screen.findByText("BLOCK")).toBeInTheDocument();
+        expect(screen.getByText("CREDENTIAL")).toBeInTheDocument();
+        expect(screen.queryByText("UNSUPPORTED")).not.toBeInTheDocument();
+        expect(screen.getByText(
+            "Your organisation policy blocked this request before provider execution.",
+        )).toBeInTheDocument();
+        expect(screen.queryByText("Policy blocked.")).not.toBeInTheDocument();
     });
 });

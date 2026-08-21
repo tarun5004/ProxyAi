@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdminDashboard } from "./admin-dashboard";
 
@@ -45,6 +45,12 @@ function envelope(data: unknown) {
 }
 
 describe("Phase 8 admin dashboard", () => {
+    afterEach(() => {
+        cleanup();
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+
     beforeEach(() => {
         vi.clearAllMocks();
         authState.permissions = [
@@ -125,5 +131,86 @@ describe("Phase 8 admin dashboard", () => {
             { maskThreshold: 20, blockThreshold: 60, monthlyTokenBudget: 1000 },
         ));
         await waitFor(() => expect(screen.getByRole("button", { name: "Save policy" })).toBeEnabled());
+    });
+
+    it("surfaces user mutation failure and keeps role, team, and status controls scoped", async () => {
+        const user = {
+            userId: "11111111-1111-4111-8111-111111111111",
+            email: "member@proxiai.local",
+            displayName: "Demo Member",
+            role: "EMPLOYEE",
+            permissions: ["chat:send"],
+            status: "ACTIVE",
+            createdAt: "2026-08-01T00:00:00.000Z",
+            updatedAt: "2026-08-01T00:00:00.000Z",
+        };
+        const team = {
+            teamId: "22222222-2222-4222-8222-222222222222",
+            name: "Security",
+            isActive: true,
+            createdBy: "33333333-3333-4333-8333-333333333333",
+            memberCount: 1,
+            createdAt: "2026-08-01T00:00:00.000Z",
+            updatedAt: "2026-08-01T00:00:00.000Z",
+        };
+        adminApi.listAdminUsers.mockResolvedValueOnce(envelope({ items: [user] }));
+        adminApi.listAdminTeams.mockResolvedValueOnce(envelope({ items: [team] }));
+        adminApi.updateAdminUserRole.mockRejectedValueOnce(new Error("safe failure"));
+        adminApi.updateAdminUserTeam.mockResolvedValueOnce(envelope({}));
+        adminApi.updateAdminUserStatus.mockResolvedValueOnce(envelope({}));
+        vi.spyOn(window, "confirm").mockReturnValue(true);
+        render(<AdminDashboard />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "users" }));
+        fireEvent.change(await screen.findByRole("combobox", { name: "Role for Demo Member" }), {
+            target: { value: "TEAM_LEAD" },
+        });
+        expect(await screen.findByRole("alert")).toHaveTextContent("Update failed");
+
+        fireEvent.change(screen.getByRole("combobox", { name: "Team for Demo Member" }), {
+            target: { value: team.teamId },
+        });
+        await waitFor(() => expect(adminApi.updateAdminUserTeam).toHaveBeenCalledWith(
+            "access-token",
+            user.userId,
+            team.teamId,
+        ));
+
+        fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+        await waitFor(() => expect(adminApi.updateAdminUserStatus).toHaveBeenCalledWith(
+            "access-token",
+            user.userId,
+            "DISABLED",
+        ));
+    });
+
+    it("requires confirmation for retention and exposes audit export only with permission", async () => {
+        authState.permissions = [
+            "admin:view_logs",
+            "admin:view_billing",
+            "admin:configure_policy",
+            "admin:export_audit",
+        ];
+        vi.spyOn(window, "confirm").mockReturnValue(true);
+        adminApi.updateAdminRetention.mockResolvedValueOnce(envelope({}));
+        adminApi.downloadAdminAudit.mockResolvedValueOnce(new Blob(["audit"]));
+        class TestURL extends URL {
+            public static createObjectURL = vi.fn(() => "blob:audit");
+            public static revokeObjectURL = vi.fn();
+        }
+        vi.stubGlobal("URL", TestURL);
+        const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+        render(<AdminDashboard />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Use encrypted storage" }));
+        await waitFor(() => expect(adminApi.updateAdminRetention).toHaveBeenCalledWith(
+            "access-token",
+            "ENCRYPTED_STORAGE",
+        ));
+
+        fireEvent.click(screen.getByRole("button", { name: "logs" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Export audit CSV" }));
+        await waitFor(() => expect(adminApi.downloadAdminAudit).toHaveBeenCalledTimes(1));
+        expect(clickSpy).toHaveBeenCalledTimes(1);
     });
 });
