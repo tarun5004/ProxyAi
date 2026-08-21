@@ -124,6 +124,7 @@ export async function persistCompletedMessagePair(
     repository: MessageRepository = messageRepository,
 ): Promise<void> {
     const occurredAt = input.occurredAt ?? new Date();
+    const assistantOccurredAt = new Date(occurredAt.getTime() + 1);
     const userMessageId = randomUUID();
     const assistantMessageId = randomUUID();
     const base = {
@@ -148,6 +149,7 @@ export async function persistCompletedMessagePair(
                 ...base,
                 messageId: assistantMessageId,
                 role: "ASSISTANT",
+                createdAt: assistantOccurredAt,
                 contentStored: false,
                 ...(input.outputTokenCount === undefined
                     ? {}
@@ -159,6 +161,7 @@ export async function persistCompletedMessagePair(
             base,
             userMessageId,
             assistantMessageId,
+            assistantOccurredAt,
         );
     const session = await mongoose.startSession();
 
@@ -184,7 +187,7 @@ export async function persistCompletedMessagePair(
                     orgId: input.orgId,
                     userId: input.userId,
                     conversationId: input.conversationId,
-                    occurredAt,
+                    occurredAt: assistantOccurredAt,
                 },
                 session,
             );
@@ -209,6 +212,7 @@ function createEncryptedRecords(
     base: Record<string, unknown>,
     userMessageId: string,
     assistantMessageId: string,
+    assistantOccurredAt: Date,
 ): readonly [Record<string, unknown>, Record<string, unknown>] {
     const encryption = requireEncryptionService();
 
@@ -234,6 +238,7 @@ function createEncryptedRecords(
             ...base,
             messageId: assistantMessageId,
             role: "ASSISTANT",
+            createdAt: assistantOccurredAt,
             contentStored: true,
             contentEnc: encryption.encrypt(input.assistantContent, {
                 orgId: input.orgId,
