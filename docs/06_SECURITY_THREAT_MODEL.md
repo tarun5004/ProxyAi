@@ -1434,6 +1434,21 @@ represented by fake passing fixtures. Any Critical or High finding blocks
 Phase 11 closure; unexplained flakiness in auth, tenancy, encryption,
 provider-egress, idempotency, billing, or audit tests is treated as a defect.
 
+### Phase 11 closure evidence
+
+Phase 11 completed with all ten release-blocking security gates passing:
+tenant isolation, billing isolation, authentication, RBAC, IDOR, prompt
+egress, encryption/plaintext denial, AuditLog atomicity/immutability,
+async/accounting duplicate safety, and pagination/bounded-query enforcement.
+The evidence includes 63/63 isolated MongoDB replica-set and Redis/BullMQ
+integration tests with zero skips, three-run concurrency/replay/rollback
+groups, sentinel leak scans, dependency audits, and non-root Docker image
+checks. No Critical/High defect remains open.
+
+This closure does not claim an external penetration test, destructive
+production security testing, prompt-cache/replay behavior, or cross-team
+isolation for a resource model that does not exist.
+
 ## 27. Known MVP Security Limitations
 
 1. Regex-based PII detection can miss obfuscated or context-dependent sensitive data.

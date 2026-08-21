@@ -4,11 +4,47 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 10 complete; Phase 11 implementation not started.
-- **Task:** P11-00 — Testing and Hardening contract/readiness audit.
-- **Status:** Phase 11's 28 roadmap checks are classified and its coverage,
-  security, task, agent-ownership, and completion contracts are approved.
-  No Phase 11 production or test implementation has started.
+- **Phase:** Phase 11 complete.
+- **Task:** P11-08 — Integration and Release Certification.
+- **Status:** All four Phase 11 exits pass: coverage, ten security gates,
+  isolated Mongo/Redis/BullMQ integration, and deterministic release quality.
+  Phase 12 was not started or modified by this closure.
+
+## Latest Task — P11-08 Integration and Release Certification
+
+- **Coverage:** Backend 78.12% lines / 83.65% branches; frontend 77.20%
+  lines / 69.65% branches. Critical branch results: policy 93.75%, risk 100%,
+  provider fallback 90.74%, retry 93.18%, circuit breaker 92.45%, AES-GCM
+  91.67%, permissions 90%, and admin/conversation/message cursors 100%.
+- **Tests:** Backend unit/coverage 264/264; frontend 27/27 across 12 files;
+  isolated real integration 63/63 with zero failures and zero skips.
+- **Real infrastructure proof:** The release harness creates disposable
+  `mongo:8.0.12` replica-set and `redis:7.4.2-bookworm` containers, unique
+  test databases/namespaces, and cleans them without touching production,
+  demo, or developer data.
+- **Security:** Tenant and billing isolation, authentication, RBAC, IDOR,
+  prompt egress, encryption/plaintext denial, AuditLog atomicity/immutability,
+  async/accounting replay safety, and pagination/bounded-query gates pass.
+- **Reliability:** Refresh concurrency, provider/BullMQ/billing recovery,
+  Mongo transaction rollback, and Redis idempotency groups passed three
+  consecutive runs each with no unexplained flakiness.
+- **Release:** `node scripts/verify-release.mjs` passed all 20 steps, including
+  dependency audits, lint, typecheck, suites, coverage, integration, builds,
+  security/diff scans, index/deployment script checks, Docker builds, non-root
+  image users, required runtime files, and absence of embedded secret envs.
+- **Defects fixed:** Canonical invalid-cursor error behavior, AuditLog mutation
+  and CSV formula-injection gaps, nondeterministic encrypted message-pair
+  ordering, and Windows npm child-process execution in the release harness.
+- **Environment classification:** An ignored malformed local Redis assignment
+  caused an initial worker-heartbeat run failure; verification used an explicit
+  process-only local Redis URL. Initial repeat wrappers used database names that
+  intentionally violated the `*_test` safety guard; corrected isolated names
+  passed. Neither issue required product weakening.
+- **Deferrals:** Prompt-cache/replay runtime evidence, cross-team resource
+  isolation without a team-owned resource, external penetration testing,
+  internet-scale claims, and destructive production tests remain explicit.
+- **Next:** Phase 12 contract/readiness audit only; do not infer new Phase 12
+  implementation from Phase 11 closure.
 
 ## Latest Task — P11-00 Phase 11 Contract and Readiness Audit
 
@@ -1305,11 +1341,12 @@ npm run dev
   local Redis service through an explicit process-only `REDIS_URL` override;
   no `.env` or secret file was modified or committed.
 
-## Latest Phase 10 Task
+## Historical Phase 10 Closure
 
 - **Task:** P10-01 through P10-10 — Complete Phase 10 Observability and
   Operations.
-- **Status:** Completed on 2026-08-21. Phase 11 has not started.
+- **Status:** Completed on 2026-08-21; Phase 11 subsequently completed through
+  P11-08 release certification.
 - **Instrumentation:** The API and worker use bounded process-local Prometheus
   registries. HTTP, chat, TTFT, provider resilience/health, policy, PII,
   idempotency, dependency readiness, queue/job, worker lifecycle/heartbeat,
@@ -1342,9 +1379,9 @@ npm run dev
 
 ## Recommended Next Task
 
-- Run the Phase 11 Testing and Hardening contract/readiness audit. Do not start
-  Phase 11 implementation until its release-gate and coverage contracts are
-  approved. P12-09A deployment work remains a separate operational track.
+- Run a Phase 12 contract/readiness audit before any new Phase 12 implementation.
+  Existing P12-09A deployment history remains a separate operational record;
+  Phase 11 closure did not start or modify it.
 
 ## Active Lightsail Cost-Cut Migration
 

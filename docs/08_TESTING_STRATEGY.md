@@ -1547,3 +1547,28 @@ resolve integration conflicts but does not absorb unrelated feature work.
 - External penetration testing and internet-scale capacity certification are
   outside the beginner MVP. Local checks may reveal correctness/resource bugs
   but do not prove cloud scale.
+
+### 35.7 Phase 11 closure evidence
+
+Phase 11 completed on 2026-08-21 through `node scripts/verify-release.mjs`.
+The bounded harness passed all 20 steps and fails non-zero on any failed gate.
+
+- Backend: 264/264 tests; 78.12% lines and 83.65% branches.
+- Frontend: 27/27 tests across 12 files; 77.20% lines and 69.65% branches.
+- Critical branch coverage: policy evaluator 93.75%, PII risk scorer 100%,
+  provider fallback 90.74%, retry 93.18%, circuit breaker 92.45%, AES-GCM
+  91.67%, permission authorization 90%, and admin/conversation/message cursors
+  100% each.
+- Real integration: 63/63 tests with zero skips against a disposable MongoDB
+  replica set and isolated Redis/BullMQ. Unique test names and cleanup guards
+  prohibit production, demo, and ordinary developer databases.
+- Reliability: refresh concurrency, provider/BullMQ/billing replay and
+  recovery, Mongo transaction rollback, and Redis idempotency passed three
+  consecutive runs each without unexplained flakiness.
+- Release quality: dependency audits, lint, typecheck, builds, security and
+  sensitive-data scans, index/deployment-script checks, Docker builds, non-root
+  runtime users, required runtime commands, and embedded-secret checks pass.
+
+No external penetration test, internet-scale load certification, destructive
+production test, prompt-cache runtime, or nonexistent cross-team resource gate
+is claimed by this evidence.
