@@ -2,6 +2,10 @@ import { z } from "zod";
 
 import { createSuccessEnvelopeSchema } from "@/lib/api/api-envelope";
 import { requestJson } from "@/lib/api/api-client";
+import {
+    createCursorPagePath,
+    type CursorPageOptions,
+} from "@/lib/api/cursor-pagination";
 
 import {
     conversationSummarySchema,
@@ -18,6 +22,9 @@ const messageListResponseSchema = createSuccessEnvelopeSchema(
     z.object({ items: z.array(messageSummarySchema) }),
 );
 
+export const CONVERSATION_PAGE_LIMIT = 25;
+export const MESSAGE_PAGE_LIMIT = 50;
+
 export function createConversation(accessToken: string, title?: string) {
     return requestJson({
         path: "/conversations",
@@ -28,11 +35,18 @@ export function createConversation(accessToken: string, title?: string) {
     });
 }
 
-export function listConversations(accessToken: string, signal?: AbortSignal) {
+export function listConversations(
+    accessToken: string,
+    options: CursorPageOptions = {},
+) {
     return requestJson({
-        path: "/conversations?limit=100",
+        path: createCursorPagePath(
+            "/conversations",
+            CONVERSATION_PAGE_LIMIT,
+            options.cursor,
+        ),
         accessToken,
-        signal,
+        signal: options.signal,
         schema: conversationListResponseSchema,
     });
 }
@@ -67,12 +81,16 @@ export function updateConversationTitle(
 export function listConversationMessages(
     accessToken: string,
     conversationId: string,
-    signal?: AbortSignal,
+    options: CursorPageOptions = {},
 ) {
     return requestJson({
-        path: `/conversations/${encodeURIComponent(conversationId)}/messages?limit=100`,
+        path: createCursorPagePath(
+            `/conversations/${encodeURIComponent(conversationId)}/messages`,
+            MESSAGE_PAGE_LIMIT,
+            options.cursor,
+        ),
         accessToken,
-        signal,
+        signal: options.signal,
         schema: messageListResponseSchema,
     });
 }

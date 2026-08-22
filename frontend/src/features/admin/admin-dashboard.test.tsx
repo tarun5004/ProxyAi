@@ -40,8 +40,8 @@ vi.mock("next/navigation", () => ({
     useRouter: () => ({ replace: vi.fn() }),
 }));
 
-function envelope(data: unknown) {
-    return { success: true, data, meta: { requestId: "request-id" } };
+function envelope(data: unknown, nextCursor: string | null = null) {
+    return { success: true, data, meta: { requestId: "request-id", nextCursor } };
 }
 
 describe("Phase 8 admin dashboard", () => {
@@ -268,5 +268,62 @@ describe("Phase 8 admin dashboard", () => {
         fireEvent.click(await screen.findByRole("button", { name: "Export audit CSV" }));
         await waitFor(() => expect(adminApi.downloadAdminAudit).toHaveBeenCalledTimes(1));
         expect(clickSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("loads admin resources with independent cursors and preserves rows on page failure", async () => {
+        const firstUser = {
+            userId: "11111111-1111-4111-8111-111111111111",
+            email: "first@proxiai.local",
+            displayName: "First Member",
+            role: "EMPLOYEE",
+            permissions: ["chat:send"],
+            status: "ACTIVE",
+            createdAt: "2026-08-02T00:00:00.000Z",
+            updatedAt: "2026-08-02T00:00:00.000Z",
+        };
+        const secondUser = {
+            ...firstUser,
+            userId: "22222222-2222-4222-8222-222222222222",
+            email: "second@proxiai.local",
+            displayName: "Second Member",
+            createdAt: "2026-08-01T00:00:00.000Z",
+            updatedAt: "2026-08-01T00:00:00.000Z",
+        };
+        const team = {
+            teamId: "33333333-3333-4333-8333-333333333333",
+            name: "Security",
+            isActive: true,
+            createdBy: "44444444-4444-4444-8444-444444444444",
+            memberCount: 1,
+            createdAt: "2026-08-01T00:00:00.000Z",
+            updatedAt: "2026-08-01T00:00:00.000Z",
+        };
+        adminApi.listAdminUsers
+            .mockResolvedValueOnce(envelope({ items: [firstUser] }, "users-cursor"))
+            .mockResolvedValueOnce(envelope({ items: [firstUser, secondUser] }));
+        adminApi.listAdminTeams
+            .mockResolvedValueOnce(envelope({ items: [team] }, "teams-cursor"))
+            .mockRejectedValueOnce(new Error("invalid cursor"));
+
+        render(<AdminDashboard />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "users" }));
+        fireEvent.click(screen.getByRole("button", { name: "Load more users" }));
+
+        expect(await screen.findByText("Second Member")).toBeInTheDocument();
+        expect(screen.getAllByText("First Member")).toHaveLength(1);
+        expect(adminApi.listAdminUsers).toHaveBeenLastCalledWith(
+            "access-token",
+            { cursor: "users-cursor" },
+        );
+        expect(adminApi.listAdminTeams).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(screen.getByRole("button", { name: "Load more teams" }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            "More teams could not be loaded.",
+        );
+        expect(screen.getByText("1 members · Active")).toBeInTheDocument();
+        expect(screen.getByText("Second Member")).toBeInTheDocument();
     });
 });

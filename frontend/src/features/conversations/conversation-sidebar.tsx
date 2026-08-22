@@ -25,8 +25,11 @@ interface ConversationSidebarProps {
     roleLabel: string;
     open: boolean;
     creating: boolean;
+    hasMore: boolean;
+    pageStatus: "error" | "idle" | "loading";
     onClose(): void;
     onCreate(): void;
+    onLoadMore(): void;
     onLogout(): void;
     onRetry(): void;
     showAdmin: boolean;
@@ -127,6 +130,28 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
                         <ConversationActivity value={conversation.lastMessageAt} />
                     </Link>
                 ))}
+                {props.status === "ready" && props.hasMore && props.pageStatus !== "error" ? (
+                    <button
+                        className="mx-2 mt-2 rounded-lg border border-border-default bg-white px-3 py-2 text-xs font-semibold text-brand-dark disabled:cursor-wait disabled:opacity-60"
+                        type="button"
+                        onClick={props.onLoadMore}
+                        disabled={props.pageStatus === "loading"}
+                    >
+                        {props.pageStatus === "loading" ? "Loading more…" : "Load more conversations"}
+                    </button>
+                ) : null}
+                {props.status === "ready" && props.pageStatus === "error" ? (
+                    <div className="mx-2 mt-2 grid gap-2 text-xs text-danger" role="alert">
+                        <span>More conversations could not be loaded.</span>
+                        <button
+                            className="w-fit rounded-lg border border-border-default px-3 py-1.5 font-semibold text-brand-dark"
+                            type="button"
+                            onClick={props.onLoadMore}
+                        >
+                            Try again
+                        </button>
+                    </div>
+                ) : null}
             </nav>
 
             {props.showAdmin ? (

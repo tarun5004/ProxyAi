@@ -3,6 +3,10 @@ import { z } from "zod";
 import { createSuccessEnvelopeSchema } from "@/lib/api/api-envelope";
 import { requestJson } from "@/lib/api/api-client";
 import { createApiPath } from "@/lib/api/api-path";
+import {
+    createCursorPagePath,
+    type CursorPageOptions,
+} from "@/lib/api/cursor-pagination";
 import { ApiError } from "@/lib/errors/api-error";
 
 import {
@@ -16,6 +20,8 @@ import {
 
 const listEnvelope = <T extends z.ZodType>(schema: T) =>
     createSuccessEnvelopeSchema(z.object({ items: z.array(schema) }));
+
+export const ADMIN_PAGE_LIMIT = 25;
 
 export function getAdminSummary(accessToken: string, signal?: AbortSignal) {
     return requestJson({
@@ -35,38 +41,50 @@ export function getAdminBilling(accessToken: string, signal?: AbortSignal) {
     });
 }
 
-export function listAdminLogs(accessToken: string, signal?: AbortSignal) {
+export function listAdminLogs(
+    accessToken: string,
+    options: CursorPageOptions = {},
+) {
     return requestJson({
-        path: "/admin/logs?limit=25",
+        path: createCursorPagePath("/admin/logs", ADMIN_PAGE_LIMIT, options.cursor),
         accessToken,
-        signal,
+        signal: options.signal,
         schema: listEnvelope(adminLogItemSchema),
     });
 }
 
-export function listAdminAlerts(accessToken: string, signal?: AbortSignal) {
+export function listAdminAlerts(
+    accessToken: string,
+    options: CursorPageOptions = {},
+) {
     return requestJson({
-        path: "/admin/alerts?limit=25",
+        path: createCursorPagePath("/admin/alerts", ADMIN_PAGE_LIMIT, options.cursor),
         accessToken,
-        signal,
+        signal: options.signal,
         schema: listEnvelope(adminAlertItemSchema),
     });
 }
 
-export function listAdminUsers(accessToken: string, signal?: AbortSignal) {
+export function listAdminUsers(
+    accessToken: string,
+    options: CursorPageOptions = {},
+) {
     return requestJson({
-        path: "/admin/users?limit=100",
+        path: createCursorPagePath("/admin/users", ADMIN_PAGE_LIMIT, options.cursor),
         accessToken,
-        signal,
+        signal: options.signal,
         schema: listEnvelope(adminUserItemSchema),
     });
 }
 
-export function listAdminTeams(accessToken: string, signal?: AbortSignal) {
+export function listAdminTeams(
+    accessToken: string,
+    options: CursorPageOptions = {},
+) {
     return requestJson({
-        path: "/admin/teams?limit=100",
+        path: createCursorPagePath("/admin/teams", ADMIN_PAGE_LIMIT, options.cursor),
         accessToken,
-        signal,
+        signal: options.signal,
         schema: listEnvelope(adminTeamItemSchema),
     });
 }

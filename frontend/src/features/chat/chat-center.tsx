@@ -45,6 +45,9 @@ interface ChatCenterProps {
     routingDisplay: RoutingDisplayState;
     streaming: boolean;
     error?: string;
+    hasMoreHistory: boolean;
+    historyPageStatus: "error" | "idle" | "loading";
+    onLoadMoreHistory(): void;
     onSend(prompt: string): Promise<void>;
     onRetry?(assistantMessageId: string): Promise<void>;
     onRename?(title: string): Promise<void>;
@@ -236,6 +239,23 @@ export function ChatCenter(props: ChatCenterProps) {
                             onCopy={handleCopy}
                         />
                     ))}
+                    {props.hasMoreHistory ? (
+                        <div className="mx-auto mb-5 grid max-w-205 justify-items-center gap-2">
+                            <button
+                                className="rounded-lg border border-border-default bg-white px-4 py-2 text-xs font-semibold text-brand-dark disabled:cursor-wait disabled:opacity-60"
+                                type="button"
+                                onClick={props.onLoadMoreHistory}
+                                disabled={props.historyPageStatus === "loading"}
+                            >
+                                {props.historyPageStatus === "loading" ? "Loading history…" : "Load more history"}
+                            </button>
+                            {props.historyPageStatus === "error" ? (
+                                <span className="text-xs text-danger" role="alert">
+                                    More message history could not be loaded. Try again.
+                                </span>
+                            ) : null}
+                        </div>
+                    ) : null}
                     {props.messages.map((message) => (
                     <article
                         key={message.id}

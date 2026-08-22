@@ -10,10 +10,11 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { useAuth } from "@/features/auth/auth-provider";
+import { appendUniquePage } from "@/lib/api/cursor-pagination";
 
 import {
     downloadAdminAudit,
@@ -31,6 +32,10 @@ import {
     updateAdminUserStatus,
     updateAdminUserTeam,
 } from "./admin.api";
+import {
+    AdminPaginationControl,
+    type AdminPageState,
+} from "./admin-pagination-control";
 import type {
     AdminAlertItem,
     AdminBilling,
@@ -46,6 +51,9 @@ import {
 
 type AdminTab = "overview" | "users" | "usage" | "alerts" | "logs";
 type LoadState = "loading" | "ready" | "error";
+type AdminPageResource = "alerts" | "logs" | "teams" | "users";
+
+type AdminPagination = Record<AdminPageResource, AdminPageState>;
 
 interface AdminData {
     summary?: AdminSummary;
@@ -63,6 +71,24 @@ const emptyData: AdminData = {
     teams: [],
 };
 
+const emptyPagination: AdminPagination = {
+    alerts: { nextCursor: null, status: "idle" },
+    logs: { nextCursor: null, status: "idle" },
+    teams: { nextCursor: null, status: "idle" },
+    users: { nextCursor: null, status: "idle" },
+};
+
+function setAdminPageState(
+    setPagination: React.Dispatch<React.SetStateAction<AdminPagination>>,
+    resource: AdminPageResource,
+    page: AdminPageState,
+): void {
+    setPagination((current) => ({
+        ...current,
+        [resource]: page,
+    }));
+}
+
 export function AdminDashboard() {
     const auth = useAuth();
     const router = useRouter();
@@ -70,6 +96,8 @@ export function AdminDashboard() {
     const [status, setStatus] = useState<LoadState>("loading");
     const [reload, setReload] = useState(0);
     const [data, setData] = useState<AdminData>(emptyData);
+    const [pagination, setPagination] = useState<AdminPagination>(emptyPagination);
+    const activePageRequests = useRef(new Set<AdminPageResource>());
     const permissions = auth.context?.permissions ?? [];
     const canViewLogs = permissions.includes("admin:view_logs");
     const canViewBilling = permissions.includes("admin:view_billing");
@@ -93,16 +121,16 @@ export function AdminDashboard() {
                 ? getAdminBilling(auth.accessToken, abortController.signal)
                 : Promise.resolve(undefined),
             canViewLogs
-                ? listAdminLogs(auth.accessToken, abortController.signal)
+                ? listAdminLogs(auth.accessToken, { signal: abortController.signal })
                 : Promise.resolve(undefined),
             canViewLogs
-                ? listAdminAlerts(auth.accessToken, abortController.signal)
+                ? listAdminAlerts(auth.accessToken, { signal: abortController.signal })
                 : Promise.resolve(undefined),
             canManageUsers
-                ? listAdminUsers(auth.accessToken, abortController.signal)
+                ? listAdminUsers(auth.accessToken, { signal: abortController.signal })
                 : Promise.resolve(undefined),
             canManageUsers
-                ? listAdminTeams(auth.accessToken, abortController.signal)
+                ? listAdminTeams(auth.accessToken, { signal: abortController.signal })
                 : Promise.resolve(undefined),
         ]).then(([summary, billing, logs, alerts, users, teams]) => {
             setData({
@@ -112,6 +140,12 @@ export function AdminDashboard() {
                 alerts: alerts?.data.items ?? [],
                 users: users?.data.items ?? [],
                 teams: teams?.data.items ?? [],
+            });
+            setPagination({
+                alerts: { nextCursor: alerts?.meta.nextCursor ?? null, status: "idle" },
+                logs: { nextCursor: logs?.meta.nextCursor ?? null, status: "idle" },
+                teams: { nextCursor: teams?.meta.nextCursor ?? null, status: "idle" },
+                users: { nextCursor: users?.meta.nextCursor ?? null, status: "idle" },
             });
             setStatus("ready");
         }).catch((error: unknown) => {
@@ -132,6 +166,75 @@ export function AdminDashboard() {
     async function logout() {
         await auth.logout();
         router.replace("/login");
+    }
+
+    async function loadMore(resource: AdminPageResource) {
+        const accessToken = auth.accessToken;
+        const page = pagination[resource];
+
+        if (
+            !accessToken
+            || page.nextCursor === null
+            || page.status === "loading"
+            || activePageRequests.current.has(resource)
+        ) {
+            return;
+        }
+
+        const cursor = page.nextCursor;
+        activePageRequests.current.add(resource);
+        setAdminPageState(setPagination, resource, { nextCursor: cursor, status: "loading" });
+
+        try {
+            if (resource === "logs") {
+                const response = await listAdminLogs(accessToken, { cursor });
+                setData((current) => ({
+                    ...current,
+                    logs: appendUniquePage(current.logs, response.data.items, (item) => item.requestId),
+                }));
+                setAdminPageState(setPagination, resource, {
+                    nextCursor: response.meta.nextCursor ?? null,
+                    status: "idle",
+                });
+            } else if (resource === "alerts") {
+                const response = await listAdminAlerts(accessToken, { cursor });
+                setData((current) => ({
+                    ...current,
+                    alerts: appendUniquePage(current.alerts, response.data.items, (item) => item.alertId),
+                }));
+                setAdminPageState(setPagination, resource, {
+                    nextCursor: response.meta.nextCursor ?? null,
+                    status: "idle",
+                });
+            } else if (resource === "users") {
+                const response = await listAdminUsers(accessToken, { cursor });
+                setData((current) => ({
+                    ...current,
+                    users: appendUniquePage(current.users, response.data.items, (item) => item.userId),
+                }));
+                setAdminPageState(setPagination, resource, {
+                    nextCursor: response.meta.nextCursor ?? null,
+                    status: "idle",
+                });
+            } else {
+                const response = await listAdminTeams(accessToken, { cursor });
+                setData((current) => ({
+                    ...current,
+                    teams: appendUniquePage(current.teams, response.data.items, (item) => item.teamId),
+                }));
+                setAdminPageState(setPagination, resource, {
+                    nextCursor: response.meta.nextCursor ?? null,
+                    status: "idle",
+                });
+            }
+        } catch {
+            setAdminPageState(setPagination, resource, {
+                nextCursor: cursor,
+                status: "error",
+            });
+        } finally {
+            activePageRequests.current.delete(resource);
+        }
     }
 
     return (
@@ -183,13 +286,13 @@ export function AdminDashboard() {
                     ) : tab === "overview" ? (
                         <Overview summary={data.summary} accessToken={auth.accessToken} canConfigure={canConfigurePolicy} onChanged={() => setReload((value) => value + 1)} />
                     ) : tab === "users" ? (
-                        <UsersAndTeams users={data.users} teams={data.teams} accessToken={auth.accessToken} onChanged={() => setReload((value) => value + 1)} />
+                        <UsersAndTeams users={data.users} teams={data.teams} pagination={pagination} accessToken={auth.accessToken} onChanged={() => setReload((value) => value + 1)} onLoadMore={loadMore} />
                     ) : tab === "usage" ? (
                         <Usage billing={data.billing} />
                     ) : tab === "alerts" ? (
-                        <Alerts alerts={data.alerts} accessToken={auth.accessToken} onChanged={() => setReload((value) => value + 1)} />
+                        <Alerts alerts={data.alerts} page={pagination.alerts} accessToken={auth.accessToken} onChanged={() => setReload((value) => value + 1)} onLoadMore={() => void loadMore("alerts")} />
                     ) : (
-                        <Logs logs={data.logs} accessToken={auth.accessToken} canExport={canExportAudit} />
+                        <Logs logs={data.logs} page={pagination.logs} accessToken={auth.accessToken} canExport={canExportAudit} onLoadMore={() => void loadMore("logs")} />
                     )}
                 </section>
             </div>
@@ -254,12 +357,12 @@ function Overview({ summary, accessToken, canConfigure, onChanged }: Readonly<{ 
     );
 }
 
-function UsersAndTeams({ users, teams, accessToken, onChanged }: Readonly<{ users: AdminUserItem[]; teams: AdminTeamItem[]; accessToken?: string; onChanged: () => void }>) {
+function UsersAndTeams({ users, teams, pagination, accessToken, onChanged, onLoadMore }: Readonly<{ users: AdminUserItem[]; teams: AdminTeamItem[]; pagination: AdminPagination; accessToken?: string; onChanged: () => void; onLoadMore: (resource: AdminPageResource) => Promise<void> }>) {
     const teamNames = new Map(teams.map((team) => [team.teamId, team.name]));
     return (
         <div className="grid gap-6">
             <SectionHeading title="Users and teams" detail="Current roles and assignments; mutations require Phase 9 audit guarantees." />
-            <Panel title={`Users (${users.length})`}>
+            <Panel title={`Users (${users.length} loaded)`}>
                 {users.length === 0 ? <Empty label="No users found." /> : users.map((user) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center" key={user.userId}>
                         <div><strong className="block text-sm">{user.displayName}</strong><span className="text-xs text-text-soft">{user.email}</span></div>
@@ -267,14 +370,16 @@ function UsersAndTeams({ users, teams, accessToken, onChanged }: Readonly<{ user
                         <span className="text-xs text-text-soft">{user.teamId ? teamNames.get(user.teamId) ?? "Assigned team" : "No team"} · {user.status}</span>
                     </div>
                 ))}
+                <AdminPaginationControl label="users" page={pagination.users} onLoadMore={() => void onLoadMore("users")} />
             </Panel>
-            <Panel title={`Teams (${teams.length})`}>
+            <Panel title={`Teams (${teams.length} loaded)`}>
                 {teams.length === 0 ? <Empty label="No teams found." /> : teams.map((team) => (
                     <div className="flex items-center justify-between gap-4 border-b border-border-soft py-4 last:border-0" key={team.teamId}>
                         <div><strong className="block text-sm">{team.name}</strong><span className="text-xs text-text-soft">{team.description ?? "No description"}</span></div>
                         <span className="text-xs text-text-soft">{team.memberCount} members · {team.isActive ? "Active" : "Inactive"}</span>
                     </div>
                 ))}
+                <AdminPaginationControl label="teams" page={pagination.teams} onLoadMore={() => void onLoadMore("teams")} />
             </Panel>
         </div>
     );
@@ -306,23 +411,24 @@ function Usage({ billing }: Readonly<{ billing?: AdminBilling }>) {
     );
 }
 
-function Alerts({ alerts, accessToken, onChanged }: Readonly<{ alerts: AdminAlertItem[]; accessToken?: string; onChanged: () => void }>) {
+function Alerts({ alerts, page, accessToken, onChanged, onLoadMore }: Readonly<{ alerts: AdminAlertItem[]; page: AdminPageState; accessToken?: string; onChanged: () => void; onLoadMore: () => void }>) {
     return (
         <div className="grid gap-6">
             <SectionHeading title="Anomaly alerts" detail="Read-only daily token anomalies; resolution requires Phase 9 audit guarantees." />
-            <Panel title={`Alerts (${alerts.length})`}>
+            <Panel title={`Alerts (${alerts.length} loaded)`}>
                 {alerts.length === 0 ? <Empty label="No anomaly alerts found." /> : alerts.map((alert) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto]" key={alert.alertId}>
                         <div><strong className="text-sm">{alert.title}</strong><p className="mt-1 mb-0 text-xs text-text-soft">{alert.observedDay} · {formatNumber(alert.metadata.observedTokens)} tokens vs {formatNumber(alert.metadata.baselineAverageTokens)} baseline</p></div>
                         <div className="flex items-center gap-2"><Badge value={alert.status} />{accessToken ? <MutationButton label={alert.status === "OPEN" ? "Resolve" : "Reopen"} run={() => updateAdminAlert(accessToken, alert.alertId, alert.status === "OPEN")} onDone={onChanged} /> : null}</div>
                     </div>
                 ))}
+                <AdminPaginationControl label="alerts" page={page} onLoadMore={onLoadMore} />
             </Panel>
         </div>
     );
 }
 
-function Logs({ logs, accessToken, canExport }: Readonly<{ logs: AdminLogItem[]; accessToken?: string; canExport: boolean }>) {
+function Logs({ logs, page, accessToken, canExport, onLoadMore }: Readonly<{ logs: AdminLogItem[]; page: AdminPageState; accessToken?: string; canExport: boolean; onLoadMore: () => void }>) {
     return (
         <div className="grid gap-6">
             <div className="flex items-start justify-between gap-4"><SectionHeading title="Request logs" detail="Metadata only. Prompt and response content is never available here." />{canExport && accessToken ? <MutationButton label="Export audit CSV" run={async () => {
@@ -336,7 +442,7 @@ function Logs({ logs, accessToken, canExport }: Readonly<{ logs: AdminLogItem[];
                 anchor.click();
                 URL.revokeObjectURL(url);
             }} /> : null}</div>
-            <Panel title={`Recent requests (${logs.length})`}>
+            <Panel title={`Recent requests (${logs.length} loaded)`}>
                 {logs.length === 0 ? <Empty label="No request logs found." /> : logs.map((log) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center" key={log.requestId}>
                         <div><strong className="block text-sm">{log.providerId ? `${log.providerId} · ${log.model ?? "unknown model"}` : "Policy blocked before provider"}</strong><span className="text-xs text-text-soft">{new Date(log.createdAt).toLocaleString()} · {log.requestId.slice(0, 8)}</span></div>
@@ -344,6 +450,7 @@ function Logs({ logs, accessToken, canExport }: Readonly<{ logs: AdminLogItem[];
                         <span className="text-xs text-text-soft">{log.totalTokens === undefined ? "Usage unknown" : `${formatNumber(log.totalTokens)} tokens`}</span>
                     </div>
                 ))}
+                <AdminPaginationControl label="request logs" page={page} onLoadMore={onLoadMore} />
             </Panel>
         </div>
     );

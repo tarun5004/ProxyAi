@@ -44,10 +44,10 @@ describe("frontend feature API contracts", () => {
         logoutRequest();
         createConversation("access-token");
         createConversation("access-token", "Security review");
-        listConversations("access-token");
+        listConversations("access-token", { cursor: "opaque+/=" });
         getConversation("access-token", "id/with/slash");
         updateConversationTitle("access-token", "id/with/slash", "Renamed");
-        listConversationMessages("access-token", "id/with/slash");
+        listConversationMessages("access-token", "id/with/slash", { cursor: "message+/=" });
 
         expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
             path: "/auth/login",
@@ -64,7 +64,10 @@ describe("frontend feature API contracts", () => {
             body: { title: "Renamed" },
         }));
         expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
-            path: "/conversations/id%2Fwith%2Fslash/messages?limit=100",
+            path: "/conversations?limit=25&cursor=opaque%2B%2F%3D",
+        }));
+        expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
+            path: "/conversations/id%2Fwith%2Fslash/messages?limit=50&cursor=message%2B%2F%3D",
         }));
     });
 
@@ -75,10 +78,10 @@ describe("frontend feature API contracts", () => {
 
         getAdminSummary("access-token");
         getAdminBilling("access-token");
-        listAdminLogs("access-token");
-        listAdminAlerts("access-token");
-        listAdminUsers("access-token");
-        listAdminTeams("access-token");
+        listAdminLogs("access-token", { cursor: "logs+/=" });
+        listAdminAlerts("access-token", { cursor: "alerts+/=" });
+        listAdminUsers("access-token", { cursor: "users+/=" });
+        listAdminTeams("access-token", { cursor: "teams+/=" });
         updateAdminUserRole("access-token", "user-id", "TEAM_LEAD");
         updateAdminUserTeam("access-token", "user-id", null);
         updateAdminUserStatus("access-token", "user-id", "DISABLED");
@@ -95,6 +98,18 @@ describe("frontend feature API contracts", () => {
         expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
             path: "/admin/retention",
             body: { mode: "ENCRYPTED_STORAGE" },
+        }));
+        expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
+            path: "/admin/logs?limit=25&cursor=logs%2B%2F%3D",
+        }));
+        expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
+            path: "/admin/alerts?limit=25&cursor=alerts%2B%2F%3D",
+        }));
+        expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
+            path: "/admin/users?limit=25&cursor=users%2B%2F%3D",
+        }));
+        expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
+            path: "/admin/teams?limit=25&cursor=teams%2B%2F%3D",
         }));
         expect(fetchMock).toHaveBeenCalledWith(
             "/api/v1/admin/audit/export?dateFrom=2026-08-01&dateTo=2026-08-21",

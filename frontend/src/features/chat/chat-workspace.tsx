@@ -18,6 +18,7 @@ import type { ConversationSummary } from "@/features/conversations/conversation.
 import type { MessageSummary } from "@/features/conversations/conversation.types";
 import { PolicyInspector } from "@/features/policy/policy-inspector";
 import { getRoutingDisplayState } from "@/features/policy/routing-display";
+import { appendUniquePage } from "@/lib/api/cursor-pagination";
 import { ApiError } from "@/lib/errors/api-error";
 
 import { streamChat } from "./chat.api";
@@ -40,14 +41,19 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
     const router = useRouter();
     const activeRequest = useRef<AbortController | undefined>(undefined);
     const requestInFlight = useRef(false);
+    const activePageRequests = useRef(new Set<"conversations" | "messages">());
     const [conversations, setConversations] = useState<ConversationSummary[]>([]);
     const [conversationListStatus, setConversationListStatus] = useState<"error" | "loading" | "ready">("loading");
     const [conversationListReload, setConversationListReload] = useState(0);
+    const [conversationNextCursor, setConversationNextCursor] = useState<string | null>(null);
+    const [conversationPageStatus, setConversationPageStatus] = useState<"error" | "idle" | "loading">("idle");
     const [activeConversation, setActiveConversation] = useState<ConversationSummary>();
     const [conversationStatus, setConversationStatus] = useState<"error" | "idle" | "loading" | "ready">(
         initialConversationId ? "loading" : "idle",
     );
     const [retainedMessages, setRetainedMessages] = useState<MessageSummary[]>([]);
+    const [messageNextCursor, setMessageNextCursor] = useState<string | null>(null);
+    const [messagePageStatus, setMessagePageStatus] = useState<"error" | "idle" | "loading">("idle");
     const [messages, setMessages] = useState<UiChatMessage[]>([]);
     const [policy, setPolicy] = useState<PolicyEvent>();
     const [routing, setRouting] = useState<RoutingEvent>();
@@ -71,9 +77,11 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
 
         const abortController = new AbortController();
 
-        void listConversations(auth.accessToken, abortController.signal)
+        void listConversations(auth.accessToken, { signal: abortController.signal })
             .then((response) => {
                 setConversations(response.data.items);
+                setConversationNextCursor(response.meta.nextCursor ?? null);
+                setConversationPageStatus("idle");
                 setConversationListStatus("ready");
             })
             .catch((error: unknown) => {
@@ -98,10 +106,14 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
 
         void Promise.all([
             getConversation(auth.accessToken, initialConversationId, abortController.signal),
-            listConversationMessages(auth.accessToken, initialConversationId, abortController.signal),
+            listConversationMessages(auth.accessToken, initialConversationId, {
+                signal: abortController.signal,
+            }),
         ]).then(([conversationResponse, messageResponse]) => {
             setActiveConversation(conversationResponse.data);
             setRetainedMessages(messageResponse.data.items);
+            setMessageNextCursor(messageResponse.meta.nextCursor ?? null);
+            setMessagePageStatus("idle");
             setConversationStatus("ready");
         }).catch((error: unknown) => {
             if (isAbortError(error)) {
@@ -110,11 +122,77 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
 
             setActiveConversation(undefined);
             setRetainedMessages([]);
+            setMessageNextCursor(null);
             setConversationStatus("error");
         });
 
         return () => abortController.abort();
     }, [auth.accessToken, auth.status, initialConversationId]);
+
+    const handleLoadMoreConversations = useCallback(async () => {
+        if (
+            !auth.accessToken
+            || conversationNextCursor === null
+            || conversationPageStatus === "loading"
+            || activePageRequests.current.has("conversations")
+        ) {
+            return;
+        }
+
+        const cursor = conversationNextCursor;
+        activePageRequests.current.add("conversations");
+        setConversationPageStatus("loading");
+
+        try {
+            const response = await listConversations(auth.accessToken, { cursor });
+            setConversations((current) => appendUniquePage(
+                current,
+                response.data.items,
+                (conversation) => conversation.conversationId,
+            ));
+            setConversationNextCursor(response.meta.nextCursor ?? null);
+            setConversationPageStatus("idle");
+        } catch {
+            setConversationPageStatus("error");
+        } finally {
+            activePageRequests.current.delete("conversations");
+        }
+    }, [auth.accessToken, conversationNextCursor, conversationPageStatus]);
+
+    const handleLoadMoreMessages = useCallback(async () => {
+        if (
+            !auth.accessToken
+            || !initialConversationId
+            || messageNextCursor === null
+            || messagePageStatus === "loading"
+            || activePageRequests.current.has("messages")
+        ) {
+            return;
+        }
+
+        const cursor = messageNextCursor;
+        activePageRequests.current.add("messages");
+        setMessagePageStatus("loading");
+
+        try {
+            const response = await listConversationMessages(
+                auth.accessToken,
+                initialConversationId,
+                { cursor },
+            );
+            setRetainedMessages((current) => appendUniquePage(
+                current,
+                response.data.items,
+                (message) => message.messageId,
+            ));
+            setMessageNextCursor(response.meta.nextCursor ?? null);
+            setMessagePageStatus("idle");
+        } catch {
+            setMessagePageStatus("error");
+        } finally {
+            activePageRequests.current.delete("messages");
+        }
+    }, [auth.accessToken, initialConversationId, messageNextCursor, messagePageStatus]);
 
     const handleCreate = useCallback(async () => {
         if (!auth.accessToken || creating) {
@@ -333,8 +411,11 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 roleLabel={roleLabel}
                 open={sidebarOpen}
                 creating={creating}
+                hasMore={conversationNextCursor !== null}
+                pageStatus={conversationPageStatus}
                 onClose={() => setSidebarOpen(false)}
                 onCreate={() => void handleCreate()}
+                onLoadMore={() => void handleLoadMoreConversations()}
                 onLogout={() => void handleLogout()}
                 onRetry={() => {
                     setConversationListStatus("loading");
@@ -352,6 +433,9 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 streaming={streaming}
                 routingDisplay={routingDisplay}
                 error={requestError}
+                hasMoreHistory={messageNextCursor !== null}
+                historyPageStatus={messagePageStatus}
+                onLoadMoreHistory={() => void handleLoadMoreMessages()}
                 onSend={handleSend}
                 onRetry={handleRetry}
                 onRename={activeConversation ? handleRename : undefined}

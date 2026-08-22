@@ -66,13 +66,13 @@ const secondConversation = {
     lastMessageAt: "2026-08-19T09:05:00.000Z",
 };
 
-function envelope(data: unknown) {
+function envelope(data: unknown, nextCursor: string | null = null) {
     return {
         success: true,
         data,
         meta: {
             requestId: "request-id",
-            nextCursor: null,
+            nextCursor,
         },
     };
 }
@@ -170,6 +170,51 @@ describe("conversation workspace loading", () => {
         });
         expect(await screen.findByRole("heading", { name: "Provider analysis" })).toBeInTheDocument();
         expect(conversationApi.createConversation).not.toHaveBeenCalled();
+    });
+
+    it("loads bounded conversation and message pages without duplicate records", async () => {
+        const unavailableMessage = {
+            messageId: "33333333-3333-4333-8333-333333333333",
+            role: "assistant",
+            tokenCount: 24,
+            createdAt: "2026-08-19T08:05:00.000Z",
+            contentAvailable: false,
+        };
+        const storedMessage = {
+            messageId: "44444444-4444-4444-8444-444444444444",
+            role: "assistant",
+            createdAt: "2026-08-19T08:06:00.000Z",
+            contentAvailable: true,
+            content: "## Stored answer",
+        };
+        conversationApi.listConversations
+            .mockResolvedValueOnce(envelope({ items: [firstConversation] }, "conversation-cursor"))
+            .mockResolvedValueOnce(envelope({ items: [firstConversation, secondConversation] }));
+        conversationApi.listConversationMessages
+            .mockResolvedValueOnce(envelope({ items: [unavailableMessage] }, "message-cursor"))
+            .mockResolvedValueOnce(envelope({ items: [unavailableMessage, storedMessage] }));
+
+        render(<ChatWorkspace initialConversationId={firstConversation.conversationId} />);
+
+        await screen.findByRole("heading", { name: "Security review" });
+        fireEvent.click(screen.getByRole("button", { name: "Load more conversations" }));
+
+        expect(await screen.findByRole("link", { name: /Provider analysis/ })).toBeInTheDocument();
+        expect(screen.getAllByRole("link", { name: /Security review/ })).toHaveLength(1);
+        expect(conversationApi.listConversations).toHaveBeenLastCalledWith(
+            "access-token",
+            { cursor: "conversation-cursor" },
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: "Load more history" }));
+
+        expect(await screen.findByRole("heading", { name: "Stored answer" })).toBeInTheDocument();
+        expect(screen.getByText(/1 previous message summary is retained/)).toBeInTheDocument();
+        expect(conversationApi.listConversationMessages).toHaveBeenLastCalledWith(
+            "access-token",
+            firstConversation.conversationId,
+            { cursor: "message-cursor" },
+        );
     });
 
     it("renders masked policy and a successful terminal stream without exposing a raw provider payload", async () => {
