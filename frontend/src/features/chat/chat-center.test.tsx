@@ -4,12 +4,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatCenter } from "./chat-center";
 
 const originalInnerWidth = window.innerWidth;
+const originalClipboard = navigator.clipboard;
 
 afterEach(() => {
     cleanup();
     Object.defineProperty(window, "innerWidth", {
         configurable: true,
         value: originalInnerWidth,
+    });
+    Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: originalClipboard,
     });
 });
 
@@ -69,6 +74,73 @@ function configureScrollViewport(element: HTMLElement, initialScrollTop: number)
 }
 
 describe("chat message presentation", () => {
+    it("copies visible user and assistant messages with accessible safe feedback", async () => {
+        const writeText = vi.fn()
+            .mockResolvedValueOnce(undefined)
+            .mockRejectedValueOnce(new Error("clipboard denied"));
+        Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: { writeText },
+        });
+        render(
+            <ChatCenter
+                {...defaultProps}
+                streaming={false}
+                messages={[{
+                    id: "user-copy-message",
+                    role: "user",
+                    content: "Visible user message",
+                    state: "complete",
+                }, {
+                    id: "assistant-copy-message",
+                    role: "assistant",
+                    content: "Visible assistant message",
+                    state: "complete",
+                }]}
+            />,
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: "Copy assistant message" }));
+        expect(await screen.findByText("Copied")).toBeInTheDocument();
+        expect(writeText).toHaveBeenLastCalledWith("Visible assistant message");
+
+        fireEvent.click(screen.getByRole("button", { name: "Copy user message" }));
+        expect(await screen.findByText("Copy failed")).toBeInTheDocument();
+        expect(writeText).toHaveBeenLastCalledWith("Visible user message");
+    });
+
+    it("distinguishes authoritative history timestamps from session-only message time", () => {
+        render(
+            <ChatCenter
+                {...defaultProps}
+                streaming={false}
+                retainedMessages={[{
+                    messageId: "33333333-3333-4333-8333-333333333333",
+                    role: "assistant",
+                    createdAt: "2026-08-19T08:05:00.000Z",
+                    contentAvailable: true,
+                    content: "Stored answer",
+                }]}
+                messages={[{
+                    id: "session-user-message",
+                    role: "user",
+                    content: "Current question",
+                    createdAt: "2026-08-22T08:05:00.000Z",
+                    state: "complete",
+                }]}
+            />,
+        );
+
+        expect(screen.getByLabelText(/Recorded time for assistant message:/u)).toHaveAttribute(
+            "datetime",
+            "2026-08-19T08:05:00.000Z",
+        );
+        const sessionTime = screen.getByLabelText(/Session time for user message:/u);
+        expect(sessionTime).toHaveAttribute("datetime", "2026-08-22T08:05:00.000Z");
+        expect(sessionTime).toHaveTextContent("session");
+        expect(sessionTime).toHaveAttribute("title", "Local session time; not persisted");
+    });
+
     it("follows streaming chunks near the bottom and follows the final state", () => {
         const initialMessage = {
             id: "assistant-message",

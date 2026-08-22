@@ -177,6 +177,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                     id: createdAssistantId,
                     role: "assistant",
                     content: "",
+                    createdAt: new Date().toISOString(),
                     retryable: false,
                     state: "streaming",
                 };
@@ -195,6 +196,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                         id: crypto.randomUUID(),
                         role: "user",
                         content: prompt,
+                        createdAt: new Date().toISOString(),
                         state: "complete",
                     },
                     assistantMessage,
@@ -227,12 +229,14 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                     setCompletion(event.data);
                     updateAssistantMessage(setMessages, assistantId, (message) => ({
                         ...message,
+                        createdAt: new Date().toISOString(),
                         retryable: false,
                         state: "complete",
                     }));
                 } else if (event.type === "error") {
                     updateAssistantMessage(setMessages, assistantId, (message) => ({
                         ...message,
+                        createdAt: new Date().toISOString(),
                         retryable: event.data.retryable,
                         state: "error",
                     }));
@@ -246,6 +250,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                     assistantId,
                     (message) => ({
                         ...message,
+                        createdAt: new Date().toISOString(),
                         retryable: isAbortError(error) || isRetryableChatFailure(error),
                         state: isAbortError(error) ? "aborted" : "error",
                     }),

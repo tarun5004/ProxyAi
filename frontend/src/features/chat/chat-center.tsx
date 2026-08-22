@@ -3,6 +3,7 @@
 import {
     ArrowDown,
     ArrowClockwise,
+    Copy,
     List,
     PaperPlaneTilt,
     ShieldCheck,
@@ -45,6 +46,10 @@ interface ChatCenterProps {
 
 export function ChatCenter(props: ChatCenterProps) {
     const [prompt, setPrompt] = useState("");
+    const [copyFeedback, setCopyFeedback] = useState<{
+        messageId: string;
+        status: "error" | "success";
+    }>();
     const [showJumpToLatest, setShowJumpToLatest] = useState(false);
     const messageViewportRef = useRef<HTMLElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -117,6 +122,19 @@ export function ChatCenter(props: ChatCenterProps) {
         shouldAutoFollow.current = true;
         setShowJumpToLatest(false);
         scrollToLatest(messageViewportRef.current, "smooth");
+    }
+
+    async function handleCopy(messageId: string, content: string) {
+        try {
+            if (!navigator.clipboard?.writeText) {
+                throw new Error("Clipboard unavailable");
+            }
+
+            await navigator.clipboard.writeText(content);
+            setCopyFeedback({ messageId, status: "success" });
+        } catch {
+            setCopyFeedback({ messageId, status: "error" });
+        }
     }
 
     return (
@@ -199,7 +217,14 @@ export function ChatCenter(props: ChatCenterProps) {
                     </div>
                 ) : <>
                     {props.retainedMessages.filter((message) => message.contentAvailable).map((message) => (
-                        <RetainedMessage key={message.messageId} message={message} />
+                        <RetainedMessage
+                            key={message.messageId}
+                            message={message}
+                            copyStatus={copyFeedback?.messageId === message.messageId
+                                ? copyFeedback.status
+                                : undefined}
+                            onCopy={handleCopy}
+                        />
                     ))}
                     {props.messages.map((message) => (
                     <article
@@ -254,6 +279,22 @@ export function ChatCenter(props: ChatCenterProps) {
                                     ) : null}
                                 </div>
                             ) : null}
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border-default/70 pt-2.5">
+                                <MessageTimestamp
+                                    value={message.createdAt}
+                                    role={message.role}
+                                    source="session"
+                                />
+                                {message.content.length > 0 && message.state !== "streaming" ? (
+                                    <CopyAction
+                                        role={message.role}
+                                        status={copyFeedback?.messageId === message.id
+                                            ? copyFeedback.status
+                                            : undefined}
+                                        onCopy={() => void handleCopy(message.id, message.content)}
+                                    />
+                                ) : null}
+                            </div>
                         </div>
                     </article>
                     ))}
@@ -338,7 +379,15 @@ function scrollToLatest(
     });
 }
 
-function RetainedMessage({ message }: Readonly<{ message: MessageSummary }>) {
+function RetainedMessage({
+    message,
+    copyStatus,
+    onCopy,
+}: Readonly<{
+    message: MessageSummary;
+    copyStatus?: "error" | "success";
+    onCopy(messageId: string, content: string): Promise<void>;
+}>) {
     const assistant = message.role === "assistant";
 
     return (
@@ -360,7 +409,95 @@ function RetainedMessage({ message }: Readonly<{ message: MessageSummary }>) {
                         <p className="m-0 wrap-anywhere whitespace-pre-wrap leading-[1.7]">{message.content}</p>
                     )}
                 </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border-default/70 pt-2.5">
+                    <MessageTimestamp
+                        value={message.createdAt}
+                        role={message.role}
+                        source="authoritative"
+                    />
+                    {message.role !== "system" && message.content ? (
+                        <CopyAction
+                            role={message.role}
+                            status={copyStatus}
+                            onCopy={() => void onCopy(message.messageId, message.content!)}
+                        />
+                    ) : null}
+                </div>
             </div>
         </article>
+    );
+}
+
+function CopyAction({
+    role,
+    status,
+    onCopy,
+}: Readonly<{
+    role: "assistant" | "user";
+    status?: "error" | "success";
+    onCopy(): void;
+}>) {
+    return (
+        <div className="flex min-h-9 items-center gap-2">
+            {status ? (
+                <span
+                    className={`text-[11px] font-medium ${status === "success" ? "text-brand-dark" : "text-danger"}`}
+                    role="status"
+                >
+                    {status === "success" ? "Copied" : "Copy failed"}
+                </span>
+            ) : null}
+            <button
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-semibold text-text-soft hover:bg-surface-soft hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                type="button"
+                onClick={onCopy}
+                aria-label={`Copy ${role} message`}
+            >
+                <Copy size={15} aria-hidden="true" />
+                Copy
+            </button>
+        </div>
+    );
+}
+
+function MessageTimestamp({
+    value,
+    role,
+    source,
+}: Readonly<{
+    value?: string;
+    role: "assistant" | "system" | "user";
+    source: "authoritative" | "session";
+}>) {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    const shortTime = new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+    }).format(date);
+    const fullTime = new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+    }).format(date);
+    const sourceLabel = source === "session" ? "Session" : "Recorded";
+
+    return (
+        <time
+            className="text-[11px] text-text-faint"
+            dateTime={value}
+            title={source === "session" ? "Local session time; not persisted" : fullTime}
+            aria-label={`${sourceLabel} time for ${role} message: ${fullTime}`}
+            suppressHydrationWarning
+        >
+            {shortTime}{source === "session" ? " · session" : ""}
+        </time>
     );
 }
