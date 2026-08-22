@@ -317,8 +317,16 @@ test("refresh failures return the same generic public error", async () => {
         suspendedOrganisation,
         suspendedOrgUser,
     );
+    const anonymousResponse = await postRefresh(undefined);
+
+    assert.equal(anonymousResponse.status, 204);
+    assert.equal(await anonymousResponse.text(), "");
+    assert.match(
+        anonymousResponse.headers.get("set-cookie") ?? "",
+        /proxiai_refresh=;/,
+    );
+
     const responses = await Promise.all([
-        postRefresh(undefined),
         postRefresh("unknown-refresh-token"),
         postRefresh(expiredToken.rawToken),
         postRefresh(revokedToken.rawToken),
