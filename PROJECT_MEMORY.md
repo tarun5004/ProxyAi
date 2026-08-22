@@ -7,10 +7,32 @@ This file is a progress log. The approved documents in `docs/` remain the source
 - **Phase:** Phase 12 remains in progress; final repository remediation is
   complete and live AWS certification remains deferred.
 - **Task:** Approved zero-cost public admin demo session implementation.
-- **Status:** The contract adds a feature-gated six-minute non-refreshable
+- **Status:** COMPLETE. The implementation adds a feature-gated six-minute non-refreshable
   `PUBLIC_ADMIN_DEMO` session for the fixed NovaStack private demo identity,
   with backend-enforced read-only admin mutations and frontend wake/countdown
   UX. AWS remains intentionally deep-stopped and Phase 13 has not started.
+
+## Latest Task — Zero-Cost Public Admin Demo
+
+- **Authentication:** `POST /api/v1/auth/demo-admin` is disabled by default,
+  accepts no identity or authorization input, reloads the fixed active
+  NovaStack organisation/user, and issues a signed `PUBLIC_ADMIN_DEMO` access
+  token for at most 360 seconds.
+- **Persistence:** the endpoint clears any existing refresh cookie and creates
+  no refresh token or persistent session record. Private password login is
+  unchanged.
+- **Authorization:** current database role/permissions remain authoritative;
+  privileged admin mutations and audit export return
+  `PUBLIC_DEMO_READ_ONLY`, while approved admin reads and owner-scoped chat
+  remain available.
+- **Frontend:** landing CTAs open `/demo-admin`; readiness is polled every four
+  seconds for at most two minutes, authentication starts only after readiness,
+  and the countdown starts only after the authenticated expiry is received.
+  Expiry clears in-memory auth and returns to the restart screen.
+- **Verification:** backend focused `4/4`; full backend `287/287` sequential;
+  frontend public-demo `3/3`; full frontend `54/54`; lint, typecheck, production
+  builds, diff checks, and sensitive-value scans passed. No cloud or database
+  mutation was performed.
 
 ## Latest Task — Final Multi-Agent Remediation
 

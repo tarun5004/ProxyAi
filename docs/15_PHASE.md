@@ -1476,14 +1476,21 @@ guard for privileged admin mutations, and frontend wake/countdown UX. It does
 not change private `ORG_ADMIN` login, canonical permissions, tenant isolation,
 Atlas data, AWS state, DNS, or deployment architecture.
 
-- [ ] Feature flag defaults to disabled.
-- [ ] Fixed identity endpoint accepts no client-selected authorization input.
-- [ ] Session expires within 360 seconds and issues no refresh token.
-- [ ] Public demo admin reads approved admin data but cannot persist privileged
+- [x] Feature flag defaults to disabled.
+- [x] Fixed identity endpoint accepts no client-selected authorization input.
+- [x] Session expires within 360 seconds and issues no refresh token.
+- [x] Public demo admin reads approved admin data but cannot persist privileged
   admin changes or export audit data.
-- [ ] Private admin and EMPLOYEE behavior remain unchanged.
-- [ ] Cold-backend wake polling, authoritative countdown, expiry redirect, and
+- [x] Private admin and EMPLOYEE behavior remain unchanged.
+- [x] Cold-backend wake polling, authoritative countdown, expiry redirect, and
   secret-free frontend output pass focused tests.
+
+Implementation evidence (2026-08-22): the backend focused suite passed `4/4`;
+the complete backend test inventory passed `287/287` sequentially to avoid
+Windows process-wrapper contention; frontend public-demo tests passed `3/3`
+and the complete frontend suite passed `54/54`. Backend/frontend typecheck,
+frontend lint, both production builds, diff checks, and focused sensitive-value
+scans passed. No AWS, Atlas, DNS, or deployment state was changed.
 
 # 27. Self-Audit
 
