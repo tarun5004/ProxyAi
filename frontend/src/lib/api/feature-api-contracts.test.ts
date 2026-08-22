@@ -9,6 +9,7 @@ import {
     getAdminBilling,
     getAdminSummary,
     listAdminAlerts,
+    listAdminAudit,
     listAdminLogs,
     listAdminTeams,
     listAdminUsers,
@@ -80,6 +81,13 @@ describe("frontend feature API contracts", () => {
         getAdminBilling("access-token");
         listAdminLogs("access-token", { cursor: "logs+/=" });
         listAdminAlerts("access-token", { cursor: "alerts+/=" });
+        listAdminAudit("access-token", {
+            cursor: "audit+/=",
+            dateFrom: "2026-08-01T00:00:00.000Z",
+            dateTo: "2026-08-21T00:00:00.000Z",
+            actorId: "11111111-1111-4111-8111-111111111111",
+            action: "policy.block",
+        });
         listAdminUsers("access-token", { cursor: "users+/=" });
         listAdminTeams("access-token", { cursor: "teams+/=" });
         updateAdminUserRole("access-token", "user-id", "TEAM_LEAD");
@@ -104,6 +112,9 @@ describe("frontend feature API contracts", () => {
         }));
         expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
             path: "/admin/alerts?limit=25&cursor=alerts%2B%2F%3D",
+        }));
+        expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
+            path: "/admin/audit?limit=25&dateFrom=2026-08-01T00%3A00%3A00.000Z&dateTo=2026-08-21T00%3A00%3A00.000Z&cursor=audit%2B%2F%3D&actorId=11111111-1111-4111-8111-111111111111&action=policy.block",
         }));
         expect(apiClient.requestJson).toHaveBeenCalledWith(expect.objectContaining({
             path: "/admin/users?limit=25&cursor=users%2B%2F%3D",

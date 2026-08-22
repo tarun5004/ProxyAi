@@ -13,6 +13,7 @@ export async function exportOrganisationAuditCsv(
     input: {
         readonly dateFrom: Date;
         readonly dateTo: Date;
+        readonly actorId?: string;
         readonly action?: string;
     },
     repository: AuditRepository = auditRepository,
@@ -33,6 +34,7 @@ export async function exportOrganisationAuditCsv(
         orgId: context.orgId,
         dateFrom: input.dateFrom,
         dateTo: input.dateTo,
+        ...(input.actorId === undefined ? {} : { actorId: input.actorId }),
         ...(input.action === undefined ? {} : { action: input.action }),
         limit: MAX_EXPORT_ROWS + 1,
     });
@@ -53,6 +55,7 @@ export async function exportOrganisationAuditCsv(
         metadata: buildAuditMetadata("audit.exported", {
             dateFrom: input.dateFrom.toISOString(),
             dateTo: input.dateTo.toISOString(),
+            actorIdFilter: input.actorId ?? null,
             actionFilter: input.action ?? null,
             rowCount: records.length,
         }),

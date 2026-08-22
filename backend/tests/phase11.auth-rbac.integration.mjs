@@ -347,6 +347,7 @@ function adminRequests() {
     return [
         { path: "/api/v1/admin/summary?period=invalid", options: {} },
         { path: "/api/v1/admin/logs?limit=0", options: {} },
+        { path: "/api/v1/admin/audit?dateFrom=2026-08-01T00%3A00%3A00.000Z&dateTo=2026-08-21T00%3A00%3A00.000Z", options: {} },
         { path: "/api/v1/admin/billing?period=invalid", options: {} },
         { path: "/api/v1/admin/alerts?limit=0", options: {} },
         { path: "/api/v1/admin/users", options: {} },

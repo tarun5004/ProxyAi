@@ -197,7 +197,7 @@ test("trusted tenant reads exclude foreign resource rows", async () => {
             orgId: fixture.trusted.orgId,
             limit: 25,
         }),
-        auditRepository.listForExport({
+        auditRepository.listForBrowse({
             orgId: fixture.trusted.orgId,
             dateFrom: new Date("2026-08-19T00:00:00.000Z"),
             dateTo: new Date("2026-08-22T00:00:00.000Z"),
@@ -214,8 +214,11 @@ test("trusted tenant reads exclude foreign resource rows", async () => {
     assert.deepEqual(users.items.map((item) => item.userId), [fixture.trusted.userId]);
     assert.deepEqual(teams.items.map((item) => item.name), ["Trusted team"]);
     assert.deepEqual(alerts.items.map((item) => item.userId), [fixture.trusted.userId]);
-    assert.equal(audits.length, 1);
-    assert.equal(audits[0]?.orgId, fixture.trusted.orgId);
+    assert.equal(audits.items.length, 1);
+    assert.equal(audits.items[0]?.actorId, fixture.trusted.userId);
+    assert.equal("orgId" in audits.items[0], false);
+    assert.equal("ipAddress" in audits.items[0], false);
+    assert.equal("userAgent" in audits.items[0], false);
 
     const serialized = JSON.stringify({
         conversations,

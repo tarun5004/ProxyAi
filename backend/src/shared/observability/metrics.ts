@@ -63,6 +63,7 @@ export const APPROVED_HTTP_ROUTES = Object.freeze([
     "/api/v1/chat/stream",
     "/api/v1/admin/summary",
     "/api/v1/admin/logs",
+    "/api/v1/admin/audit",
     "/api/v1/admin/billing",
     "/api/v1/admin/alerts",
     "/api/v1/admin/users",

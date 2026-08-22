@@ -18,7 +18,6 @@ import { appendUniquePage } from "@/lib/api/cursor-pagination";
 import { ApiError } from "@/lib/errors/api-error";
 
 import {
-    downloadAdminAudit,
     getAdminBilling,
     getAdminSummary,
     listAdminAlerts,
@@ -33,6 +32,7 @@ import {
     updateAdminUserStatus,
     updateAdminUserTeam,
 } from "./admin.api";
+import { AdminAuditBrowser } from "./admin-audit-browser";
 import {
     AdminPaginationControl,
     type AdminPageState,
@@ -53,7 +53,7 @@ import {
 } from "./admin-mutation-confirmation";
 import type { AdminActionState } from "./admin-mutation-confirmation";
 
-type AdminTab = "overview" | "users" | "usage" | "alerts" | "logs";
+type AdminTab = "overview" | "users" | "usage" | "alerts" | "logs" | "audit";
 type LoadState = "loading" | "ready" | "error";
 type AdminPageResource = "alerts" | "logs" | "teams" | "users";
 type AdminResource = "summary" | "billing" | AdminPageResource;
@@ -223,7 +223,7 @@ export function AdminDashboard() {
     }, [accessToken, canManageUsers, canOpenAdmin, canViewBilling, canViewLogs, loadResource]);
 
     const tabs = useMemo(() => [
-        ...(canViewLogs ? ["overview", "alerts", "logs"] as const : []),
+        ...(canViewLogs ? ["overview", "alerts", "logs", "audit"] as const : []),
         ...(canManageUsers ? ["users"] as const : []),
         ...(canViewBilling ? ["usage"] as const : []),
     ], [canManageUsers, canViewBilling, canViewLogs]);
@@ -393,16 +393,22 @@ export function AdminDashboard() {
                                 runOperation={runAdminOperation}
                             />
                         </ResourceBoundary>
-                    ) : (
+                    ) : tab === "logs" ? (
                         <ResourceBoundary
                             status={resourceStates.logs}
                             loadingTitle="Loading request logs"
                             errorTitle="Request logs unavailable"
                             onRetry={() => void loadResource("logs").catch(() => undefined)}
                         >
-                            <Logs logs={data.logs} page={pagination.logs} accessToken={accessToken} canExport={canExportAudit} onLoadMore={() => void loadMore("logs")} runOperation={runAdminOperation} />
+                            <Logs logs={data.logs} page={pagination.logs} onLoadMore={() => void loadMore("logs")} />
                         </ResourceBoundary>
-                    )}
+                    ) : accessToken ? (
+                        <AdminAuditBrowser
+                            accessToken={accessToken}
+                            canExport={canExportAudit}
+                            onUnauthorized={() => void retrySession()}
+                        />
+                    ) : null}
                 </section>
             </div>
         </main>
@@ -549,20 +555,10 @@ function Alerts({ alerts, page, accessToken, onChanged, onLoadMore, runOperation
     );
 }
 
-function Logs({ logs, page, accessToken, canExport, onLoadMore, runOperation }: Readonly<{ logs: AdminLogItem[]; page: AdminPageState; accessToken?: string; canExport: boolean; onLoadMore: () => void; runOperation: RunAdminOperation }>) {
+function Logs({ logs, page, onLoadMore }: Readonly<{ logs: AdminLogItem[]; page: AdminPageState; onLoadMore: () => void }>) {
     return (
         <div className="grid gap-6">
-            <div className="flex items-start justify-between gap-4"><SectionHeading title="Request logs" detail="Metadata only. Prompt and response content is never available here." />{canExport && accessToken ? <MutationButton label="Export audit CSV" successMessage="Audit export downloaded." run={() => runOperation(async () => {
-                const dateTo = new Date();
-                const dateFrom = new Date(dateTo.getTime() - 30 * 24 * 60 * 60 * 1_000);
-                const blob = await downloadAdminAudit(accessToken, dateFrom.toISOString(), dateTo.toISOString());
-                const url = URL.createObjectURL(blob);
-                const anchor = document.createElement("a");
-                anchor.href = url;
-                anchor.download = "proxiai-audit.csv";
-                anchor.click();
-                URL.revokeObjectURL(url);
-            })} /> : null}</div>
+            <SectionHeading title="Request logs" detail="Metadata only. Prompt and response content is never available here." />
             <Panel title={`Recent requests (${logs.length} loaded)`}>
                 {logs.length === 0 ? <Empty label="No request logs found." /> : logs.map((log) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center" key={log.requestId}>

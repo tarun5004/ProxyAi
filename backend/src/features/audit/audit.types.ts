@@ -70,8 +70,43 @@ export interface AuditExportFilter {
     readonly orgId: string;
     readonly dateFrom: Date;
     readonly dateTo: Date;
+    readonly actorId?: string;
     readonly action?: string;
     readonly limit: number;
+}
+
+export interface AuditListCursor {
+    readonly occurredAt: Date;
+    readonly auditId: string;
+}
+
+export interface AuditBrowseFilter {
+    readonly orgId: string;
+    readonly dateFrom: Date;
+    readonly dateTo: Date;
+    readonly limit: number;
+    readonly cursor?: AuditListCursor;
+    readonly actorId?: string;
+    readonly action?: AuditAction;
+}
+
+export interface SafeAuditLogItem {
+    readonly auditId: string;
+    readonly actorId?: string;
+    readonly actorType: AuditActorType;
+    readonly actorRole?: UserRole;
+    readonly action: AuditAction;
+    readonly outcome: AuditOutcome;
+    readonly resourceType: AuditResourceType;
+    readonly resourceId?: string;
+    readonly metadata: SafeAuditMetadata;
+    readonly requestId: string;
+    readonly occurredAt: Date;
+}
+
+export interface AuditBrowseResult {
+    readonly items: readonly SafeAuditLogItem[];
+    readonly hasMore: boolean;
 }
 
 export interface AuditAppendOptions {

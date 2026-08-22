@@ -7,6 +7,7 @@ import { decodeAdminCursor } from "./admin.cursor.js";
 import {
     adminAlertIdParamsSchema,
     adminAlertStatusBodySchema,
+    adminAuditQuerySchema,
     adminAuditExportQuerySchema,
     adminEmptyBodySchema,
     adminAlertsQuerySchema,
@@ -26,6 +27,7 @@ import {
     currentBillingPeriod,
     getAdminBilling,
     getAdminSummary,
+    listAdminAudit,
     listAdminAlerts,
     listAdminLogs,
     listAdminTeams,
@@ -73,6 +75,29 @@ export async function adminLogs(request: Request, response: Response) {
         ...(query.policyAction === undefined ? {} : { policyAction: query.policyAction }),
         ...(query.dateFrom === undefined ? {} : { dateFrom: new Date(query.dateFrom) }),
         ...(query.dateTo === undefined ? {} : { dateTo: new Date(query.dateTo) }),
+    });
+    sendPage(response, request, page);
+}
+
+export async function adminAudit(request: Request, response: Response) {
+    const auth = requireAuth(request);
+    const query = parseQuery(adminAuditQuerySchema.safeParse(request.query));
+    const cursor = query.cursor === undefined
+        ? undefined
+        : decodeAdminCursor(query.cursor);
+    const page = await listAdminAudit({
+        orgId: auth.orgId,
+        dateFrom: new Date(query.dateFrom),
+        dateTo: new Date(query.dateTo),
+        limit: query.limit,
+        ...(cursor === undefined ? {} : {
+            cursor: {
+                occurredAt: cursor.createdAt,
+                auditId: cursor.id,
+            },
+        }),
+        ...(query.actorId === undefined ? {} : { actorId: query.actorId }),
+        ...(query.action === undefined ? {} : { action: query.action }),
     });
     sendPage(response, request, page);
 }
@@ -165,6 +190,7 @@ export async function adminExportAudit(request: Request, response: Response) {
     const result = await exportOrganisationAuditCsv(mutationContext(request), {
         dateFrom: new Date(query.dateFrom),
         dateTo: new Date(query.dateTo),
+        ...(query.actorId === undefined ? {} : { actorId: query.actorId }),
         ...(query.action === undefined ? {} : { action: query.action }),
     });
     response.setHeader("Content-Type", "text/csv; charset=utf-8");

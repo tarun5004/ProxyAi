@@ -13,11 +13,14 @@ const [
     {
         getAdminBilling,
         getAdminSummary,
+        listAdminAudit,
         listAdminLogs,
     },
+    { adminAuditQuerySchema },
 ] = await Promise.all([
     import("../dist/features/auth/authorization.middleware.js"),
     import("../dist/features/admin/admin.service.js"),
+    import("../dist/features/admin/admin.schema.js"),
 ]);
 
 const trustedOrgId = randomUUID();
@@ -77,6 +80,71 @@ test("request-log service preserves trusted tenant scope and metadata-only outpu
     assert.equal("prompt" in page.items[0], false);
     assert.equal("response" in page.items[0], false);
     assert.equal("cost" in page.items[0], false);
+});
+
+test("audit browse preserves trusted tenant scope and emits an opaque cursor", async () => {
+    const actorId = randomUUID();
+    const auditId = randomUUID();
+    const occurredAt = new Date("2026-08-21T10:00:00.000Z");
+    let observedInput;
+    const page = await listAdminAudit({
+        orgId: trustedOrgId,
+        dateFrom: new Date("2026-08-01T00:00:00.000Z"),
+        dateTo: new Date("2026-08-21T23:59:59.000Z"),
+        limit: 25,
+        actorId,
+        action: "user.role_changed",
+    }, {
+        async listForBrowse(input) {
+            observedInput = input;
+            return {
+                items: [{
+                    auditId,
+                    actorId,
+                    actorType: "USER",
+                    actorRole: "ORG_ADMIN",
+                    action: "user.role_changed",
+                    outcome: "SUCCESS",
+                    resourceType: "USER",
+                    resourceId: randomUUID(),
+                    metadata: { oldRole: "EMPLOYEE", newRole: "ORG_ADMIN" },
+                    requestId: randomUUID(),
+                    occurredAt,
+                }],
+                hasMore: true,
+            };
+        },
+    });
+
+    assert.equal(observedInput.orgId, trustedOrgId);
+    assert.equal(observedInput.actorId, actorId);
+    assert.equal(observedInput.action, "user.role_changed");
+    assert.equal(page.items.length, 1);
+    assert.equal(typeof page.nextCursor, "string");
+    assert.equal(page.nextCursor.includes(trustedOrgId), false);
+});
+
+test("audit browse validation enforces allowlisted filters and a 90-day range", () => {
+    const base = {
+        dateFrom: "2026-05-24T00:00:00.000Z",
+        dateTo: "2026-08-22T00:00:00.000Z",
+        actorId: randomUUID(),
+        action: "policy.block",
+    };
+
+    assert.equal(adminAuditQuerySchema.safeParse(base).success, true);
+    assert.equal(adminAuditQuerySchema.safeParse({
+        ...base,
+        dateFrom: "2026-05-23T00:00:00.000Z",
+    }).success, false);
+    assert.equal(adminAuditQuerySchema.safeParse({
+        ...base,
+        action: "prompt.raw_exported",
+    }).success, false);
+    assert.equal(adminAuditQuerySchema.safeParse({
+        ...base,
+        actorId: "foreign-actor",
+    }).success, false);
 });
 
 test("billing view keeps unknown usage explicit and omits unsupported cost", async () => {

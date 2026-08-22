@@ -10,6 +10,7 @@ const adminApi = vi.hoisted(() => ({
     getAdminBilling: vi.fn(),
     getAdminSummary: vi.fn(),
     listAdminAlerts: vi.fn(),
+    listAdminAudit: vi.fn(),
     listAdminLogs: vi.fn(),
     listAdminTeams: vi.fn(),
     listAdminUsers: vi.fn(),
@@ -87,6 +88,7 @@ describe("Phase 8 admin dashboard", () => {
             unresolvedUsage: [],
         }));
         adminApi.listAdminLogs.mockResolvedValue(envelope({ items: [] }));
+        adminApi.listAdminAudit.mockResolvedValue(envelope({ items: [] }));
         adminApi.listAdminAlerts.mockResolvedValue(envelope({ items: [] }));
         adminApi.listAdminUsers.mockResolvedValue(envelope({ items: [] }));
         adminApi.listAdminTeams.mockResolvedValue(envelope({ items: [] }));
@@ -321,10 +323,51 @@ describe("Phase 8 admin dashboard", () => {
             "ENCRYPTED_STORAGE",
         ));
 
-        fireEvent.click(screen.getByRole("button", { name: "logs" }));
-        fireEvent.click(await screen.findByRole("button", { name: "Export audit CSV" }));
+        fireEvent.click(screen.getByRole("button", { name: "audit" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Export filtered CSV" }));
         await waitFor(() => expect(adminApi.downloadAdminAudit).toHaveBeenCalledTimes(1));
         expect(clickSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("browses bounded audit events with actor and event filters", async () => {
+        authState.permissions = ["admin:view_logs", "admin:export_audit"];
+        const actorId = "11111111-1111-4111-8111-111111111111";
+        adminApi.listAdminAudit.mockResolvedValueOnce(envelope({
+            items: [{
+                auditId: "22222222-2222-4222-8222-222222222222",
+                actorId,
+                actorType: "USER",
+                actorRole: "ORG_ADMIN",
+                action: "user.role_changed",
+                outcome: "SUCCESS",
+                resourceType: "USER",
+                resourceId: "33333333-3333-4333-8333-333333333333",
+                metadata: { oldRole: "EMPLOYEE", newRole: "ORG_ADMIN" },
+                requestId: "44444444-4444-4444-8444-444444444444",
+                occurredAt: "2026-08-21T10:00:00.000Z",
+            }],
+        }));
+        adminApi.listAdminAudit.mockResolvedValueOnce(envelope({ items: [] }));
+        render(<AdminDashboard />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "audit" }));
+        expect(await screen.findByText("user.role_changed")).toBeInTheDocument();
+        fireEvent.change(screen.getByRole("textbox", { name: "Actor ID" }), {
+            target: { value: actorId },
+        });
+        fireEvent.change(screen.getByRole("combobox", { name: "Event" }), {
+            target: { value: "policy.block" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+
+        await waitFor(() => expect(adminApi.listAdminAudit).toHaveBeenLastCalledWith(
+            "access-token",
+            expect.objectContaining({
+                actorId,
+                action: "policy.block",
+            }),
+        ));
+        expect(screen.queryByText(/raw prompt/i)).not.toBeInTheDocument();
     });
 
     it("loads admin resources with independent cursors and preserves rows on page failure", async () => {

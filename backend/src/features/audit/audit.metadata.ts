@@ -51,6 +51,7 @@ const alertSchema = z.strictObject({
 const exportSchema = z.strictObject({
     dateFrom: z.string().datetime(),
     dateTo: z.string().datetime(),
+    actorIdFilter: z.string().uuid().nullable(),
     actionFilter: z.string().max(120).nullable(),
     rowCount: z.number().int().nonnegative().max(10_000),
 });

@@ -11,6 +11,8 @@ import { ApiError } from "@/lib/errors/api-error";
 
 import {
     adminAlertItemSchema,
+    adminAuditItemSchema,
+    type AdminAuditAction,
     adminBillingSchema,
     adminLogItemSchema,
     adminSummarySchema,
@@ -50,6 +52,34 @@ export function listAdminLogs(
         accessToken,
         signal: options.signal,
         schema: listEnvelope(adminLogItemSchema),
+    });
+}
+
+export interface AdminAuditListOptions extends CursorPageOptions {
+    readonly dateFrom: string;
+    readonly dateTo: string;
+    readonly actorId?: string;
+    readonly action?: AdminAuditAction;
+}
+
+export function listAdminAudit(
+    accessToken: string,
+    options: AdminAuditListOptions,
+) {
+    const query = new URLSearchParams({
+        limit: String(ADMIN_PAGE_LIMIT),
+        dateFrom: options.dateFrom,
+        dateTo: options.dateTo,
+    });
+    if (options.cursor !== undefined) query.set("cursor", options.cursor);
+    if (options.actorId !== undefined) query.set("actorId", options.actorId);
+    if (options.action !== undefined) query.set("action", options.action);
+
+    return requestJson({
+        path: `/admin/audit?${query}`,
+        accessToken,
+        signal: options.signal,
+        schema: listEnvelope(adminAuditItemSchema),
     });
 }
 
@@ -119,8 +149,15 @@ export function updateAdminAlert(accessToken: string, alertId: string, resolved:
     return requestJson({ path: `/admin/alerts/${alertId}`, accessToken, method: "PATCH", body: { resolved }, schema: mutationEnvelope });
 }
 
-export async function downloadAdminAudit(accessToken: string, dateFrom: string, dateTo: string): Promise<Blob> {
+export async function downloadAdminAudit(
+    accessToken: string,
+    dateFrom: string,
+    dateTo: string,
+    filters: { readonly actorId?: string; readonly action?: AdminAuditAction } = {},
+): Promise<Blob> {
     const query = new URLSearchParams({ dateFrom, dateTo });
+    if (filters.actorId !== undefined) query.set("actorId", filters.actorId);
+    if (filters.action !== undefined) query.set("action", filters.action);
     const response = await fetch(createApiPath(`/admin/audit/export?${query}`), {
         headers: { authorization: `Bearer ${accessToken}` },
         credentials: "include",

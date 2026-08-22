@@ -4,9 +4,10 @@ import {
     REQUEST_COMPLETED_STATUSES,
     REQUEST_POLICY_ACTIONS,
 } from "../../shared/async/job-contract.js";
+import { AUDIT_ACTIONS } from "../audit/audit.types.js";
+import { RETENTION_MODES } from "../organisations/organisation.types.js";
 import { PROVIDER_IDS } from "../providers/provider.types.js";
 import { USER_ROLES, USER_STATUSES } from "../users/user.types.js";
-import { RETENTION_MODES } from "../organisations/organisation.types.js";
 import { ADMIN_PERIODS } from "./admin.types.js";
 
 const listLimit = z.coerce.number().int().min(1).max(100).default(25);
@@ -106,8 +107,23 @@ export const adminAlertStatusBodySchema = z.strictObject({
 export const adminAuditExportQuerySchema = z.strictObject({
     dateFrom: z.string().datetime({ offset: true }),
     dateTo: z.string().datetime({ offset: true }),
+    actorId: z.string().uuid().optional(),
     action: z.string().trim().min(1).max(120).optional(),
-}).superRefine((value, context) => {
+}).superRefine(validateAuditRange);
+
+export const adminAuditQuerySchema = z.strictObject({
+    limit: listLimit,
+    cursor: optionalCursor,
+    dateFrom: z.string().datetime({ offset: true }),
+    dateTo: z.string().datetime({ offset: true }),
+    actorId: z.string().uuid().optional(),
+    action: z.enum(AUDIT_ACTIONS).optional(),
+}).superRefine(validateAuditRange);
+
+function validateAuditRange(
+    value: { readonly dateFrom: string; readonly dateTo: string },
+    context: z.RefinementCtx,
+): void {
     const from = new Date(value.dateFrom);
     const to = new Date(value.dateTo);
 
@@ -123,7 +139,7 @@ export const adminAuditExportQuerySchema = z.strictObject({
         context.addIssue({
             code: "custom",
             path: ["dateTo"],
-            message: "Audit export range cannot exceed 90 days.",
+            message: "Audit range cannot exceed 90 days.",
         });
     }
-});
+}

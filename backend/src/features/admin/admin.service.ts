@@ -1,4 +1,6 @@
 import { AppError } from "../../shared/errors/app-error.js";
+import { auditRepository, type AuditRepository } from "../audit/audit.repository.js";
+import type { SafeAuditLogItem } from "../audit/audit.types.js";
 import { readAuthoritativeBudgetStatus } from "../billing/billing.service.js";
 import { readProviderHealth } from "../providers/provider-health.store.js";
 import { getEnabledProductionProviderIds } from "../providers/provider-runtime.registry.js";
@@ -129,6 +131,24 @@ export async function listAdminLogs(
     repository: AdminRepository = adminRepository,
 ): Promise<AdminPage<AdminRequestLogItem>> {
     return toPage(await repository.listLogs(input), "requestId");
+}
+
+export async function listAdminAudit(
+    input: Parameters<AuditRepository["listForBrowse"]>[0],
+    repository: AuditRepository = auditRepository,
+): Promise<AdminPage<SafeAuditLogItem>> {
+    const result = await repository.listForBrowse(input);
+    const last = result.items.at(-1);
+
+    return {
+        items: result.items,
+        nextCursor: result.hasMore && last !== undefined
+            ? encodeAdminCursor({
+                createdAt: last.occurredAt,
+                id: last.auditId,
+            })
+            : null,
+    };
 }
 
 export async function listAdminAlerts(

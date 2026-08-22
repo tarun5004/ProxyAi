@@ -4,6 +4,7 @@ import { authenticateRequest } from "../auth/auth.middleware.js";
 import { requirePermission } from "../auth/authorization.middleware.js";
 import {
     adminAlerts,
+    adminAudit,
     adminBilling,
     adminChangeUserRole,
     adminChangeUserStatus,
@@ -24,6 +25,7 @@ export const adminRouter = Router();
 adminRouter.use(authenticateRequest);
 adminRouter.get("/summary", requirePermission("admin:view_logs"), adminSummary);
 adminRouter.get("/logs", requirePermission("admin:view_logs"), adminLogs);
+adminRouter.get("/audit", requirePermission("admin:view_logs"), adminAudit);
 adminRouter.get("/billing", requirePermission("admin:view_billing"), adminBilling);
 adminRouter.get("/alerts", requirePermission("admin:view_logs"), adminAlerts);
 adminRouter.get("/users", requirePermission("admin:manage_users"), adminUsers);

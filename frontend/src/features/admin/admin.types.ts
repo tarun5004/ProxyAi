@@ -3,6 +3,27 @@ import { z } from "zod";
 import { userPermissionSchema, userRoleSchema } from "@/features/auth/auth.types";
 
 const providerIdSchema = z.enum(["groq", "gemini", "third"]);
+export const ADMIN_AUDIT_ACTIONS = [
+    "auth.login_succeeded",
+    "auth.login_failed",
+    "auth.login_operational_error",
+    "auth.logout_succeeded",
+    "auth.refresh_reuse_detected",
+    "policy.allow",
+    "policy.mask",
+    "policy.block",
+    "user.role_changed",
+    "user.team_changed",
+    "user.status_changed",
+    "user.sessions_revoked",
+    "organisation.policy_changed",
+    "organisation.budget_changed",
+    "organisation.retention_changed",
+    "alert.resolved",
+    "alert.reopened",
+    "audit.exported",
+] as const;
+export const adminAuditActionSchema = z.enum(ADMIN_AUDIT_ACTIONS);
 const providerModelCountSchema = z.object({
     providerId: providerIdSchema,
     model: z.string(),
@@ -92,6 +113,30 @@ export const adminLogItemSchema = z.object({
     createdAt: z.string(),
 });
 
+export const adminAuditItemSchema = z.object({
+    auditId: z.string().uuid(),
+    actorId: z.string().uuid().optional(),
+    actorType: z.enum(["USER", "SYSTEM"]),
+    actorRole: userRoleSchema.optional(),
+    action: adminAuditActionSchema,
+    outcome: z.enum(["SUCCESS", "FAILURE"]),
+    resourceType: z.enum([
+        "AUTH_SESSION",
+        "POLICY_DECISION",
+        "USER",
+        "ORGANISATION",
+        "ALERT",
+        "AUDIT_EXPORT",
+    ]),
+    resourceId: z.string().optional(),
+    metadata: z.record(
+        z.string(),
+        z.union([z.string(), z.number(), z.boolean(), z.null()]),
+    ),
+    requestId: z.string(),
+    occurredAt: z.string(),
+});
+
 export const adminUserItemSchema = z.object({
     userId: z.string().uuid(),
     email: z.string().email(),
@@ -141,6 +186,8 @@ export const adminAlertItemSchema = z.object({
 export type AdminSummary = z.infer<typeof adminSummarySchema>;
 export type AdminBilling = z.infer<typeof adminBillingSchema>;
 export type AdminLogItem = z.infer<typeof adminLogItemSchema>;
+export type AdminAuditAction = z.infer<typeof adminAuditActionSchema>;
+export type AdminAuditItem = z.infer<typeof adminAuditItemSchema>;
 export type AdminUserItem = z.infer<typeof adminUserItemSchema>;
 export type AdminTeamItem = z.infer<typeof adminTeamItemSchema>;
 export type AdminAlertItem = z.infer<typeof adminAlertItemSchema>;
