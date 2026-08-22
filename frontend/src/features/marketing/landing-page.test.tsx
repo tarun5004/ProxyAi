@@ -18,6 +18,9 @@ describe("public landing experience", () => {
         expect(screen.getByRole("heading", { name: "How ProxiAI works" })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: /Security, reliability, and accounting/i })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Security claims backed by deterministic tests." })).toBeInTheDocument();
+        expect(screen.getByText("VERIFIED RELEASE EVIDENCE")).toBeInTheDocument();
+        expect(screen.getByText("78.24% lines")).toBeInTheDocument();
+        expect(screen.getByText("77.62% lines")).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Try the real governed chat path." })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Try the restricted demo" })).toHaveAttribute("href", "/login?demo=public");
         expect(screen.getByRole("link", { name: "Open demo login" })).toHaveAttribute("href", "/login?demo=public");
@@ -42,7 +45,7 @@ describe("public landing experience", () => {
         expect(screen.getByText(/no admin, billing, audit-export, policy, or team-log permissions/i)).toBeInTheDocument();
         expect(screen.getByText(/Interactive demo access may be started on demand/i)).toBeInTheDocument();
         expect(document.body.textContent).not.toMatch(/DEMO_PUBLIC_PASSWORD|ORG_ADMIN password/i);
-        expect(document.body.textContent).not.toMatch(/Trusted by|SOC 2 certified/i);
+        expect(document.body.textContent).not.toMatch(/Trusted by|SOC 2 certified|Certified release evidence|Latest certified/i);
     });
 
     it("prefills only approved public identifiers and keeps a home path", async () => {

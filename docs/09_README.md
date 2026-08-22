@@ -157,8 +157,8 @@ private worker ECS service -> MongoDB Atlas / Redis / BullMQ / Groq
 - exact image digests, not mutable tags, are authoritative;
 - failed smoke must preserve deterministic rollback inputs.
 
-The retained Lightsail files are an unexecuted cost experiment and are not part
-of the current release path.
+Executable Lightsail artifacts were removed from the active tree and remain
+archived in Git history. ECS/Fargate is the only canonical release path.
 
 ## Document Map
 

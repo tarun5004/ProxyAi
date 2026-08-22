@@ -3,10 +3,10 @@ import { CheckCircle, GitBranch, TestTube } from "@phosphor-icons/react/dist/ssr
 import { Reveal } from "../motion/reveal";
 
 const evidence = [
-    { label: "Backend coverage", value: "78.12% lines" },
-    { label: "Frontend coverage", value: "77.20% lines" },
+    { label: "Backend coverage", value: "78.24% lines" },
+    { label: "Frontend coverage", value: "77.62% lines" },
     { label: "Isolated integration", value: "63 / 63 passed" },
-    { label: "Release harness", value: "20 bounded gates" },
+    { label: "Critical branch gates", value: "All approved ≥ 90%" },
 ] as const;
 
 export function ReleaseEvidence() {
@@ -16,13 +16,13 @@ export function ReleaseEvidence() {
                 <Reveal>
                     <div className="flex items-center gap-2 text-brand-dark">
                         <TestTube size={23} aria-hidden="true" />
-                        <p className="text-[11px] font-bold tracking-[0.08em]">CERTIFIED RELEASE EVIDENCE</p>
+                        <p className="text-[11px] font-bold tracking-[0.08em]">VERIFIED RELEASE EVIDENCE</p>
                     </div>
                     <h2 className="mt-4 text-3xl font-bold tracking-[-0.04em] text-text-primary" id="evidence-heading">
                         Security claims backed by deterministic tests.
                     </h2>
                     <p className="mt-4 text-sm leading-7 text-text-soft">
-                        Latest certified local release evidence: 21 August 2026. It covers tenant isolation, Auth/RBAC, prompt egress, encryption, immutable audit, billing replay, pagination, Docker, and isolated MongoDB/Redis/BullMQ integration.
+                        Internal evidence from audit commit <code>789136c</code> on 22 August 2026. It covers tenant isolation, Auth/RBAC, prompt egress, encryption, immutable audit, billing replay, pagination, Docker, and isolated MongoDB/Redis/BullMQ integration; it is not an external certification.
                     </p>
                     <a className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-brand-dark hover:text-brand" href="https://github.com/tarun5004/ProxyAi" rel="noreferrer" target="_blank">
                         <GitBranch size={18} aria-hidden="true" />

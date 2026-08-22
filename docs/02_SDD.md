@@ -1318,8 +1318,9 @@ API and worker -> MongoDB Atlas / managed Redis / Groq
 
 ECS/Fargate is the canonical staging, production, and rollback architecture.
 The low-traffic public demo uses one task per service and reviewed soft/deep
-power controls to bound idle cost. The previous Lightsail path remains an
-unexecuted cost experiment and is not a release requirement.
+power controls to bound idle cost. Executable Lightsail artifacts have been
+removed from the active tree and remain archived in Git history; Lightsail is
+not a current release path or requirement.
 
 ### Production container rules
 

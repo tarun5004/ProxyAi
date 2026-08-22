@@ -457,8 +457,10 @@ does not apply to login verification.
 
 This length, Unicode, and composition policy follows current NIST guidance,
 but ProxiAI does not claim full password-verifier compliance yet. Compromised
-or common-password blocklisting, authentication rate limiting, and
-missing-user timing equalization remain pending authentication work.
+or common-password blocklisting remains pending. Login attempts are bounded by
+the implemented Redis-backed account/IP rate limiter, and unavailable real
+credentials take the implemented dummy Argon2 verification path for
+missing-user timing equalization.
 
 ### Success — `200 OK`
 
