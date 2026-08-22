@@ -1,0 +1,10 @@
+{
+  "label": "Final gap audit baseline",
+  "verifiedAt": "2026-08-22",
+  "sourceCommit": "789136c",
+  "backendTests": "269 / 269",
+  "frontendTests": "28 / 28",
+  "integrationTests": "63 / 63",
+  "backendLineCoverage": "78.24%",
+  "frontendLineCoverage": "77.62%"
+}
