@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --pool=forks --maxWorkers=1 --no-file-parallelism",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build"
+    "verify:static": "node scripts/verify-static-output.mjs",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run verify:static"
   },
   "dependencies": {
     "next": "^16.3.1",
