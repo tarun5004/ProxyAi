@@ -8,13 +8,18 @@ import {
     USER_PERMISSIONS,
     USER_ROLES,
 } from "../users/user.types.js";
-import type { AccessTokenInput } from "./auth.types.js";
+import {
+    AUTH_SESSION_MODES,
+    type AccessTokenInput,
+    type AuthSessionMode,
+} from "./auth.types.js";
 
 export const ACCESS_TOKEN_ALGORITHM = "HS256";
 export const ACCESS_TOKEN_AUDIENCE = "proxiai-api";
 export const ACCESS_TOKEN_ISSUER = "proxiai";
 export const ACCESS_TOKEN_PROTECTED_TYPE = "at+jwt";
 export const ACCESS_TOKEN_TYPE = "access";
+export const PUBLIC_ADMIN_DEMO_TTL_SECONDS = 6 * 60;
 
 const accessTokenSecret = Buffer.from(
     env.JWT_ACCESS_SECRET,
@@ -31,6 +36,7 @@ const accessTokenPayloadSchema = z.strictObject({
     permissions: z.array(z.enum(USER_PERMISSIONS)),
     role: z.enum(USER_ROLES),
     sessionId: z.string().uuid(),
+    sessionMode: z.enum(AUTH_SESSION_MODES).optional(),
     sub: z.string().uuid(),
     type: z.literal(ACCESS_TOKEN_TYPE),
 });
@@ -39,6 +45,7 @@ export interface VerifiedAccessTokenClaims {
     userId: string;
     orgId: string;
     sessionId: string;
+    sessionMode: AuthSessionMode;
 }
 
 export async function createAccessToken(
@@ -47,8 +54,42 @@ export async function createAccessToken(
     accessToken: string;
     expiresInSeconds: number;
 }> {
+    const result = await signAccessToken(
+        input,
+        "STANDARD",
+        env.ACCESS_TOKEN_TTL_MINUTES * 60,
+    );
+
+    return {
+        accessToken: result.accessToken,
+        expiresInSeconds: result.expiresInSeconds,
+    };
+}
+
+export async function createPublicAdminDemoAccessToken(
+    input: AccessTokenInput,
+): Promise<{
+    accessToken: string;
+    expiresAt: string;
+    expiresInSeconds: number;
+}> {
+    return signAccessToken(
+        input,
+        "PUBLIC_ADMIN_DEMO",
+        PUBLIC_ADMIN_DEMO_TTL_SECONDS,
+    );
+}
+
+async function signAccessToken(
+    input: AccessTokenInput,
+    sessionMode: AuthSessionMode,
+    expiresInSeconds: number,
+): Promise<{
+    accessToken: string;
+    expiresAt: string;
+    expiresInSeconds: number;
+}> {
     const issuedAt = Math.floor(Date.now() / 1_000);
-    const expiresInSeconds = env.ACCESS_TOKEN_TTL_MINUTES * 60;
     const expiresAt = issuedAt + expiresInSeconds;
 
     const accessToken = await new SignJWT({
@@ -56,6 +97,7 @@ export async function createAccessToken(
         permissions: [...input.permissions],
         role: input.role,
         sessionId: input.sessionId,
+        sessionMode,
         type: ACCESS_TOKEN_TYPE,
     })
         .setProtectedHeader({
@@ -72,6 +114,7 @@ export async function createAccessToken(
 
     return {
         accessToken,
+        expiresAt: new Date(expiresAt * 1_000).toISOString(),
         expiresInSeconds,
     };
 }
@@ -109,6 +152,8 @@ export async function verifyAccessToken(
             userId: parsedPayload.data.sub,
             orgId: parsedPayload.data.orgId,
             sessionId: parsedPayload.data.sessionId,
+            sessionMode:
+                parsedPayload.data.sessionMode ?? "STANDARD",
         };
     } catch {
         return null;

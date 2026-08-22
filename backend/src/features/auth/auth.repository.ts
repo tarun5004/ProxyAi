@@ -21,6 +21,16 @@ export async function findUserForLogin(
         .exec();
 }
 
+export async function findUserByOrgIdAndEmailNormalized(
+    orgId: string,
+    emailNormalized: string,
+) {
+    return UserModel.findOne({
+        orgId,
+        emailNormalized,
+    }).exec();
+}
+
 export async function incrementFailedLoginCount(
     orgId: string,
     userId: string,

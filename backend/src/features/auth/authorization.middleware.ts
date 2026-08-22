@@ -57,6 +57,30 @@ export function requirePermission(
     };
 }
 
+export function rejectPublicDemoAdminMutation(
+    request: Request,
+    _response: Response,
+    next: NextFunction,
+): void {
+    if (!request.auth) {
+        next(createUnauthorizedError());
+        return;
+    }
+
+    if (request.auth.sessionMode === "PUBLIC_ADMIN_DEMO") {
+        next(
+            new AppError(
+                403,
+                "PUBLIC_DEMO_READ_ONLY",
+                "Administrative changes are disabled in public demo mode.",
+            ),
+        );
+        return;
+    }
+
+    next();
+}
+
 export function assertOrganisationScope(
     auth: AuthContext | undefined,
     trustedResourceOrgId: string,

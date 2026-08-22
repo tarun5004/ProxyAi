@@ -40,7 +40,7 @@ const redisRateLimitStore: LoginRateLimitStore = {
     },
 };
 
-function deriveOpaqueKey(kind: "account" | "ip", value: string): string {
+function deriveOpaqueKey(kind: string, value: string): string {
     return createHmac("sha256", rateLimitSecret)
         .update(kind)
         .update("\0")
@@ -124,3 +124,50 @@ export function createLoginRateLimiter(
 }
 
 export const loginRateLimiter = createLoginRateLimiter();
+
+export function createPublicDemoRateLimiter(
+    store: LoginRateLimitStore = redisRateLimitStore,
+) {
+    return {
+        async consume(input: { readonly ipAddress: string }): Promise<void> {
+            const key = `rate:demo-admin:ip:${deriveOpaqueKey(
+                "demo-admin-ip",
+                input.ipAddress,
+            )}`;
+
+            let result: [number, number];
+
+            try {
+                result = redisResultSchema.parse(
+                    await store.evaluate(
+                        INCREMENT_SCRIPT,
+                        key,
+                        LOGIN_RATE_LIMIT_WINDOW_MS,
+                    ),
+                );
+            } catch {
+                throw new AppError(
+                    503,
+                    "DEPENDENCY_UNAVAILABLE",
+                    "Login is temporarily unavailable.",
+                );
+            }
+
+            if (result[0] > LOGIN_RATE_LIMIT_ATTEMPTS) {
+                throw new AppError(
+                    429,
+                    "RATE_LIMITED",
+                    "Too many login attempts.",
+                    {
+                        retryAfterSeconds: Math.max(
+                            1,
+                            Math.ceil(result[1] / 1_000),
+                        ),
+                    },
+                );
+            }
+        },
+    };
+}
+
+export const publicDemoRateLimiter = createPublicDemoRateLimiter();

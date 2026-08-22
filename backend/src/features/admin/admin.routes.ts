@@ -1,7 +1,10 @@
 import { Router } from "express";
 
 import { authenticateRequest } from "../auth/auth.middleware.js";
-import { requirePermission } from "../auth/authorization.middleware.js";
+import {
+    rejectPublicDemoAdminMutation,
+    requirePermission,
+} from "../auth/authorization.middleware.js";
 import {
     adminAlerts,
     adminAudit,
@@ -30,11 +33,51 @@ adminRouter.get("/billing", requirePermission("admin:view_billing"), adminBillin
 adminRouter.get("/alerts", requirePermission("admin:view_logs"), adminAlerts);
 adminRouter.get("/users", requirePermission("admin:manage_users"), adminUsers);
 adminRouter.get("/teams", requirePermission("admin:manage_users"), adminTeams);
-adminRouter.patch("/users/:userId/role", requirePermission("admin:manage_users"), adminChangeUserRole);
-adminRouter.patch("/users/:userId/team", requirePermission("admin:manage_users"), adminChangeUserTeam);
-adminRouter.patch("/users/:userId/status", requirePermission("admin:manage_users"), adminChangeUserStatus);
-adminRouter.post("/users/:userId/revoke-sessions", requirePermission("admin:manage_users"), adminRevokeUserSessions);
-adminRouter.patch("/policy", requirePermission("admin:configure_policy"), adminUpdatePolicy);
-adminRouter.patch("/retention", requirePermission("admin:configure_policy"), adminUpdateRetention);
-adminRouter.patch("/alerts/:alertId", requirePermission("admin:view_logs"), adminUpdateAlert);
-adminRouter.get("/audit/export", requirePermission("admin:export_audit"), adminExportAudit);
+adminRouter.patch(
+    "/users/:userId/role",
+    requirePermission("admin:manage_users"),
+    rejectPublicDemoAdminMutation,
+    adminChangeUserRole,
+);
+adminRouter.patch(
+    "/users/:userId/team",
+    requirePermission("admin:manage_users"),
+    rejectPublicDemoAdminMutation,
+    adminChangeUserTeam,
+);
+adminRouter.patch(
+    "/users/:userId/status",
+    requirePermission("admin:manage_users"),
+    rejectPublicDemoAdminMutation,
+    adminChangeUserStatus,
+);
+adminRouter.post(
+    "/users/:userId/revoke-sessions",
+    requirePermission("admin:manage_users"),
+    rejectPublicDemoAdminMutation,
+    adminRevokeUserSessions,
+);
+adminRouter.patch(
+    "/policy",
+    requirePermission("admin:configure_policy"),
+    rejectPublicDemoAdminMutation,
+    adminUpdatePolicy,
+);
+adminRouter.patch(
+    "/retention",
+    requirePermission("admin:configure_policy"),
+    rejectPublicDemoAdminMutation,
+    adminUpdateRetention,
+);
+adminRouter.patch(
+    "/alerts/:alertId",
+    requirePermission("admin:view_logs"),
+    rejectPublicDemoAdminMutation,
+    adminUpdateAlert,
+);
+adminRouter.get(
+    "/audit/export",
+    requirePermission("admin:export_audit"),
+    rejectPublicDemoAdminMutation,
+    adminExportAudit,
+);

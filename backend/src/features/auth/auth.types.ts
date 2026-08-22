@@ -7,6 +7,13 @@ import type {
     UserRole,
 } from "../users/user.types.js";
 
+export const AUTH_SESSION_MODES = [
+    "STANDARD",
+    "PUBLIC_ADMIN_DEMO",
+] as const;
+
+export type AuthSessionMode = (typeof AUTH_SESSION_MODES)[number];
+
 export interface LoginInput {
     organisationSlug: string;
     emailNormalized: string;
@@ -19,6 +26,13 @@ export interface AccessTokenInput {
     role: UserRole;
     permissions: UserPermission[];
     sessionId: string;
+}
+
+export interface PublicAdminDemoResult {
+    accessToken: string;
+    expiresAt: string;
+    expiresInSeconds: number;
+    user: LoginResponseUser;
 }
 
 export interface LoginResponseUser {

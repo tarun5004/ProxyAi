@@ -25,6 +25,10 @@ const envSchema = runtimeEnvSchema.extend({
         .refine((value) => new URL(value).origin === value),
     JWT_ACCESS_SECRET: base64UrlSecretSchema,
     AUTH_RATE_LIMIT_SECRET: base64UrlSecretSchema,
+    PUBLIC_ADMIN_DEMO_ENABLED: z
+        .enum(["true", "false"])
+        .default("false")
+        .transform((value) => value === "true"),
     ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(1).max(60),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30),
     CHAT_RATE_LIMIT_FREE_USER_RPM: z.coerce.number().int().min(1),
