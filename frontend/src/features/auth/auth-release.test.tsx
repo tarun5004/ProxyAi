@@ -6,6 +6,7 @@ const authApi = vi.hoisted(() => ({
     logoutRequest: vi.fn(),
     meRequest: vi.fn(),
     refreshRequest: vi.fn(),
+    startPublicAdminDemoRequest: vi.fn(),
 }));
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 
@@ -85,9 +86,11 @@ describe("frontend authentication release gate", () => {
         const login = vi.fn().mockResolvedValue(undefined);
         vi.spyOn(await import("./auth-provider"), "useAuth").mockReturnValue({
             status: "anonymous",
+            expirePublicDemo: vi.fn(),
             login,
             logout: vi.fn(),
             retrySession: vi.fn(),
+            startPublicAdminDemo: vi.fn(),
         });
 
         render(<LoginScreen initialValues={{
@@ -123,9 +126,11 @@ describe("frontend authentication release gate", () => {
         const useAuthSpy = vi.spyOn(await import("./auth-provider"), "useAuth");
         useAuthSpy.mockReturnValue({
             status: "unavailable",
+            expirePublicDemo: vi.fn(),
             login: vi.fn(),
             logout: vi.fn(),
             retrySession,
+            startPublicAdminDemo: vi.fn(),
         });
 
         const { rerender } = render(<ProtectedWorkspace>Private workspace</ProtectedWorkspace>);
@@ -134,9 +139,11 @@ describe("frontend authentication release gate", () => {
 
         useAuthSpy.mockReturnValue({
             status: "anonymous",
+            expirePublicDemo: vi.fn(),
             login: vi.fn(),
             logout: vi.fn(),
             retrySession: vi.fn(),
+            startPublicAdminDemo: vi.fn(),
         });
         rerender(<ProtectedWorkspace>Private workspace</ProtectedWorkspace>);
         await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/login"));

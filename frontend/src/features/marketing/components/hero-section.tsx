@@ -1,8 +1,6 @@
 import { ArrowRight, ShieldCheck } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 
-import { PUBLIC_DEMO_LOGIN } from "@/features/auth/public-demo";
-
 import { ProxyFlowVisual } from "./proxy-flow-visual";
 
 export function HeroSection() {
@@ -21,9 +19,9 @@ export function HeroSection() {
                 <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
                     <Link
                         className="inline-flex min-h-12 items-center justify-center gap-4 rounded-lg bg-brand px-6 text-sm font-semibold text-white shadow-[0_10px_28px_rgb(11_143_56_/_18%)] transition-[background,transform] duration-200 hover:-translate-y-px hover:bg-brand-dark focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/25"
-                        href={PUBLIC_DEMO_LOGIN.href}
+                        href="/demo-admin"
                     >
-                        Try the restricted demo
+                        Open Admin Demo
                         <ArrowRight size={17} weight="bold" aria-hidden="true" />
                     </Link>
                     <a className="inline-flex min-h-12 items-center justify-center rounded-lg border border-border-default bg-surface px-6 text-sm font-semibold text-text-primary hover:border-brand/30 hover:text-brand-dark focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/25" href="#architecture">

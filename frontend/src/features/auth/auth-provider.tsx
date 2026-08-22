@@ -17,6 +17,7 @@ import {
     logoutRequest,
     meRequest,
     refreshRequest,
+    startPublicAdminDemoRequest,
 } from "./auth.api";
 import type {
     AuthContext,
@@ -33,12 +34,16 @@ export interface AuthState {
     expiresInSeconds?: number;
     context?: AuthContext;
     user?: LoginUser;
+    demoExpiresAt?: string;
+    demoExpired?: boolean;
 }
 
 interface AuthValue extends AuthState {
     login(input: LoginInput): Promise<void>;
     logout(): Promise<void>;
     retrySession(): Promise<void>;
+    startPublicAdminDemo(): Promise<void>;
+    expirePublicDemo(): void;
 }
 
 const AuthContextObject = createContext<AuthValue | null>(null);
@@ -51,6 +56,7 @@ function getAuthContext(session: CurrentSession): AuthContext {
         role: session.role,
         permissions: session.permissions,
         sessionId: session.sessionId,
+        sessionMode: session.sessionMode ?? "STANDARD",
         ...(session.teamId === undefined
             ? {}
             : {
@@ -108,6 +114,15 @@ function getBootstrapPromise(): Promise<AuthState> {
 export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     const [state, setState] = useState<AuthState>({ status: "loading" });
 
+    const expirePublicDemo = useCallback(() => {
+        const nextState: AuthState = {
+            status: "anonymous",
+            demoExpired: true,
+        };
+        bootstrapPromise = Promise.resolve(nextState);
+        setState(nextState);
+    }, []);
+
     useEffect(() => {
         let active = true;
 
@@ -130,6 +145,16 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
             return;
         }
 
+        if (state.context?.sessionMode === "PUBLIC_ADMIN_DEMO") {
+            const expiresAtMs = Date.parse(state.demoExpiresAt ?? "");
+            const delayMs = expiresAtMs - Date.now();
+            const timeout = window.setTimeout(
+                expirePublicDemo,
+                Number.isFinite(delayMs) ? Math.max(0, delayMs) : 0,
+            );
+            return () => window.clearTimeout(timeout);
+        }
+
         const delayMs = Math.max(
             30_000,
             (state.expiresInSeconds - 60) * 1_000,
@@ -142,7 +167,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         }, delayMs);
 
         return () => window.clearTimeout(timeout);
-    }, [state]);
+    }, [expirePublicDemo, state]);
 
     const login = useCallback(async (input: LoginInput) => {
         const response = await loginRequest(input);
@@ -169,6 +194,27 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         }
     }, []);
 
+    const startPublicAdminDemo = useCallback(async () => {
+        const response = await startPublicAdminDemoRequest();
+        const me = await meRequest(response.data.accessToken);
+
+        if (me.data.sessionMode !== "PUBLIC_ADMIN_DEMO") {
+            throw new Error("Public demo session marker is missing.");
+        }
+
+        const nextState: AuthState = {
+            status: "authenticated",
+            accessToken: response.data.accessToken,
+            expiresInSeconds: response.data.expiresInSeconds,
+            demoExpiresAt: response.data.expiresAt,
+            context: getAuthContext(me.data),
+            user: me.data.user,
+        };
+
+        bootstrapPromise = Promise.resolve(nextState);
+        setState(nextState);
+    }, []);
+
     const retrySession = useCallback(async () => {
         const nextPromise = bootstrapSession(state);
         bootstrapPromise = nextPromise;
@@ -177,8 +223,22 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     }, [state]);
 
     const value = useMemo<AuthValue>(
-        () => ({ ...state, login, logout, retrySession }),
-        [login, logout, retrySession, state],
+        () => ({
+            ...state,
+            expirePublicDemo,
+            login,
+            logout,
+            retrySession,
+            startPublicAdminDemo,
+        }),
+        [
+            expirePublicDemo,
+            login,
+            logout,
+            retrySession,
+            startPublicAdminDemo,
+            state,
+        ],
     );
 
     return (

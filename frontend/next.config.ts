@@ -5,12 +5,15 @@ const nextConfig: NextConfig = {
     poweredByHeader: false,
     reactStrictMode: true,
     async rewrites() {
-        if (process.env.NODE_ENV === "production") {
+        const backendOrigin = process.env.BACKEND_INTERNAL_ORIGIN
+            ?? (process.env.NODE_ENV === "production"
+                ? undefined
+                : "http://localhost:8080");
+
+        if (!backendOrigin) {
             return [];
         }
 
-        const backendOrigin = process.env.BACKEND_INTERNAL_ORIGIN
-            ?? "http://localhost:8080";
         const parsedOrigin = new URL(backendOrigin);
 
         if (parsedOrigin.origin !== backendOrigin) {
@@ -23,6 +26,10 @@ const nextConfig: NextConfig = {
             {
                 source: "/api/:path*",
                 destination: `${backendOrigin}/api/:path*`,
+            },
+            {
+                source: "/health/:path*",
+                destination: `${backendOrigin}/health/:path*`,
             },
         ];
     },

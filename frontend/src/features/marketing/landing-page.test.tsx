@@ -22,8 +22,7 @@ describe("public landing experience", () => {
         expect(screen.getByText("78.24% lines")).toBeInTheDocument();
         expect(screen.getByText("77.62% lines")).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Try the real governed chat path." })).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Try the restricted demo" })).toHaveAttribute("href", "/login?demo=public");
-        expect(screen.getByRole("link", { name: "Open demo login" })).toHaveAttribute("href", "/login?demo=public");
+        expect(screen.getAllByRole("link", { name: "Open Admin Demo" }).every((link) => link.getAttribute("href") === "/demo-admin")).toBe(true);
         expect(screen.getAllByRole("link", { name: /Log in/i }).every((link) => link.getAttribute("href") === "/login")).toBe(true);
     });
 
@@ -37,14 +36,13 @@ describe("public landing experience", () => {
         expect(screen.getAllByRole("link", { name: "Demo" }).every((link) => link.getAttribute("href") === "#demo")).toBe(true);
     });
 
-    it("shows a restricted employee demo without exposing a password", () => {
+    it("shows a passwordless read-only admin demo without exposing credentials", () => {
         render(<HomePage />);
 
-        expect(screen.getByText("novastack")).toBeInTheDocument();
-        expect(screen.getByText("demo@novastack.demo")).toBeInTheDocument();
-        expect(screen.getByText(/no admin, billing, audit-export, policy, or team-log permissions/i)).toBeInTheDocument();
-        expect(screen.getByText(/Interactive demo access may be started on demand/i)).toBeInTheDocument();
+        expect(screen.getByText(/read-only admin dashboard/i)).toBeInTheDocument();
+        expect(screen.getByText(/may take 1–2 minutes to wake/i)).toBeInTheDocument();
         expect(document.body.textContent).not.toMatch(/DEMO_PUBLIC_PASSWORD|ORG_ADMIN password/i);
+        expect(document.body.textContent).not.toMatch(/admin-demo@novastack\.demo/i);
         expect(document.body.textContent).not.toMatch(/Trusted by|SOC 2 certified|Certified release evidence|Latest certified/i);
     });
 

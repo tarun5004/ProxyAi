@@ -7,6 +7,7 @@ import {
     currentSessionSchema,
     loginInputSchema,
     loginUserSchema,
+    publicAdminDemoResponseSchema,
     type LoginInput,
 } from "./auth.types";
 
@@ -25,6 +26,9 @@ const refreshResponseSchema = createSuccessEnvelopeSchema(tokenDataSchema);
 const meResponseSchema = createSuccessEnvelopeSchema(currentSessionSchema);
 const logoutResponseSchema = createSuccessEnvelopeSchema(
     z.object({ loggedOut: z.literal(true) }),
+);
+const publicAdminDemoEnvelopeSchema = createSuccessEnvelopeSchema(
+    publicAdminDemoResponseSchema,
 );
 
 export async function loginRequest(input: LoginInput) {
@@ -60,5 +64,13 @@ export function logoutRequest() {
         path: "/auth/logout",
         method: "POST",
         schema: logoutResponseSchema,
+    });
+}
+
+export function startPublicAdminDemoRequest() {
+    return requestJson({
+        path: "/auth/demo-admin",
+        method: "POST",
+        schema: publicAdminDemoEnvelopeSchema,
     });
 }

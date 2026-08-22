@@ -15,6 +15,10 @@ export const retentionModeSchema = z.enum([
     "METADATA_ONLY",
     "ENCRYPTED_STORAGE",
 ]);
+export const authSessionModeSchema = z.enum([
+    "STANDARD",
+    "PUBLIC_ADMIN_DEMO",
+]);
 
 export const loginInputSchema = z.object({
     organisationSlug: z.string().trim().min(2).max(63),
@@ -28,6 +32,7 @@ export const authContextSchema = z.object({
     role: userRoleSchema,
     permissions: z.array(userPermissionSchema),
     sessionId: z.string().uuid(),
+    sessionMode: authSessionModeSchema.optional(),
     teamId: z.string().uuid().optional(),
 });
 
@@ -50,8 +55,16 @@ export const currentSessionSchema = authContextSchema.extend({
     user: loginUserSchema,
 });
 
+export const publicAdminDemoResponseSchema = z.object({
+    accessToken: z.string().min(1),
+    expiresAt: z.string().datetime(),
+    expiresInSeconds: z.number().int().positive().max(360),
+    user: loginUserSchema,
+});
+
 export type LoginInput = z.infer<typeof loginInputSchema>;
 export type AuthContext = z.infer<typeof authContextSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type CurrentSession = z.infer<typeof currentSessionSchema>;
 export type RetentionMode = z.infer<typeof retentionModeSchema>;
+export type AuthSessionMode = z.infer<typeof authSessionModeSchema>;

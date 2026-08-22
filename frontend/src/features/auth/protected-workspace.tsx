@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
 import { useAuth } from "./auth-provider";
+import { PublicAdminDemoBanner } from "./public-admin-demo-banner";
 
 export function ProtectedWorkspace({ children }: Readonly<{ children: ReactNode }>) {
     const auth = useAuth();
@@ -11,9 +12,13 @@ export function ProtectedWorkspace({ children }: Readonly<{ children: ReactNode 
 
     useEffect(() => {
         if (auth.status === "anonymous") {
-            router.replace("/login");
+            router.replace(
+                auth.demoExpired
+                    ? "/demo-admin?expired=1"
+                    : "/login",
+            );
         }
-    }, [auth.status, router]);
+    }, [auth.demoExpired, auth.status, router]);
 
     if (auth.status !== "authenticated") {
         return (
@@ -39,5 +44,16 @@ export function ProtectedWorkspace({ children }: Readonly<{ children: ReactNode 
         );
     }
 
-    return children;
+    return (
+        <>
+            {auth.context?.sessionMode === "PUBLIC_ADMIN_DEMO"
+            && auth.demoExpiresAt ? (
+                <PublicAdminDemoBanner
+                    expiresAt={auth.demoExpiresAt}
+                    onExpire={auth.expirePublicDemo}
+                />
+                ) : null}
+            {children}
+        </>
+    );
 }
