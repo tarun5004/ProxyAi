@@ -55,8 +55,11 @@ describe("conversation navigation discovery", () => {
                 roleLabel="EMPLOYEE"
                 open
                 creating={false}
+                hasMore={false}
+                pageStatus="idle"
                 onClose={vi.fn()}
                 onCreate={vi.fn()}
+                onLoadMore={vi.fn()}
                 onLogout={vi.fn()}
                 onRetry={vi.fn()}
                 showAdmin={false}

@@ -21,6 +21,8 @@ afterEach(() => {
 const defaultProps = {
     title: "Security review",
     retainedMessages: [],
+    hasMoreHistory: false,
+    historyPageStatus: "idle" as const,
     conversationStatus: "ready" as const,
     error: undefined,
     routingDisplay: {
@@ -30,6 +32,7 @@ const defaultProps = {
         status: "NOT_ROUTED" as const,
     },
     onSend: vi.fn(async () => undefined),
+    onLoadMoreHistory: vi.fn(),
     onOpenConversations: vi.fn(),
 };
 
