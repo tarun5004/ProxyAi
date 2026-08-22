@@ -4,16 +4,38 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 ## Current Work
 
-- **Phase:** Phase 12 in progress; repository remediation and live ECS release
-  certification.
-- **Task:** P12-09 — Certify the immutable ECS staging and production release.
-- **Status:** P12-01 through P12-08 remain implemented. Current live execution
-  is `MANUAL_ECS_RELEASE_VERIFIED / AUTH_SMOKE_BLOCKED`: all 20 local release
-  gates pass; immutable current-SHA images are deployed; API, worker, frontend,
-  MongoDB, Redis, public health, rollback, and 15-minute observation passed.
-  Protected smoke credentials were unavailable to the local deployment session,
-  and remote GitHub Actions remains blocked by an external billing lock. Phase
-  13 has not started.
+- **Phase:** Phase 12 remains in progress; final repository remediation is
+  complete and live AWS certification remains deferred.
+- **Task:** P12-09 — Resume immutable ECS certification only after an approved
+  deep-start and protected smoke inputs are available.
+- **Status:** The code candidate passed all 20 local release gates after the
+  28-gap multi-agent remediation. AWS is intentionally deep-stopped for cost
+  control, so live ECS/ALB/NAT, public auth/chat/admin, and worker checks are
+  `DEFERRED_LIVE_VERIFICATION`, not defects. Phase 13 has not started.
+
+## Latest Task — Final Multi-Agent Remediation
+
+- **Base audit:** `789136c`; validated implementation SHA before closure docs:
+  `2627453`.
+- **Release evidence:** backend `283/283`, 78.50% lines / 83.64% branches;
+  frontend `51/51`, 79.13% lines / 70.56% branches; isolated integration
+  `63/63` passed three consecutive runs; all critical pure-module branch gates
+  remain at or above 90%.
+- **Full harness:** `node scripts/verify-release.mjs` passed all 20 steps,
+  including dependency audits, lint, typecheck, tests, coverage, builds,
+  security/deployment/index checks, and non-root Docker images.
+- **Product/demo:** bounded ProxiAI self-description, safe demo identifier assist,
+  admin confirmations/recovery, chat UX, auth context, pagination, and bounded
+  AuditLog browsing are implemented.
+- **Landing:** independent static `landing/` app builds to `out/`, needs no
+  runtime environment variables, and links to `https://app.proxiai.me`.
+- **Operations:** continuous hosted observability is truthfully waived under the
+  zero-cost deep-stop policy; executable Lightsail artifacts were removed and
+  ECS/Fargate remains canonical.
+- **Deferred:** live Atlas private-admin apply, public/private authenticated
+  smoke, AWS runtime checks, new public-demo session/conversation cap values,
+  and broad maintainability refactors.
+- **Detailed evidence:** `REMEDIATION_EXECUTION_REPORT.md`.
 
 ## Latest Task — Manual Immutable ECS Release
 
@@ -58,7 +80,7 @@ This file is a progress log. The approved documents in `docs/` remain the source
   through explicit opt-in.
 - **Landing:** The public page now explains the problem, request controls,
   encryption/audit, async accounting, observability, ECS architecture,
-  certified release evidence, safe demo access, and honest limitations without
+  verified internal release evidence, safe demo access, and honest limitations without
   customer, certification, or high-availability claims.
 - **Resolved runtime blocker:** protected Redis connectivity and
   BullMQ-compatible capacity now pass; API, worker, and frontend are each
@@ -1518,8 +1540,9 @@ npm run dev
 
 ## Recommended Next Task
 
-- Complete the current release harness, then unblock Redis/BullMQ and run the
-  immutable ECS staging, production, rollback, and observation gates.
+- When a live demo window is approved, deep-start ECS from the validated
+  snapshot, configure protected smoke identities, and run the immutable SHA
+  public EMPLOYEE/private ORG_ADMIN release matrix. Do not start Phase 13 first.
 
 ## Superseded Historical Lightsail Experiment — Not Active
 
@@ -1548,7 +1571,7 @@ current deployment prerequisite or completion gate.
 - **Historical release:** Git SHA
   `eb9607adaadabdecf3802b42c523cb1d1c146c7e`; it is rollback metadata, not a
   currently running public release.
-- **Repository verification:** Lightsail Compose and Caddy validation,
+- **Historical repository verification:** The removed Lightsail Compose and Caddy validation,
   PowerShell parsing, IAM-policy JSON parsing, actionlint, ShellCheck, and both
   local production image builds passed. Frontend typecheck and production
   build passed. The committed backend produced 196/197 passing tests in the
@@ -1625,8 +1648,9 @@ current deployment prerequisite or completion gate.
   policy JSON parsing, live deep-stop preview, reconstructed deep-start preview,
   wrapper preview, current topology discovery, and `git diff --check` passed.
 - **Next action:** Use soft mode for routine savings and deep stop only when
-  accepting the longer ALB/NAT rebuild window. Certify the current ECS release;
-  do not pursue Lightsail without a new architecture decision.
+  accepting the longer ALB/NAT rebuild window. The current environment is
+  intentionally deep-stopped. Certify the next ECS release window; do not
+  pursue Lightsail without a new architecture decision.
 
 ## Do Not Forget
 

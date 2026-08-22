@@ -1349,6 +1349,33 @@ Do not randomly change several files.
 
 # 26. Immediate Next Task
 
+## Final Repository Remediation — Completed 2026-08-22
+
+The final audit baseline `789136c` was executed through isolated agent
+worktrees and ordered Integration Lead merges. Detailed evidence is recorded in
+`REMEDIATION_EXECUTION_REPORT.md`.
+
+- [x] Bounded ProxiAI self-description and unsupported-claim protection.
+- [x] Safe public/private demo operations code without credential exposure.
+- [x] Chat, auth, admin, pagination, and bounded AuditLog usability fixes.
+- [x] Independent static recruiter landing under `landing/`.
+- [x] Truthful zero-cost observability waiver and superseded Lightsail cleanup.
+- [x] Backend `283/283`; frontend `51/51`; landing `3/3`.
+- [x] Backend 78.50% lines; frontend 79.13% lines.
+- [x] Three consecutive isolated MongoDB/Redis/BullMQ integration passes.
+- [x] All 20 canonical release-harness steps, including Docker, passed.
+- [ ] Public-demo session/conversation cap values require product approval; no
+  thresholds were invented.
+- [ ] Private demo-admin Atlas apply and authenticated public/private smoke need
+  explicit live-operation approval and protected credentials.
+- [ ] AWS runtime verification remains `DEFERRED_LIVE_VERIFICATION` while the
+  demo is intentionally deep-stopped.
+
+GAP-028 broad hotspot refactoring is `DEFERRED_WITH_REASON`: auth, chat,
+provider, BullMQ, metrics, and large frontend state modules are too coupled for
+a low-risk final-release refactor. Continue later with characterization tests
+and one responsibility boundary per commit.
+
 ## P12-09.1 — Protected Runtime and Release Prerequisites
 
 The Phase 12 contract/readiness audit is complete. Reconcile only protected
