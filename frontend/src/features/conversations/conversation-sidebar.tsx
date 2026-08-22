@@ -124,9 +124,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
                         <span className="overflow-hidden text-ellipsis whitespace-nowrap">
                             {conversation.title}
                         </span>
-                        <time className="text-[11px] text-text-faint">
-                            {formatConversationTime(conversation.lastMessageAt)}
-                        </time>
+                        <ConversationActivity value={conversation.lastMessageAt} />
                     </Link>
                 ))}
             </nav>
@@ -175,23 +173,40 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
     );
 }
 
-function formatConversationTime(value: string | null): string {
+function ConversationActivity({ value }: Readonly<{ value: string | null }>) {
     if (!value) {
-        return "New";
+        return (
+            <span className="text-[11px] text-text-faint" aria-label="No message activity yet">
+                New
+            </span>
+        );
     }
 
     const date = new Date(value);
     const now = new Date();
-
-    if (date.toDateString() === now.toDateString()) {
-        return new Intl.DateTimeFormat(undefined, {
+    const fullTime = new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+    }).format(date);
+    const displayTime = date.toDateString() === now.toDateString()
+        ? new Intl.DateTimeFormat(undefined, {
             hour: "numeric",
             minute: "2-digit",
+        }).format(date)
+        : new Intl.DateTimeFormat(undefined, {
+            month: "short",
+            day: "numeric",
         }).format(date);
-    }
 
-    return new Intl.DateTimeFormat(undefined, {
-        month: "short",
-        day: "numeric",
-    }).format(date);
+    return (
+        <time
+            className="text-[11px] text-text-faint"
+            dateTime={value}
+            title={fullTime}
+            aria-label={`Last activity ${fullTime}`}
+            suppressHydrationWarning
+        >
+            {displayTime}
+        </time>
+    );
 }
