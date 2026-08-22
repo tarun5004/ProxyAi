@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AdminDashboard } from "./admin-dashboard";
@@ -113,7 +113,7 @@ describe("Phase 8 admin dashboard", () => {
         expect(screen.getByText("No cached or fabricated values are shown.")).toBeInTheDocument();
     });
 
-    it("waits for audited policy mutation confirmation before showing refreshed data", async () => {
+    it("reviews policy and budget changes, supports cancel, and prevents duplicate submits", async () => {
         authState.permissions = ["admin:view_logs", "admin:configure_policy"];
         let completeMutation!: () => void;
         adminApi.updateAdminPolicy.mockReturnValueOnce(new Promise<void>((resolve) => {
@@ -122,18 +122,42 @@ describe("Phase 8 admin dashboard", () => {
         render(<AdminDashboard />);
 
         const save = await screen.findByRole("button", { name: "Save policy" });
+        fireEvent.change(screen.getByRole("spinbutton", { name: "Mask threshold" }), { target: { value: "25" } });
+        fireEvent.change(screen.getByRole("spinbutton", { name: "Block threshold" }), { target: { value: "70" } });
+        fireEvent.change(screen.getByRole("spinbutton", { name: "Monthly token budget" }), { target: { value: "2000" } });
         fireEvent.click(save);
-        expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+
+        let dialog = screen.getByRole("dialog", { name: "Confirm policy and budget update" });
+        expect(within(dialog).getByText("ProxyAI Demo")).toBeInTheDocument();
+        expect(within(dialog).getByText("Mask threshold before")).toBeInTheDocument();
+        expect(within(dialog).getByText("20")).toBeInTheDocument();
+        expect(within(dialog).getByText("25")).toBeInTheDocument();
+        expect(within(dialog).getByText("Monthly token budget after")).toBeInTheDocument();
+        expect(within(dialog).getByText("2000")).toBeInTheDocument();
+        expect(adminApi.updateAdminPolicy).not.toHaveBeenCalled();
+
+        fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(adminApi.updateAdminPolicy).not.toHaveBeenCalled();
+
+        fireEvent.click(save);
+        dialog = screen.getByRole("dialog", { name: "Confirm policy and budget update" });
+        const confirm = within(dialog).getByRole("button", { name: "Apply policy" });
+        fireEvent.click(confirm);
+        fireEvent.click(confirm);
+
+        expect(adminApi.updateAdminPolicy).toHaveBeenCalledTimes(1);
+        expect(within(dialog).getByRole("button", { name: "Applying…" })).toBeDisabled();
 
         completeMutation();
         await waitFor(() => expect(adminApi.updateAdminPolicy).toHaveBeenCalledWith(
             "access-token",
-            { maskThreshold: 20, blockThreshold: 60, monthlyTokenBudget: 1000 },
+            { maskThreshold: 25, blockThreshold: 70, monthlyTokenBudget: 2000 },
         ));
         await waitFor(() => expect(screen.getByRole("button", { name: "Save policy" })).toBeEnabled());
     });
 
-    it("surfaces user mutation failure and keeps role, team, and status controls scoped", async () => {
+    it("confirms role, team, status, and session mutations with safe before/after context", async () => {
         const user = {
             userId: "11111111-1111-4111-8111-111111111111",
             email: "member@proxiai.local",
@@ -153,30 +177,57 @@ describe("Phase 8 admin dashboard", () => {
             createdAt: "2026-08-01T00:00:00.000Z",
             updatedAt: "2026-08-01T00:00:00.000Z",
         };
-        adminApi.listAdminUsers.mockResolvedValueOnce(envelope({ items: [user] }));
-        adminApi.listAdminTeams.mockResolvedValueOnce(envelope({ items: [team] }));
+        adminApi.listAdminUsers.mockResolvedValue(envelope({ items: [user] }));
+        adminApi.listAdminTeams.mockResolvedValue(envelope({ items: [team] }));
         adminApi.updateAdminUserRole.mockRejectedValueOnce(new Error("safe failure"));
         adminApi.updateAdminUserTeam.mockResolvedValueOnce(envelope({}));
         adminApi.updateAdminUserStatus.mockResolvedValueOnce(envelope({}));
-        vi.spyOn(window, "confirm").mockReturnValue(true);
+        adminApi.revokeAdminUserSessions.mockResolvedValueOnce(envelope({}));
         render(<AdminDashboard />);
 
         fireEvent.click(await screen.findByRole("button", { name: "users" }));
-        fireEvent.change(await screen.findByRole("combobox", { name: "Role for Demo Member" }), {
-            target: { value: "TEAM_LEAD" },
+        const roleSelect = await screen.findByRole("combobox", { name: "Role for Demo Member" });
+        fireEvent.change(roleSelect, {
+            target: { value: "ORG_ADMIN" },
         });
+
+        let dialog = screen.getByRole("dialog", { name: "Confirm user role change" });
+        expect(within(dialog).getByText("Demo Member (member@proxiai.local)")).toBeInTheDocument();
+        expect(within(dialog).getByText("Employee")).toBeInTheDocument();
+        expect(within(dialog).getByText("Org admin")).toBeInTheDocument();
+        expect(within(dialog).getByText(/grants organisation-administrator privileges/i)).toBeInTheDocument();
+        expect(adminApi.updateAdminUserRole).not.toHaveBeenCalled();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Change role" }));
+
         expect(await screen.findByRole("alert")).toHaveTextContent("Update failed");
+        expect(roleSelect).toHaveValue("EMPLOYEE");
+        expect(adminApi.updateAdminUserRole).toHaveBeenCalledWith("access-token", user.userId, "ORG_ADMIN");
 
         fireEvent.change(screen.getByRole("combobox", { name: "Team for Demo Member" }), {
             target: { value: team.teamId },
         });
+        dialog = screen.getByRole("dialog", { name: "Confirm team assignment" });
+        expect(within(dialog).getByText("No team")).toBeInTheDocument();
+        expect(within(dialog).getByText("Security")).toBeInTheDocument();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Change team" }));
         await waitFor(() => expect(adminApi.updateAdminUserTeam).toHaveBeenCalledWith(
             "access-token",
             user.userId,
             team.teamId,
         ));
 
-        fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Revoke sessions" }));
+        dialog = screen.getByRole("dialog", { name: "Confirm session revocation" });
+        expect(within(dialog).getByText(/existing access tokens retain their approved bounded lifetime/i)).toBeInTheDocument();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Revoke sessions" }));
+        await waitFor(() => expect(adminApi.revokeAdminUserSessions).toHaveBeenCalledWith("access-token", user.userId));
+
+        fireEvent.click(await screen.findByRole("button", { name: "Disable" }));
+        dialog = screen.getByRole("dialog", { name: "Confirm user status change" });
+        expect(within(dialog).getByText("Active")).toBeInTheDocument();
+        expect(within(dialog).getByText("Disabled")).toBeInTheDocument();
+        expect(within(dialog).getByText(/prevents authentication and revokes/i)).toBeInTheDocument();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Disable user" }));
         await waitFor(() => expect(adminApi.updateAdminUserStatus).toHaveBeenCalledWith(
             "access-token",
             user.userId,
@@ -191,7 +242,6 @@ describe("Phase 8 admin dashboard", () => {
             "admin:configure_policy",
             "admin:export_audit",
         ];
-        vi.spyOn(window, "confirm").mockReturnValue(true);
         adminApi.updateAdminRetention.mockResolvedValueOnce(envelope({}));
         adminApi.downloadAdminAudit.mockResolvedValueOnce(new Blob(["audit"]));
         class TestURL extends URL {
@@ -203,6 +253,12 @@ describe("Phase 8 admin dashboard", () => {
         render(<AdminDashboard />);
 
         fireEvent.click(await screen.findByRole("button", { name: "Use encrypted storage" }));
+        const dialog = screen.getByRole("dialog", { name: "Confirm retention mode change" });
+        expect(within(dialog).getByText("Metadata only")).toBeInTheDocument();
+        expect(within(dialog).getByText("Encrypted storage")).toBeInTheDocument();
+        expect(within(dialog).getByText(/existing metadata-only history is not backfilled/i)).toBeInTheDocument();
+        expect(adminApi.updateAdminRetention).not.toHaveBeenCalled();
+        fireEvent.click(within(dialog).getByRole("button", { name: "Change retention" }));
         await waitFor(() => expect(adminApi.updateAdminRetention).toHaveBeenCalledWith(
             "access-token",
             "ENCRYPTED_STORAGE",

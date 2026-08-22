@@ -39,6 +39,10 @@ import type {
     AdminTeamItem,
     AdminUserItem,
 } from "./admin.types";
+import {
+    ConfirmedMutationButton,
+    ConfirmedMutationSelect,
+} from "./admin-mutation-confirmation";
 
 type AdminTab = "overview" | "users" | "usage" | "alerts" | "logs";
 type LoadState = "loading" | "ready" | "error";
@@ -355,46 +359,97 @@ function PolicyControls({ summary, accessToken, onChanged }: Readonly<{ summary:
         <label className="grid gap-1 text-xs font-medium">Block threshold<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="0" max="100" value={blockThreshold} onChange={(event) => setBlockThreshold(event.target.value)} /></label>
         <label className="grid gap-1 text-xs font-medium">Monthly token budget<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="0" value={budget} onChange={(event) => setBudget(event.target.value)} /></label>
     </div><div className="mt-4 flex flex-wrap gap-2">
-        <MutationButton label="Save policy" run={() => updateAdminPolicy(accessToken, { maskThreshold: Number(maskThreshold), blockThreshold: Number(blockThreshold), monthlyTokenBudget: Number(budget) })} onDone={onChanged} />
-        <MutationButton label={`Use ${summary.organisation.retentionMode === "METADATA_ONLY" ? "encrypted storage" : "metadata only"}`} confirm run={() => updateAdminRetention(accessToken, summary.organisation.retentionMode === "METADATA_ONLY" ? "ENCRYPTED_STORAGE" : "METADATA_ONLY")} onDone={onChanged} />
+        <ConfirmedMutationButton
+            label="Save policy"
+            confirmation={{
+                title: "Confirm policy and budget update",
+                target: summary.organisation.name,
+                changes: [
+                    { label: "Mask threshold", before: String(summary.organisation.policy.maskThreshold), after: maskThreshold },
+                    { label: "Block threshold", before: String(summary.organisation.policy.blockThreshold), after: blockThreshold },
+                    { label: "Monthly token budget", before: String(summary.budget.monthlyBudgetTokens), after: budget },
+                ],
+                consequence: "Threshold changes alter future masking and blocking decisions. The monthly budget can block future chat requests when authoritative usage reaches the limit.",
+                confirmLabel: "Apply policy",
+            }}
+            run={() => updateAdminPolicy(accessToken, { maskThreshold: Number(maskThreshold), blockThreshold: Number(blockThreshold), monthlyTokenBudget: Number(budget) })}
+            onDone={onChanged}
+        />
+        <ConfirmedMutationButton
+            label={`Use ${summary.organisation.retentionMode === "METADATA_ONLY" ? "encrypted storage" : "metadata only"}`}
+            confirmation={retentionConfirmation(summary)}
+            run={() => updateAdminRetention(accessToken, summary.organisation.retentionMode === "METADATA_ONLY" ? "ENCRYPTED_STORAGE" : "METADATA_ONLY")}
+            onDone={onChanged}
+        />
     </div></Panel>;
 }
 
 function UserControls({ user, teams, accessToken, onChanged }: Readonly<{ user: AdminUserItem; teams: AdminTeamItem[]; accessToken: string; onChanged: () => void }>) {
+    const teamNames = new Map(teams.map((team) => [team.teamId, team.name]));
+    const userTarget = `${user.displayName} (${user.email})`;
+
     return <div className="flex flex-wrap items-center justify-end gap-2">
-        <MutationSelect ariaLabel={`Role for ${user.displayName}`} value={user.role} run={(value) => updateAdminUserRole(accessToken, user.userId, value as AdminUserItem["role"])} onDone={onChanged}>
+        <ConfirmedMutationSelect
+            ariaLabel={`Role for ${user.displayName}`}
+            value={user.role}
+            getConfirmation={(nextRole) => ({
+                title: "Confirm user role change",
+                target: userTarget,
+                changes: [{ label: "Role", before: formatAdminValue(user.role), after: formatAdminValue(nextRole) }],
+                consequence: nextRole === "ORG_ADMIN"
+                    ? "This grants organisation-administrator privileges from the canonical role permission map."
+                    : "Effective permissions will be recomputed from the selected canonical role.",
+                confirmLabel: "Change role",
+            })}
+            run={(value) => updateAdminUserRole(accessToken, user.userId, value as AdminUserItem["role"])}
+            onDone={onChanged}
+        >
             <option value="EMPLOYEE">Employee</option><option value="TEAM_LEAD">Team lead</option><option value="ORG_ADMIN">Org admin</option>
-        </MutationSelect>
-        <MutationSelect ariaLabel={`Team for ${user.displayName}`} value={user.teamId ?? ""} run={(value) => updateAdminUserTeam(accessToken, user.userId, value || null)} onDone={onChanged}>
+        </ConfirmedMutationSelect>
+        <ConfirmedMutationSelect
+            ariaLabel={`Team for ${user.displayName}`}
+            value={user.teamId ?? ""}
+            getConfirmation={(nextTeamId) => ({
+                title: "Confirm team assignment",
+                target: userTarget,
+                changes: [{
+                    label: "Team",
+                    before: user.teamId ? teamNames.get(user.teamId) ?? "Assigned team" : "No team",
+                    after: nextTeamId ? teamNames.get(nextTeamId) ?? "Selected team" : "No team",
+                }],
+                consequence: "Future team-scoped authorization uses this assignment. The backend remains authoritative for tenant-scoped team validation.",
+                confirmLabel: "Change team",
+            })}
+            run={(value) => updateAdminUserTeam(accessToken, user.userId, value || null)}
+            onDone={onChanged}
+        >
             <option value="">No team</option>{teams.map((team) => <option key={team.teamId} value={team.teamId}>{team.name}</option>)}
-        </MutationSelect>
-        <MutationButton label={user.status === "ACTIVE" ? "Disable" : "Activate"} confirm={user.status === "ACTIVE"} run={() => updateAdminUserStatus(accessToken, user.userId, user.status === "ACTIVE" ? "DISABLED" : "ACTIVE")} onDone={onChanged} />
-        <MutationButton label="Revoke sessions" confirm run={() => revokeAdminUserSessions(accessToken, user.userId)} onDone={onChanged} />
+        </ConfirmedMutationSelect>
+        <ConfirmedMutationButton
+            label={user.status === "ACTIVE" ? "Disable" : "Activate"}
+            confirmation={statusConfirmation(user, userTarget)}
+            run={() => updateAdminUserStatus(accessToken, user.userId, user.status === "ACTIVE" ? "DISABLED" : "ACTIVE")}
+            onDone={onChanged}
+        />
+        <ConfirmedMutationButton
+            label="Revoke sessions"
+            confirmation={{
+                title: "Confirm session revocation",
+                target: userTarget,
+                changes: [{ label: "Refresh sessions", before: "Active sessions retained", after: "All active sessions revoked" }],
+                consequence: "All active refresh sessions for this user will be revoked. Existing access tokens retain their approved bounded lifetime.",
+                confirmLabel: "Revoke sessions",
+            }}
+            run={() => revokeAdminUserSessions(accessToken, user.userId)}
+            onDone={onChanged}
+        />
     </div>;
 }
 
-function MutationSelect({ ariaLabel, value, run, onDone, children }: Readonly<{ ariaLabel: string; value: string; run: (value: string) => Promise<unknown>; onDone: () => void; children: React.ReactNode }>) {
-    const [state, setState] = useState<"idle" | "working" | "error">("idle");
-
-    async function change(nextValue: string) {
-        setState("working");
-        try {
-            await run(nextValue);
-            setState("idle");
-            onDone();
-        } catch {
-            setState("error");
-        }
-    }
-
-    return <span className="grid gap-1"><select aria-label={ariaLabel} className="rounded-lg border border-border-default px-2 py-1.5 text-xs disabled:opacity-60" value={value} disabled={state === "working"} onChange={(event) => void change(event.target.value)}>{children}</select>{state === "error" ? <span className="text-[10px] text-danger" role="alert">Update failed</span> : null}</span>;
-}
-
-function MutationButton({ label, run, onDone, confirm = false, disabled = false }: Readonly<{ label: string; run: () => Promise<unknown>; onDone?: () => void; confirm?: boolean; disabled?: boolean }>) {
+function MutationButton({ label, run, onDone, disabled = false }: Readonly<{ label: string; run: () => Promise<unknown>; onDone?: () => void; disabled?: boolean }>) {
     const [state, setState] = useState<"idle" | "working" | "error">("idle");
 
     async function execute() {
-        if (confirm && !window.confirm(`Confirm: ${label}?`)) return;
         setState("working");
         try {
             await run();
@@ -405,7 +460,37 @@ function MutationButton({ label, run, onDone, confirm = false, disabled = false 
         }
     }
 
-    return <button className="rounded-lg border border-border-default bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60" disabled={disabled || state === "working"} onClick={() => void execute()}>{state === "working" ? "Saving…" : state === "error" ? "Retry" : label}</button>;
+    return <button className="rounded-lg border border-border-default bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60" disabled={disabled || state === "working"} onClick={() => void execute()} type="button">{state === "working" ? "Saving…" : state === "error" ? "Retry" : label}</button>;
+}
+
+function retentionConfirmation(summary: AdminSummary) {
+    const nextMode = summary.organisation.retentionMode === "METADATA_ONLY" ? "ENCRYPTED_STORAGE" : "METADATA_ONLY";
+    return {
+        title: "Confirm retention mode change",
+        target: summary.organisation.name,
+        changes: [{ label: "Retention mode", before: formatAdminValue(summary.organisation.retentionMode), after: formatAdminValue(nextMode) }],
+        consequence: nextMode === "ENCRYPTED_STORAGE"
+            ? "Future eligible message content may be retained only through approved encryption. Existing metadata-only history is not backfilled."
+            : "Future message content will not be retained. Existing encrypted records are not converted to plaintext.",
+        confirmLabel: "Change retention",
+    } as const;
+}
+
+function statusConfirmation(user: AdminUserItem, userTarget: string) {
+    const nextStatus = user.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
+    return {
+        title: "Confirm user status change",
+        target: userTarget,
+        changes: [{ label: "Status", before: formatAdminValue(user.status), after: formatAdminValue(nextStatus) }],
+        consequence: nextStatus === "DISABLED"
+            ? "Disabling prevents authentication and revokes this user's active refresh sessions."
+            : "Activating permits authentication subject to organisation status and valid credentials; no session is issued automatically.",
+        confirmLabel: nextStatus === "DISABLED" ? "Disable user" : "Activate user",
+    } as const;
+}
+
+function formatAdminValue(value: string): string {
+    return value.replaceAll("_", " ").toLowerCase().replace(/^./u, (character) => character.toUpperCase());
 }
 
 function StatePanel({ title, detail, action }: Readonly<{ title: string; detail: string; action?: () => void }>) {
