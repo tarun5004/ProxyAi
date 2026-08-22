@@ -1638,3 +1638,25 @@ Complexity was reduced by:
 **APPROVED AS THE SYSTEM-DESIGN BASELINE FOR A BEGINNER SOLO-DEVELOPER MVP.**
 
 The design is sufficiently detailed to begin repository setup and the later Technical Design Document without adding product scope.
+
+## 26. Zero-Cost Public Admin Demo Session
+
+The zero-cost recruiter demo may expose a one-click public admin session only
+when `PUBLIC_ADMIN_DEMO_ENABLED=true`. The API resolves the fixed trusted
+`novastack` / `admin-demo@novastack.demo` identity from MongoDB and issues a
+six-minute access token marked `PUBLIC_ADMIN_DEMO`. It accepts no tenant,
+identity, role, permission, or password input and creates no refresh-token
+record or persistent browser session.
+
+The public demo uses the existing login rate-limit window and attempt count in
+an isolated opaque per-IP Redis namespace. Current database user,
+organisation, role, and permission state remain authoritative on every
+request. Read-only admin pages and normal owner-scoped chat remain available,
+but every privileged admin mutation and audit export is rejected by backend
+authorization with `PUBLIC_DEMO_READ_ONLY`. Standard password-authenticated
+`ORG_ADMIN` sessions are unchanged.
+
+The frontend checks `/health/ready` before requesting the session, polls every
+four seconds for at most two minutes, and starts its countdown only from the
+backend-issued expiry after successful authentication. The countdown is UX;
+JWT expiry is authoritative.

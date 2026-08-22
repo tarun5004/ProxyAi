@@ -6,12 +6,11 @@ This file is a progress log. The approved documents in `docs/` remain the source
 
 - **Phase:** Phase 12 remains in progress; final repository remediation is
   complete and live AWS certification remains deferred.
-- **Task:** P12-09 — Resume immutable ECS certification only after an approved
-  deep-start and protected smoke inputs are available.
-- **Status:** The code candidate passed all 20 local release gates after the
-  28-gap multi-agent remediation. AWS is intentionally deep-stopped for cost
-  control, so live ECS/ALB/NAT, public auth/chat/admin, and worker checks are
-  `DEFERRED_LIVE_VERIFICATION`, not defects. Phase 13 has not started.
+- **Task:** Approved zero-cost public admin demo session implementation.
+- **Status:** The contract adds a feature-gated six-minute non-refreshable
+  `PUBLIC_ADMIN_DEMO` session for the fixed NovaStack private demo identity,
+  with backend-enforced read-only admin mutations and frontend wake/countdown
+  UX. AWS remains intentionally deep-stopped and Phase 13 has not started.
 
 ## Latest Task — Final Multi-Agent Remediation
 

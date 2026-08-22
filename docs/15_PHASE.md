@@ -1466,9 +1466,29 @@ Phase 9 work and plaintext storage is prohibited.
 
 ---
 
+## Approved zero-cost public admin demo exception
+
+The recruiter-facing public admin demo is an explicitly approved, bounded
+Phase 12 exception to the earlier "no product API/frontend" planning baseline.
+It adds one feature-gated, six-minute, non-refreshable public demo session for
+the fixed `novastack` private demo identity, an authoritative backend read-only
+guard for privileged admin mutations, and frontend wake/countdown UX. It does
+not change private `ORG_ADMIN` login, canonical permissions, tenant isolation,
+Atlas data, AWS state, DNS, or deployment architecture.
+
+- [ ] Feature flag defaults to disabled.
+- [ ] Fixed identity endpoint accepts no client-selected authorization input.
+- [ ] Session expires within 360 seconds and issues no refresh token.
+- [ ] Public demo admin reads approved admin data but cannot persist privileged
+  admin changes or export audit data.
+- [ ] Private admin and EMPLOYEE behavior remain unchanged.
+- [ ] Cold-backend wake polling, authoritative countdown, expiry redirect, and
+  secret-free frontend output pass focused tests.
+
 # 27. Self-Audit
 
-- **Scope:** PASS — no new feature added.
+- **Scope:** PASS — only the explicitly approved bounded public-admin demo
+  exception is added; Phase 13 remains untouched.
 - **Beginner suitability:** PASS — sequential tasks and clear gates.
 - **Security:** PASS — critical tasks marked Ultra.
 - **Distraction control:** PASS — one phase at a time and parking lot included.

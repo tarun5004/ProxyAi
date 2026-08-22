@@ -1599,3 +1599,23 @@ These risks must be covered by automated tests before public deployment.
 
 Repository: ProxiAI
 Version: Architecture v2.0 / MVP documentation baseline v1.0
+
+## Public Admin Demo Security Boundary
+
+The recruiter-facing public admin demo is disabled by default and exposes no
+password or client-selectable identity. When enabled, the backend resolves one
+fixed active tenant user, applies an isolated opaque per-IP rate limit, issues
+only a six-minute non-refreshable access token, and reloads current User and
+Organisation state on every authenticated request.
+
+The `PUBLIC_ADMIN_DEMO` token marker is signed and therefore cannot be selected
+or removed by the client. Backend middleware rejects all privileged admin
+mutations and audit export for this session mode. Frontend-disabled controls
+are usability only and are not an authorization boundary. Owner-scoped chat
+does not gain cross-user conversation access.
+
+Starting the public demo clears any existing refresh cookie so an unrelated
+persistent browser session cannot silently outlive the demo. Tokens,
+credentials, cookies, and raw JWT payloads remain excluded from logs. The
+feature flag must remain false when the fixed demo identity is not deliberately
+provisioned.

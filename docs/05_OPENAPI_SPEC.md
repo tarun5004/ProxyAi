@@ -2735,3 +2735,28 @@ The starter OpenAPI 3.1 structure covers the approved endpoints. SSE named-event
 **Status: Approved as the API contract baseline for the ProxiAI beginner solo-developer MVP.**
 
 Implementation should create a machine-readable `docs/openapi.yaml` from this contract while preserving this Markdown file as the explanation, examples, security rules, and SSE event reference.
+
+## 40. Public Admin Demo Authentication
+
+### POST `/auth/demo-admin`
+
+Starts the optional zero-cost recruiter admin demo. The endpoint is available
+only when `PUBLIC_ADMIN_DEMO_ENABLED=true`; otherwise it returns the standard
+`404 NOT_FOUND` envelope.
+
+The request body must be absent or `{}`. Additional properties are rejected.
+The backend resolves the fixed trusted `novastack` organisation and
+`admin-demo@novastack.demo` user. It never accepts `orgId`, organisation slug,
+email, role, permissions, or password from the client.
+
+Success returns the standard envelope with `accessToken`,
+`expiresInSeconds: 360`, authoritative ISO `expiresAt`, and the safe user
+profile. No refresh token or refresh-token record is created. The response
+clears any existing refresh cookie. The access token carries the trusted
+internal `PUBLIC_ADMIN_DEMO` session mode; expiry and current database state
+are authoritative.
+
+Public demo sessions may use approved read-only admin APIs and owner-scoped
+chat. Privileged admin mutations and audit export return `403` with code
+`PUBLIC_DEMO_READ_ONLY` and the safe message "Administrative changes are
+disabled in public demo mode."

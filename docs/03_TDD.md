@@ -2617,3 +2617,26 @@ Every major subsystem includes contracts, state, error behaviour, persistence ex
 **Approved as the technical implementation baseline for the ProxiAI beginner solo-developer MVP.**
 
 The next document should be `04_DATABASE_DESIGN.md`, created only after this TDD is accepted.
+
+## 54. Public Admin Demo Technical Contract
+
+- `POST /api/v1/auth/demo-admin` accepts only an absent or empty JSON body.
+- The route is hidden with `404 NOT_FOUND` unless
+  `PUBLIC_ADMIN_DEMO_ENABLED=true`.
+- The backend resolves only `novastack` and
+  `admin-demo@novastack.demo`; client identity or authorization input is
+  rejected.
+- The existing login limiter's approved `10` attempts per `15` minutes is
+  reused in a separate opaque per-IP Redis namespace so public traffic cannot
+  consume the private admin account limiter.
+- The issued HS256 `at+jwt` has `sessionMode=PUBLIC_ADMIN_DEMO`, a backend
+  generated session ID, and a fixed maximum lifetime of `360` seconds.
+- No refresh token is generated or persisted. Any existing refresh cookie is
+  cleared when the public demo starts.
+- Authentication middleware reloads current User and Organisation state and
+  attaches the trusted session mode to `request.auth`.
+- All `/admin` mutation routes and audit export reject public demo sessions
+  with `403 PUBLIC_DEMO_READ_ONLY`; ordinary sessions retain existing RBAC.
+- The frontend keeps the token in memory only, derives countdown state from
+  the returned expiry, clears auth state at expiry, and never embeds demo
+  credentials.
