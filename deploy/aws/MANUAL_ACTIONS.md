@@ -236,9 +236,15 @@ Before another deployment attempt:
 7. Run staging, same-digest production promotion, rollback, public smoke, and
    the 15–30 minute observation gate.
 
-The retained Lightsail scripts are an unexecuted experiment, not a deployment
-prerequisite. Do not provision or cut DNS to Lightsail without a new approved
-architecture decision.
+The superseded Lightsail workflow and executable scripts were removed after a
+dependency scan. `deploy/lightsail/README.md` retains the historical decision
+without providing a second deployment entrypoint. Do not reconstruct or cut
+DNS to Lightsail without a new approved architecture decision.
+
+Before the next approved AWS activation, reapply
+`deploy/aws/proxiai-deployment-policy.json` to the deployment role so the
+previously granted Lightsail actions are removed from the live IAM policy. This
+repository cleanup does not mutate AWS by itself.
 
 ## 13. Demo Power-Control IAM
 

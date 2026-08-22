@@ -304,8 +304,9 @@ approval, and rollback execution remain P12-09 environment gates.
 
 ## 21. Archived Lightsail Experiment
 
-`.github/workflows/lightsail-deploy.yml` and `deploy/lightsail/` are retained as
-an unexecuted cost experiment. They are not called by the canonical ECS release
-workflow, do not satisfy a Phase 12 gate, and must not mutate production DNS or
-replace ECS without a new approved architecture decision. The active release
-path remains immutable ECR digests promoted through ECS staging and production.
+The superseded `.github/workflows/lightsail-deploy.yml` workflow and executable
+Lightsail runtime scripts were removed after a repository reference scan found
+no active CI, ECS release, or recovery dependency. The non-runnable
+`deploy/lightsail/README.md` records the historical experiment and relevant Git
+commits. The only active release path remains immutable ECR digests promoted
+through ECS staging and production.

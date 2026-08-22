@@ -31,45 +31,9 @@
         "route53:ListHostedZonesByName",
         "route53:ListResourceRecordSets",
         "secretsmanager:DescribeSecret",
-        "secretsmanager:ListSecrets",
-        "lightsail:GetBlueprints",
-        "lightsail:GetBundles",
-        "lightsail:GetInstance",
-        "lightsail:GetInstances",
-        "lightsail:GetInstancePortStates",
-        "lightsail:GetInstanceState",
-        "lightsail:GetOperation",
-        "lightsail:GetOperations",
-        "lightsail:GetStaticIp",
-        "lightsail:GetStaticIps"
+        "secretsmanager:ListSecrets"
       ],
       "Resource": "*"
-    },
-    {
-      "Sid": "ProvisionTaggedProxiAiLightsail",
-      "Effect": "Allow",
-      "Action": [
-        "lightsail:AllocateStaticIp",
-        "lightsail:AttachStaticIp",
-        "lightsail:CreateInstances",
-        "lightsail:PutInstancePublicPorts",
-        "lightsail:StartInstance",
-        "lightsail:StopInstance",
-        "lightsail:RebootInstance",
-        "lightsail:TagResource"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:RequestedRegion": "ap-south-1"
-        }
-      }
-    },
-    {
-      "Sid": "TemporaryProxiAiLightsailSsh",
-      "Effect": "Allow",
-      "Action": "lightsail:GetInstanceAccessDetails",
-      "Resource": "arn:aws:lightsail:ap-south-1:851725401338:Instance/*"
     },
     {
       "Sid": "UpdateOnlyProxiAiDnsRecords",

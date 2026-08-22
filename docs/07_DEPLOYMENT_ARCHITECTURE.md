@@ -322,7 +322,9 @@ seven-day logs. Reviewed `soft-stop`, `deep-stop`, `soft-start`, and
 recovery snapshot before any mutation and preserves ECR, target groups, ACM,
 Route 53, and task-definition recovery metadata.
 
-Lightsail automation remains in the repository as an unexecuted cost
-experiment. It is not part of the current deployment completion gate, is not
-triggered by the canonical release workflow, and must not replace ECS without
-a new approved architecture decision and complete canary evidence.
+The superseded Lightsail workflow and executable runtime scripts were removed
+after a repository reference scan confirmed that no active CI, ECS release, or
+recovery procedure depended on them. `deploy/lightsail/README.md` preserves the
+historical decision and Git references without providing a second executable
+release path. Lightsail must not replace ECS without a new approved
+architecture decision and complete canary evidence.
