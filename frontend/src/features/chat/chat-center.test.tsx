@@ -1,9 +1,191 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatCenter } from "./chat-center";
 
+const originalInnerWidth = window.innerWidth;
+
+afterEach(() => {
+    cleanup();
+    Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        value: originalInnerWidth,
+    });
+});
+
+const defaultProps = {
+    title: "Security review",
+    retainedMessages: [],
+    conversationStatus: "ready" as const,
+    error: undefined,
+    onSend: vi.fn(async () => undefined),
+    onOpenConversations: vi.fn(),
+};
+
+function configureScrollViewport(element: HTMLElement, initialScrollTop: number) {
+    let clientHeight = 400;
+    let scrollHeight = 1_000;
+    let scrollTop = initialScrollTop;
+    const scrollTo = vi.fn((options: ScrollToOptions) => {
+        if (typeof options.top === "number") {
+            scrollTop = options.top;
+        }
+    });
+
+    Object.defineProperties(element, {
+        clientHeight: {
+            configurable: true,
+            get: () => clientHeight,
+        },
+        scrollHeight: {
+            configurable: true,
+            get: () => scrollHeight,
+        },
+        scrollTop: {
+            configurable: true,
+            get: () => scrollTop,
+            set: (value: number) => {
+                scrollTop = value;
+            },
+        },
+        scrollTo: {
+            configurable: true,
+            value: scrollTo,
+        },
+    });
+
+    return {
+        scrollTo,
+        setMetrics(metrics: {
+            clientHeight?: number;
+            scrollHeight?: number;
+            scrollTop?: number;
+        }) {
+            clientHeight = metrics.clientHeight ?? clientHeight;
+            scrollHeight = metrics.scrollHeight ?? scrollHeight;
+            scrollTop = metrics.scrollTop ?? scrollTop;
+        },
+    };
+}
+
 describe("chat message presentation", () => {
+    it("follows streaming chunks near the bottom and follows the final state", () => {
+        const initialMessage = {
+            id: "assistant-message",
+            role: "assistant" as const,
+            content: "Initial response",
+            state: "complete" as const,
+        };
+        const { rerender } = render(
+            <ChatCenter
+                {...defaultProps}
+                streaming={false}
+                messages={[initialMessage]}
+            />,
+        );
+        const viewport = screen.getByLabelText("Conversation messages");
+        const scroll = configureScrollViewport(viewport, 520);
+
+        fireEvent.scroll(viewport);
+        scroll.setMetrics({ scrollHeight: 1_200 });
+        rerender(
+            <ChatCenter
+                {...defaultProps}
+                streaming
+                messages={[{
+                    ...initialMessage,
+                    content: "Initial response with another streamed chunk",
+                    state: "streaming",
+                }]}
+            />,
+        );
+
+        expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+            behavior: "auto",
+            top: 1_200,
+        });
+
+        scroll.setMetrics({ scrollHeight: 1_400 });
+        rerender(
+            <ChatCenter
+                {...defaultProps}
+                streaming={false}
+                messages={[{
+                    ...initialMessage,
+                    content: "Complete response",
+                }]}
+            />,
+        );
+
+        expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+            behavior: "auto",
+            top: 1_400,
+        });
+    });
+
+    it("preserves manual scroll position and resumes from the mobile-safe jump control", () => {
+        Object.defineProperty(window, "innerWidth", {
+            configurable: true,
+            value: 390,
+        });
+        const initialMessage = {
+            id: "assistant-message",
+            role: "assistant" as const,
+            content: "Initial response",
+            state: "complete" as const,
+        };
+        const { rerender } = render(
+            <ChatCenter
+                {...defaultProps}
+                streaming={false}
+                messages={[initialMessage]}
+            />,
+        );
+        const viewport = screen.getByLabelText("Conversation messages");
+        const scroll = configureScrollViewport(viewport, 100);
+
+        fireEvent.scroll(viewport);
+        expect(screen.getByRole("button", { name: "Jump to latest message" })).toBeVisible();
+
+        scroll.setMetrics({ scrollHeight: 1_300 });
+        rerender(
+            <ChatCenter
+                {...defaultProps}
+                streaming
+                messages={[{
+                    ...initialMessage,
+                    content: "A long streamed response",
+                    state: "streaming",
+                }]}
+            />,
+        );
+        expect(scroll.scrollTo).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole("button", { name: "Jump to latest message" }));
+        expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+            behavior: "smooth",
+            top: 1_300,
+        });
+        expect(screen.queryByRole("button", { name: "Jump to latest message" })).not.toBeInTheDocument();
+
+        scroll.setMetrics({ scrollHeight: 1_500 });
+        rerender(
+            <ChatCenter
+                {...defaultProps}
+                streaming
+                messages={[{
+                    ...initialMessage,
+                    content: "A long streamed response with its next chunk",
+                    state: "streaming",
+                }]}
+            />,
+        );
+        expect(scroll.scrollTo).toHaveBeenLastCalledWith({
+            behavior: "auto",
+            top: 1_500,
+        });
+    });
+
     it("renders assistant Markdown and tables without interpreting raw HTML or user markup", () => {
         let finishSend: (() => void) | undefined;
         const onSend = vi.fn(() => new Promise<void>((resolve) => {

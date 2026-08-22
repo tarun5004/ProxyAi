@@ -1,6 +1,7 @@
 "use client";
 
 import {
+    ArrowDown,
     List,
     PaperPlaneTilt,
     ShieldCheck,
@@ -8,10 +9,12 @@ import {
 } from "@phosphor-icons/react";
 import Image from "next/image";
 import {
+    useLayoutEffect,
     useRef,
     useState,
     type FormEvent,
     type KeyboardEvent,
+    type UIEvent,
 } from "react";
 
 import { ConversationTitleEditor } from "@/features/conversations/conversation-title-editor";
@@ -21,6 +24,8 @@ import { AssistantMarkdown } from "./assistant-markdown";
 import type { UiChatMessage } from "./chat.types";
 import { RetentionIndicator } from "./retention-indicator";
 import type { RetentionMode } from "@/features/auth/auth.types";
+
+const NEAR_BOTTOM_DISTANCE_PX = 96;
 
 interface ChatCenterProps {
     title: string;
@@ -38,8 +43,12 @@ interface ChatCenterProps {
 
 export function ChatCenter(props: ChatCenterProps) {
     const [prompt, setPrompt] = useState("");
+    const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+    const messageViewportRef = useRef<HTMLElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const submitting = useRef(false);
+    const shouldAutoFollow = useRef(true);
+    const wasStreaming = useRef(props.streaming);
     const unavailableHistoryCount = props.retainedMessages.filter(
         (message) => !message.contentAvailable,
     ).length;
@@ -47,6 +56,16 @@ export function ChatCenter(props: ChatCenterProps) {
         props.streaming
         || props.conversationStatus === "loading"
         || props.conversationStatus === "error";
+
+    useLayoutEffect(() => {
+        const streamJustFinished = wasStreaming.current && !props.streaming;
+
+        if ((props.streaming || streamJustFinished) && shouldAutoFollow.current) {
+            scrollToLatest(messageViewportRef.current, "auto");
+        }
+
+        wasStreaming.current = props.streaming;
+    }, [props.messages, props.streaming]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -83,6 +102,19 @@ export function ChatCenter(props: ChatCenterProps) {
 
         event.preventDefault();
         event.currentTarget.form?.requestSubmit();
+    }
+
+    function handleMessageScroll(event: UIEvent<HTMLElement>) {
+        const nearBottom = isNearBottom(event.currentTarget);
+
+        shouldAutoFollow.current = nearBottom;
+        setShowJumpToLatest(!nearBottom);
+    }
+
+    function handleJumpToLatest() {
+        shouldAutoFollow.current = true;
+        setShowJumpToLatest(false);
+        scrollToLatest(messageViewportRef.current, "smooth");
     }
 
     return (
@@ -126,7 +158,14 @@ export function ChatCenter(props: ChatCenterProps) {
                 ) : null}
             </header>
 
-            <section className="min-h-0 overflow-y-auto px-8 pt-[30px] pb-6 max-[720px]:px-3.5 max-[720px]:py-[18px]" aria-live="polite">
+            <div className="relative min-h-0">
+                <section
+                    ref={messageViewportRef}
+                    className="h-full min-h-0 overflow-y-auto px-8 pt-[30px] pb-20 max-[720px]:px-3.5 max-[720px]:pt-[18px] max-[720px]:pb-18"
+                    aria-label="Conversation messages"
+                    aria-live="polite"
+                    onScroll={handleMessageScroll}
+                >
                 {unavailableHistoryCount > 0 ? (
                     <div className="mx-auto mb-5 max-w-190 rounded-[10px] border border-border-default bg-surface-soft px-3.5 py-[11px] text-xs leading-6 text-text-soft">
                         {unavailableHistoryCount} previous message {unavailableHistoryCount === 1 ? "summary is" : "summaries are"} retained. Content is unavailable under the current retention mode.
@@ -202,7 +241,19 @@ export function ChatCenter(props: ChatCenterProps) {
                     </article>
                     ))}
                 </>}
-            </section>
+                </section>
+                {showJumpToLatest ? (
+                    <button
+                        type="button"
+                        className="absolute bottom-4 left-1/2 z-10 inline-flex min-h-10 -translate-x-1/2 items-center gap-2 rounded-full border border-border-strong bg-surface px-4 text-xs font-semibold text-text-primary shadow-panel transition-colors hover:border-brand/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-[720px]:bottom-3 max-[720px]:min-h-11 max-[720px]:px-3.5"
+                        onClick={handleJumpToLatest}
+                        aria-label="Jump to latest message"
+                    >
+                        <ArrowDown size={16} aria-hidden="true" />
+                        Jump to latest
+                    </button>
+                ) : null}
+            </div>
 
             <div className="px-8 pb-[26px] max-[720px]:px-3 max-[720px]:pb-[calc(12px+env(safe-area-inset-bottom))]">
                 {props.error ? (
@@ -244,6 +295,30 @@ export function ChatCenter(props: ChatCenterProps) {
             </div>
         </main>
     );
+}
+
+function isNearBottom(element: HTMLElement) {
+    return element.scrollHeight - element.scrollTop - element.clientHeight
+        <= NEAR_BOTTOM_DISTANCE_PX;
+}
+
+function scrollToLatest(
+    element: HTMLElement | null,
+    behavior: ScrollBehavior,
+) {
+    if (!element) {
+        return;
+    }
+
+    if (typeof element.scrollTo !== "function") {
+        element.scrollTop = element.scrollHeight;
+        return;
+    }
+
+    element.scrollTo({
+        behavior,
+        top: element.scrollHeight,
+    });
 }
 
 function RetainedMessage({ message }: Readonly<{ message: MessageSummary }>) {
