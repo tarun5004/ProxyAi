@@ -236,11 +236,16 @@ security-group rule. Local Compose exposes it only to the private container
 network. Any future scraper must use an explicit private-network rule rather
 than changing application authentication or public routing.
 
-One Grafana dashboard may consume the Prometheus data after Phase 10
-implementation. It must not query or display raw prompts, responses, tenant IDs,
-user IDs, request IDs, queue payloads, or secrets. Alert rules use only the
-bounded metrics defined in the TDD. Alert thresholds and notification delivery
-require explicit operational configuration; no provider is silently selected.
+One validated Grafana dashboard definition and bounded alert rules consume only
+the metrics approved in the TDD. They must not query or display raw prompts,
+responses, tenant IDs, user IDs, request IDs, queue payloads, or secrets.
+
+The deep-stopped portfolio demo has an explicit zero-recurring-cost operational
+waiver: no continuous Prometheus scraper, hosted Grafana, or automatic alert
+delivery is currently running. After an approved demo deep-start, the operator
+performs the checks in `deploy/observability/README.md`. This waiver does not
+authorize public metrics exposure and must not be described as hosted
+monitoring.
 
 CloudWatch JSON logs remain the deployment log sink with the approved seven-day
 retention. Prometheus/Grafana do not replace append-only RequestLog, Billing,

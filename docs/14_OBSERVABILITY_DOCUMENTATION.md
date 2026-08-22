@@ -717,10 +717,14 @@ and release failure.
 
 | Classification | Scope |
 |---|---|
-| `ALREADY_COMPLETE` | Structured redacted Pino logs, request ID/job correlation, liveness/readiness, Redis provider health, worker heartbeat state, seven-day CloudWatch logs |
-| `PARTIAL` | Safe source events/states exist for chat, provider, policy, PII, idempotency, queue, and audit; HTTP errors are logged but success duration is absent |
-| `IMPLEMENT` | Registry, private endpoints, instrumentation, dashboard, alerts, runbooks, and cardinality/security verification |
+| `ALREADY_COMPLETE` | Structured redacted Pino logs, request ID/job correlation, liveness/readiness, bounded process-local metrics, private API/worker scrape endpoints, Redis provider health, worker heartbeat state, dashboard and alert definitions, incident runbooks, cardinality/security verification, and seven-day CloudWatch logs |
+| `OPERATIONAL_WAIVER` | Continuous Prometheus collection, hosted Grafana, and automatic alert delivery are intentionally not operated while the portfolio demo is deep-stopped. They are not represented as live services. |
 | `DEFER_WITH_APPROVED_REASON` | Prompt-cache/replay metrics, Mongo provider-health history, public Bull Board/manual replay, and full W3C/OpenTelemetry tracing |
+
+The operational waiver avoids recurring observability infrastructure cost for
+an on-demand demo. During an approved demo window, the operator performs the
+manual checks in `deploy/observability/README.md`. This waiver does not weaken
+metric privacy, health checks, logging, or product accounting.
 
 ---
 
@@ -1497,34 +1501,40 @@ Production should keep structured JSON.
 
 # 69. Observability in Staging
 
-Staging should verify:
+When staging is started for an approved release window, it verifies:
 
 - log redaction;
 - request ID propagation;
 - trace ID propagation;
-- metrics scraping;
-- Grafana panels;
+- private metrics endpoint availability;
+- dashboard and alert definitions through static validation;
 - provider fallback metrics;
 - queue failure visibility;
 - worker heartbeat;
 - release SHA visibility;
-- alert delivery.
+- manual runbook escalation because hosted alert delivery is waived.
 
 ---
 
 # 70. Observability in Production
 
-Production must have:
+The production-capable application provides:
 
 - structured logs;
 - stable metrics;
-- protected dashboards;
+- a restricted dashboard definition ready for an approved private collector;
 - health checks;
 - worker heartbeat;
 - provider health visibility;
 - deployment correlation;
-- critical alerting;
+- bounded alert definitions and incident runbooks;
 - incident notes.
+
+The current cost-controlled demo does not continuously run Prometheus,
+Grafana, or an alert-delivery service. While the demo is deep-stopped there is
+no availability or paging expectation. After an approved deep-start, the
+operator must complete the on-demand checks in
+`deploy/observability/README.md`; failures block demo use or release promotion.
 
 ---
 
@@ -1622,21 +1632,19 @@ Production must have:
 
 ## Dashboards
 
-- [ ] API overview is visible.
-- [ ] Provider health is visible.
-- [ ] Queue health is visible.
-- [ ] Policy and PII trends are visible.
-- [ ] Release SHA is visible.
-- [ ] Dashboard access is restricted.
+- [x] The dashboard definition covers API overview, provider health, queue
+  health, policy/PII trends, and release SHA.
+- [x] Dashboard queries use only approved bounded metrics.
+- [ ] A continuously hosted restricted Grafana instance is intentionally
+  deferred under the zero-cost operational waiver.
 
 ## Alerts
 
-- [ ] High error rate alert exists.
-- [ ] Worker heartbeat alert exists.
-- [ ] Queue failure alert exists.
-- [ ] Provider circuit alert exists.
-- [ ] MongoDB and Redis alerts exist.
-- [ ] Every alert links to a runbook.
+- [x] High error rate, worker heartbeat, queue failure, provider circuit,
+  MongoDB, Redis, provider health, and audit-write alert definitions exist.
+- [x] Every alert definition links to a dedicated runbook.
+- [ ] Continuous evaluation and notification delivery are intentionally
+  deferred under the zero-cost operational waiver.
 
 ## Security
 
@@ -1652,8 +1660,11 @@ Production must have:
 # 74. Known MVP Limitations
 
 1. Full OpenTelemetry tracing is deferred.
-2. One Grafana dashboard is used initially.
-3. Alert thresholds are approximate until real traffic exists.
+2. One Grafana dashboard exists as validated configuration but is not
+   continuously hosted for the deep-stopped demo.
+3. Alert rules exist as validated configuration, but automatic evaluation and
+   notification delivery are not active; operator checks are manual during
+   approved demo windows.
 4. Log storage platform is not fixed.
 5. No enterprise SIEM integration.
 6. No customer-facing status page.
@@ -1669,9 +1680,10 @@ Production must have:
 # 75. Open Observability Decisions
 
 1. Exact production log platform.
-2. Exact Prometheus hosting option.
-3. Exact Grafana hosting option.
-4. Alert delivery channel.
+2. A future continuously hosted Prometheus option after recurring cost is
+   approved.
+3. A future restricted Grafana host after recurring cost is approved.
+4. A future alert delivery channel and recipient policy.
 5. Whether identifiers are hashed or omitted.
 6. Exact log retention period.
 7. Exact metrics retention period.
@@ -1686,7 +1698,7 @@ Production must have:
 
 # 76. Observability Definition of Done
 
-Observability is complete for MVP when:
+The application-level observability implementation is complete for MVP when:
 
 - every request has a request ID;
 - async jobs preserve a trace ID;
@@ -1697,11 +1709,17 @@ Observability is complete for MVP when:
 - cache and idempotency behavior are visible;
 - queue health and worker heartbeat are visible;
 - liveness and readiness endpoints work;
-- one Grafana dashboard is operational;
-- critical alerts are configured;
+- one validated Grafana dashboard definition exists;
+- bounded critical alert definitions and mapped runbooks exist;
 - release SHA is visible;
 - runbooks exist for major failures;
 - log leak tests pass.
+
+Continuous collection, hosted dashboard access, automatic alert evaluation,
+and notification delivery are separate operational capabilities. They remain
+explicitly waived for the zero-recurring-cost, deep-stopped demo and must not
+be claimed as running. The waiver is reviewed before any always-on production
+operation.
 
 ---
 
