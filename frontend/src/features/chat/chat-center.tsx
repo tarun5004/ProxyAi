@@ -19,6 +19,8 @@ import type { MessageSummary } from "@/features/conversations/conversation.types
 
 import { AssistantMarkdown } from "./assistant-markdown";
 import type { UiChatMessage } from "./chat.types";
+import { RetentionIndicator } from "./retention-indicator";
+import type { RetentionMode } from "@/features/auth/auth.types";
 
 interface ChatCenterProps {
     title: string;
@@ -31,6 +33,7 @@ interface ChatCenterProps {
     onRename?(title: string): Promise<void>;
     onOpenConversations(): void;
     onOpenPolicy?(): void;
+    retentionMode?: RetentionMode;
 }
 
 export function ChatCenter(props: ChatCenterProps) {
@@ -221,11 +224,15 @@ export function ChatCenter(props: ChatCenterProps) {
                         disabled={composerDisabled}
                     />
                     <div className="flex items-center justify-between">
-                        <span className="inline-flex items-center gap-[7px] text-[11px] text-text-faint">
-                            <ShieldCheck size={18} /> Policy protected
-                        </span>
+                        {props.retentionMode ? (
+                            <RetentionIndicator mode={props.retentionMode} />
+                        ) : (
+                            <span className="inline-flex items-center gap-[7px] text-[11px] text-text-faint">
+                                <ShieldCheck size={18} /> Policy protected
+                            </span>
+                        )}
                         <button
-                            className="grid size-11 cursor-pointer place-items-center rounded-[10px] bg-brand text-white disabled:cursor-not-allowed disabled:opacity-45"
+                            className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-[10px] bg-brand text-white disabled:cursor-not-allowed disabled:opacity-45"
                             type="submit"
                             disabled={composerDisabled || prompt.trim().length === 0}
                             aria-label="Send message"

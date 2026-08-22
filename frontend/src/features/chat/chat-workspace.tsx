@@ -302,6 +302,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 onRename={activeConversation ? handleRename : undefined}
                 onOpenConversations={() => setSidebarOpen(true)}
                 onOpenPolicy={() => setInspectorOpen(true)}
+                retentionMode={auth.user?.organisation.retentionMode}
             />}
             inspector={<PolicyInspector
                 policy={policy}

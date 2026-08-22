@@ -23,6 +23,19 @@ vi.mock("@/features/auth/auth-provider", () => ({
         context: {
             role: "EMPLOYEE",
         },
+        user: {
+            userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            email: "employee@example.com",
+            displayName: "Example Employee",
+            role: "EMPLOYEE",
+            permissions: ["chat:send", "chat:view_own"],
+            organisation: {
+                orgId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                name: "Example Organisation",
+                plan: "FREE",
+                retentionMode: "METADATA_ONLY",
+            },
+        },
         logout: vi.fn(),
     }),
 }));
@@ -122,6 +135,9 @@ describe("conversation workspace loading", () => {
         expect(screen.getByText("Loading conversation…")).toBeInTheDocument();
 
         expect(await screen.findByRole("heading", { name: "Security review" })).toBeInTheDocument();
+        expect(screen.getByRole("note", { name: "Message retention" })).toHaveTextContent(
+            "Prompt and response content are not stored.",
+        );
         expect(screen.getByText(/1 previous message summary is retained/)).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Stored answer" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: /Provider analysis/ })).toHaveAttribute(
