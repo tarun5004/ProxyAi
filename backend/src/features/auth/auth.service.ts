@@ -36,6 +36,7 @@ import {
 } from "./refresh-token.service.js";
 import { createAccessToken } from "./token.service.js";
 import type { RefreshTokenDocument } from "./refresh-token.types.js";
+import { createSafeAuthProfile } from "./auth-profile.js";
 
 const DUMMY_PASSWORD_HASH =
     "$argon2id$v=19$m=19456,p=1,t=2$tctGzLy+e7DPgILRdtqpEQ$IN0OAhhfqdOcZ/4l+bvHt/+XDLBsOv5q/+pQ+EEJxak";
@@ -569,23 +570,7 @@ export function createAuthService(
                 expiresInSeconds:
                     accessTokenResult.expiresInSeconds,
                 refreshToken: refreshTokenMaterial.rawToken,
-                user: {
-                    userId: user.userId,
-                    email: user.email,
-                    displayName: user.displayName,
-                    role: user.role,
-                    permissions: user.permissions,
-                    ...(user.teamId === undefined
-                        ? {}
-                        : {
-                            teamId: user.teamId,
-                        }),
-                    organisation: {
-                        orgId: organisation.orgId,
-                        name: organisation.name,
-                        plan: organisation.plan,
-                    },
-                },
+                user: createSafeAuthProfile(user, organisation),
             };
         },
 

@@ -33,14 +33,6 @@ function getCookieValue(
     return undefined;
 }
 
-function createInvalidRefreshTokenError(): AppError {
-    return new AppError(
-        401,
-        "INVALID_REFRESH_TOKEN",
-        "Session is invalid or expired.",
-    );
-}
-
 export async function login(
     request: Request,
     response: Response,
@@ -137,19 +129,13 @@ export function createRefreshHandler(
         );
 
         if (!rawRefreshToken) {
-            request.log.warn(
-                {
-                    event: "auth.refresh_failed",
-                    reasonCode: "REFRESH_TOKEN_MISSING",
-                },
-                "Refresh failed",
-            );
             response.clearCookie(
                 REFRESH_COOKIE_NAME,
                 getRefreshCookieClearOptions(),
             );
-
-            throw createInvalidRefreshTokenError();
+            response.setHeader("Cache-Control", "no-store");
+            response.status(204).end();
+            return;
         }
 
         try {
@@ -228,7 +214,7 @@ export function me(
     request: Request,
     response: Response,
 ): void {
-    if (!request.auth) {
+    if (!request.auth || !request.authProfile) {
         throw new AppError(
             500,
             "INTERNAL_ERROR",
@@ -238,6 +224,12 @@ export function me(
 
     response.setHeader("Cache-Control", "no-store");
     response.status(200).json(
-        createSuccessResponse(request.auth, request.requestId),
+        createSuccessResponse(
+            {
+                ...request.auth,
+                user: request.authProfile,
+            },
+            request.requestId,
+        ),
     );
 }

@@ -10,6 +10,7 @@ import {
     findUserByOrgIdAndUserId,
 } from "./auth.repository.js";
 import { verifyAccessToken } from "./token.service.js";
+import { createSafeAuthProfile } from "./auth-profile.js";
 
 const userPermissionSet = new Set<string>(USER_PERMISSIONS);
 
@@ -106,6 +107,7 @@ export async function authenticateRequest(
                 teamId: user.teamId,
             }),
     };
+    request.authProfile = createSafeAuthProfile(user, organisation);
 
     next();
 }

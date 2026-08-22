@@ -31,6 +31,9 @@ function createOrganisation(overrides = {}) {
         slug: SENTINELS.slug,
         status: "ACTIVE",
         plan: "FREE",
+        retention: {
+            mode: "METADATA_ONLY",
+        },
         ...overrides,
     };
 }

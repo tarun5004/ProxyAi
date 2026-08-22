@@ -478,7 +478,8 @@ missing-user timing equalization remain pending authentication work.
       "organisation": {
         "orgId": "org_891...",
         "name": "Example Organisation",
-        "plan": "FREE"
+        "plan": "FREE",
+        "retentionMode": "METADATA_ONLY"
       }
     }
   },
@@ -533,11 +534,19 @@ No JSON body. The refresh token is read from the secure cookie.
 
 A replacement refresh cookie is set.
 
+### Anonymous bootstrap — `204 No Content`
+
+When no refresh cookie is present, the endpoint returns `204` and clears any
+stale browser cookie attributes. This is an expected anonymous bootstrap state;
+it performs no token lookup or rotation. An invalid, expired, used, or revoked
+cookie still returns the generic `401 INVALID_REFRESH_TOKEN`, while operational
+dependency failures remain `503 AUTH_TEMPORARILY_UNAVAILABLE`.
+
 ### Errors
 
 | Status | Code | Condition |
 |---:|---|---|
-| 401 | `INVALID_REFRESH_TOKEN` | Missing, unknown, expired, used, revoked, or linked to an inactive User or Organisation |
+| 401 | `INVALID_REFRESH_TOKEN` | Unknown, expired, used, revoked, or linked to an inactive User or Organisation |
 | 503 | `AUTH_TEMPORARILY_UNAVAILABLE` | Refresh cannot be completed because a required auth dependency failed |
 
 Confirmed replay outside the bounded concurrency window revokes the token
@@ -580,7 +589,9 @@ If a required auth dependency fails while resolving or revoking a known refresh 
 
 ## 14.4 GET `/auth/me`
 
-Returns the current safe authentication context.
+Returns the current safe authentication context plus the same safe user and
+organisation profile used by login. The profile includes the prospective
+retention mode so the workspace can explain storage behavior before submission.
 
 ### Success — `200 OK`
 
@@ -593,7 +604,21 @@ Returns the current safe authentication context.
     "role": "EMPLOYEE",
     "permissions": ["chat:send", "chat:view_own"],
     "sessionId": "session-uuid",
-    "teamId": "team_21f..."
+    "teamId": "team_21f...",
+    "user": {
+      "userId": "usr_7dd6...",
+      "email": "employee@example.com",
+      "displayName": "Example Employee",
+      "role": "EMPLOYEE",
+      "permissions": ["chat:send", "chat:view_own"],
+      "teamId": "team_21f...",
+      "organisation": {
+        "orgId": "org_891...",
+        "name": "Example Organisation",
+        "plan": "FREE",
+        "retentionMode": "METADATA_ONLY"
+      }
+    }
   },
   "meta": {
     "requestId": "req_01J..."
@@ -602,6 +627,9 @@ Returns the current safe authentication context.
 ```
 
 The endpoint must not return password hashes, token records, encrypted message content, secret keys, raw JWT payloads, or internal MongoDB identifiers.
+It also excludes encryption key versions, ciphertext envelopes, IVs, and
+authentication tags. `retentionMode` communicates policy only; it does not
+claim that historical content exists.
 
 # 15. Conversation APIs
 
@@ -1856,6 +1884,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenSuccess'
+        '204':
+          description: No refresh cookie; anonymous bootstrap
         '401':
           $ref: '#/components/responses/Unauthorized'
   /auth/logout:

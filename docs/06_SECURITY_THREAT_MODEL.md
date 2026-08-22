@@ -392,7 +392,7 @@ Risk ratings are qualitative for the MVP:
 | Scenario | An attacker steals a refresh cookie and exchanges it. |
 | Prevention | Store only hash in MongoDB; `HttpOnly`, `Secure`, `SameSite` cookie; seven-day expiry; one-time rotation. |
 | Detection | Reuse detection when an already-used token appears. |
-| Response | Confirmed replay outside the bounded concurrency grace revokes the entire token family, clears cookies, forces login, and writes an audit event. A concurrent atomic-claim loser does not revoke the winning family. Operational `5xx` failures preserve the refresh cookie for safe retry. |
+| Response | Confirmed replay outside the bounded concurrency grace revokes the entire token family, clears cookies, forces login, and writes an audit event. A concurrent atomic-claim loser does not revoke the winning family. Operational `5xx` failures preserve the refresh cookie for safe retry. Absence of a cookie is an anonymous `204` and performs no token lookup; a submitted invalid cookie remains a generic `401`. |
 
 ### TM-005 — Password compromise
 

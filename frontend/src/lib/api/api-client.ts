@@ -3,14 +3,24 @@ import type { z } from "zod";
 import { createApiPath } from "@/lib/api/api-path";
 import { ApiError } from "@/lib/errors/api-error";
 
-export async function requestJson<TSchema extends z.ZodType>(input: {
+interface JsonRequest<TSchema extends z.ZodType> {
     path: string;
     schema: TSchema;
     method?: "GET" | "PATCH" | "POST";
     accessToken?: string;
     body?: unknown;
     signal?: AbortSignal;
-}): Promise<z.infer<TSchema>> {
+}
+
+export function requestJson<TSchema extends z.ZodType>(
+    input: JsonRequest<TSchema> & { noContentStatus: 204 },
+): Promise<z.infer<TSchema> | undefined>;
+export function requestJson<TSchema extends z.ZodType>(
+    input: JsonRequest<TSchema>,
+): Promise<z.infer<TSchema>>;
+export async function requestJson<TSchema extends z.ZodType>(
+    input: JsonRequest<TSchema> & { noContentStatus?: 204 },
+): Promise<z.infer<TSchema> | undefined> {
     const headers = new Headers({
         accept: "application/json",
     });
@@ -36,6 +46,13 @@ export async function requestJson<TSchema extends z.ZodType>(input: {
             signal: input.signal,
         },
     );
+
+    if (
+        input.noContentStatus !== undefined
+        && response.status === input.noContentStatus
+    ) {
+        return undefined;
+    }
 
     if (!response.ok) {
         throw await ApiError.fromResponse(response);

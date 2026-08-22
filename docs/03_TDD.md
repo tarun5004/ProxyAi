@@ -455,6 +455,18 @@ The database update should use a transaction when available. For the MVP, a guar
 | POST | `/auth/logout` | Refresh cookie | Revoke current session |
 | GET | `/auth/me` | Access token | Return current user profile |
 
+`GET /auth/me` returns the current database-backed auth context plus the safe
+login profile (`email`, `displayName`, role, permissions, optional `teamId`,
+and organisation identity, plan, and retention mode). It never returns password
+hashes, token records, encrypted content, ciphertext metadata, or key versions.
+The login and current-user profile shapes must stay aligned so a hard refresh
+does not degrade workspace identity or retention visibility.
+
+`POST /auth/refresh` returns `204 No Content` when the browser has no refresh
+cookie. This expected anonymous bootstrap performs no token lookup. Submitted
+invalid/expired cookies keep the generic `401` path, and dependency failures
+keep the fail-closed `503` path with the cookie preserved for safe retry.
+
 ## 11. RBAC Design
 
 ### 11.1 Roles
@@ -2201,6 +2213,10 @@ frontend/src/
 - Access token: memory only.
 - Refresh token: secure HTTP-only cookie managed by backend.
 - On page refresh, call `/auth/refresh` once to restore session.
+- Treat `204` from `/auth/refresh` as a clean anonymous session. Treat invalid
+  cookie `401` as terminal anonymous state and operational `5xx` as unavailable.
+- After refresh succeeds, call `/auth/me` and restore both current auth context
+  and the safe user/organisation profile.
 - Never use localStorage for refresh token.
 
 ### 40.2 SSE client

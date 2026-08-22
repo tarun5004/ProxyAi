@@ -1,4 +1,7 @@
-import type { OrganisationPlan } from "../organisations/organisation.types.js";
+import type {
+    OrganisationPlan,
+    RetentionMode,
+} from "../organisations/organisation.types.js";
 import type {
     UserPermission,
     UserRole,
@@ -29,6 +32,7 @@ export interface LoginResponseUser {
         orgId: string;
         name: string;
         plan: OrganisationPlan;
+        retentionMode: RetentionMode;
     };
 }
 
@@ -67,7 +71,6 @@ export type LoginOperationalReason =
     | "TOKEN_SIGNING_FAILED";
 
 export type RefreshFailureReason =
-    | "REFRESH_TOKEN_MISSING"
     | "REFRESH_TOKEN_UNKNOWN"
     | "REFRESH_TOKEN_EXPIRED"
     | "REFRESH_TOKEN_REVOKED"

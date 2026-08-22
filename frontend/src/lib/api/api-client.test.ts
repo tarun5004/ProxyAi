@@ -42,4 +42,17 @@ describe("browser API client", () => {
             schema: z.object({ success: z.literal(true) }),
         })).rejects.toMatchObject({ status: 403, code: "FORBIDDEN", requestId: "request-id" });
     });
+
+    it("accepts an explicitly approved no-content response without parsing JSON", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+            new Response(null, { status: 204 }),
+        ));
+
+        await expect(requestJson({
+            path: "/auth/refresh",
+            method: "POST",
+            schema: z.object({ success: z.literal(true) }),
+            noContentStatus: 204,
+        })).resolves.toBeUndefined();
+    });
 });

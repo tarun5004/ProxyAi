@@ -11,6 +11,10 @@ export const userPermissionSchema = z.enum([
     "admin:configure_policy",
     "admin:export_audit",
 ]);
+export const retentionModeSchema = z.enum([
+    "METADATA_ONLY",
+    "ENCRYPTED_STORAGE",
+]);
 
 export const loginInputSchema = z.object({
     organisationSlug: z.string().trim().min(2).max(63),
@@ -38,9 +42,16 @@ export const loginUserSchema = z.object({
         orgId: z.string().uuid(),
         name: z.string(),
         plan: z.enum(["FREE", "PRO", "ENTERPRISE"]),
+        retentionMode: retentionModeSchema,
     }),
+});
+
+export const currentSessionSchema = authContextSchema.extend({
+    user: loginUserSchema,
 });
 
 export type LoginInput = z.infer<typeof loginInputSchema>;
 export type AuthContext = z.infer<typeof authContextSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
+export type CurrentSession = z.infer<typeof currentSessionSchema>;
+export type RetentionMode = z.infer<typeof retentionModeSchema>;

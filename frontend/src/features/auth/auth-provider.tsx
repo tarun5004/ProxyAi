@@ -18,7 +18,12 @@ import {
     meRequest,
     refreshRequest,
 } from "./auth.api";
-import type { AuthContext, LoginInput, LoginUser } from "./auth.types";
+import type {
+    AuthContext,
+    CurrentSession,
+    LoginInput,
+    LoginUser,
+} from "./auth.types";
 
 type AuthStatus = "loading" | "authenticated" | "anonymous" | "unavailable";
 
@@ -39,18 +44,43 @@ interface AuthValue extends AuthState {
 const AuthContextObject = createContext<AuthValue | null>(null);
 let bootstrapPromise: Promise<AuthState> | undefined;
 
-async function bootstrapSession(
+function getAuthContext(session: CurrentSession): AuthContext {
+    return {
+        userId: session.userId,
+        orgId: session.orgId,
+        role: session.role,
+        permissions: session.permissions,
+        sessionId: session.sessionId,
+        ...(session.teamId === undefined
+            ? {}
+            : {
+                teamId: session.teamId,
+            }),
+    };
+}
+
+export async function bootstrapSession(
     currentState?: AuthState,
+    dependencies: Pick<
+        typeof import("./auth.api"),
+        "meRequest" | "refreshRequest"
+    > = { meRequest, refreshRequest },
 ): Promise<AuthState> {
     try {
-        const refresh = await refreshRequest();
-        const me = await meRequest(refresh.data.accessToken);
+        const refresh = await dependencies.refreshRequest();
+
+        if (!refresh) {
+            return { status: "anonymous" };
+        }
+
+        const me = await dependencies.meRequest(refresh.data.accessToken);
 
         return {
             status: "authenticated",
             accessToken: refresh.data.accessToken,
             expiresInSeconds: refresh.data.expiresInSeconds,
-            context: me.data,
+            context: getAuthContext(me.data),
+            user: me.data.user,
         };
     } catch (error: unknown) {
         return resolveRefreshFailure(error, currentState);
@@ -121,8 +151,8 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
             status: "authenticated",
             accessToken: response.data.accessToken,
             expiresInSeconds: response.data.expiresInSeconds,
-            context: me.data,
-            user: response.data.user,
+            context: getAuthContext(me.data),
+            user: me.data.user,
         };
 
         bootstrapPromise = Promise.resolve(nextState);

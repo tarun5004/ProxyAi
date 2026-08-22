@@ -4,7 +4,7 @@ import { createSuccessEnvelopeSchema } from "@/lib/api/api-envelope";
 import { requestJson } from "@/lib/api/api-client";
 
 import {
-    authContextSchema,
+    currentSessionSchema,
     loginInputSchema,
     loginUserSchema,
     type LoginInput,
@@ -22,7 +22,7 @@ const loginResponseSchema = createSuccessEnvelopeSchema(
 );
 
 const refreshResponseSchema = createSuccessEnvelopeSchema(tokenDataSchema);
-const meResponseSchema = createSuccessEnvelopeSchema(authContextSchema);
+const meResponseSchema = createSuccessEnvelopeSchema(currentSessionSchema);
 const logoutResponseSchema = createSuccessEnvelopeSchema(
     z.object({ loggedOut: z.literal(true) }),
 );
@@ -43,6 +43,7 @@ export function refreshRequest() {
         path: "/auth/refresh",
         method: "POST",
         schema: refreshResponseSchema,
+        noContentStatus: 204,
     });
 }
 
