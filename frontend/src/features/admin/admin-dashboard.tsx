@@ -10,11 +10,12 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { useAuth } from "@/features/auth/auth-provider";
 import { appendUniquePage } from "@/lib/api/cursor-pagination";
+import { ApiError } from "@/lib/errors/api-error";
 
 import {
     downloadAdminAudit,
@@ -45,15 +46,21 @@ import type {
     AdminUserItem,
 } from "./admin.types";
 import {
+    AdminActionFeedback,
     ConfirmedMutationButton,
     ConfirmedMutationSelect,
+    getSafeAdminFailureMessage,
 } from "./admin-mutation-confirmation";
+import type { AdminActionState } from "./admin-mutation-confirmation";
 
 type AdminTab = "overview" | "users" | "usage" | "alerts" | "logs";
 type LoadState = "loading" | "ready" | "error";
 type AdminPageResource = "alerts" | "logs" | "teams" | "users";
+type AdminResource = "summary" | "billing" | AdminPageResource;
+type RunAdminOperation = (operation: () => Promise<unknown>) => Promise<unknown>;
 
 type AdminPagination = Record<AdminPageResource, AdminPageState>;
+type AdminResourceStates = Record<AdminResource, LoadState>;
 
 interface AdminData {
     summary?: AdminSummary;
@@ -78,6 +85,15 @@ const emptyPagination: AdminPagination = {
     users: { nextCursor: null, status: "idle" },
 };
 
+const initialResourceStates: AdminResourceStates = {
+    alerts: "loading",
+    billing: "loading",
+    logs: "loading",
+    summary: "loading",
+    teams: "loading",
+    users: "loading",
+};
+
 function setAdminPageState(
     setPagination: React.Dispatch<React.SetStateAction<AdminPagination>>,
     resource: AdminPageResource,
@@ -93,10 +109,9 @@ export function AdminDashboard() {
     const auth = useAuth();
     const router = useRouter();
     const [tab, setTab] = useState<AdminTab>("overview");
-    const [status, setStatus] = useState<LoadState>("loading");
-    const [reload, setReload] = useState(0);
     const [data, setData] = useState<AdminData>(emptyData);
     const [pagination, setPagination] = useState<AdminPagination>(emptyPagination);
+    const [resourceStates, setResourceStates] = useState<AdminResourceStates>(initialResourceStates);
     const activePageRequests = useRef(new Set<AdminPageResource>());
     const permissions = auth.context?.permissions ?? [];
     const canViewLogs = permissions.includes("admin:view_logs");
@@ -105,57 +120,107 @@ export function AdminDashboard() {
     const canConfigurePolicy = permissions.includes("admin:configure_policy");
     const canExportAudit = permissions.includes("admin:export_audit");
     const canOpenAdmin = canViewLogs || canViewBilling || canManageUsers || canConfigurePolicy || canExportAudit;
+    const accessToken = auth.accessToken;
+    const retrySession = auth.retrySession;
+
+    const loadResource = useCallback(async (resource: AdminResource, signal?: AbortSignal, showBoundaryState = true): Promise<void> => {
+        if (!accessToken) {
+            return;
+        }
+
+        if (showBoundaryState) {
+            setResourceStates((current) => ({ ...current, [resource]: "loading" }));
+        }
+
+        try {
+            if (resource === "summary") {
+                const response = await getAdminSummary(accessToken, signal);
+                setData((current) => ({ ...current, summary: response.data }));
+            } else if (resource === "billing") {
+                const response = await getAdminBilling(accessToken, signal);
+                setData((current) => ({ ...current, billing: response.data }));
+            } else if (resource === "logs") {
+                const response = await listAdminLogs(accessToken, { signal });
+                setData((current) => ({ ...current, logs: response.data.items }));
+                setAdminPageState(setPagination, resource, {
+                    nextCursor: response.meta.nextCursor ?? null,
+                    status: "idle",
+                });
+            } else if (resource === "alerts") {
+                const response = await listAdminAlerts(accessToken, { signal });
+                setData((current) => ({ ...current, alerts: response.data.items }));
+                setAdminPageState(setPagination, resource, {
+                    nextCursor: response.meta.nextCursor ?? null,
+                    status: "idle",
+                });
+            } else if (resource === "users") {
+                const response = await listAdminUsers(accessToken, { signal });
+                setData((current) => ({ ...current, users: response.data.items }));
+                setAdminPageState(setPagination, resource, {
+                    nextCursor: response.meta.nextCursor ?? null,
+                    status: "idle",
+                });
+            } else {
+                const response = await listAdminTeams(accessToken, { signal });
+                setData((current) => ({ ...current, teams: response.data.items }));
+                setAdminPageState(setPagination, resource, {
+                    nextCursor: response.meta.nextCursor ?? null,
+                    status: "idle",
+                });
+            }
+
+            setResourceStates((current) => ({ ...current, [resource]: "ready" }));
+        } catch (error: unknown) {
+            if (error instanceof Error && error.name === "AbortError") {
+                return;
+            }
+
+            if (showBoundaryState) {
+                setResourceStates((current) => ({ ...current, [resource]: "error" }));
+            }
+            if (error instanceof ApiError && error.status === 401) {
+                void retrySession();
+            }
+            throw error;
+        }
+    }, [accessToken, retrySession]);
+
+    const refreshResources = useCallback(async (...resources: readonly AdminResource[]): Promise<void> => {
+        await Promise.all(resources.map((resource) => loadResource(resource, undefined, false)));
+    }, [loadResource]);
+
+    const runAdminOperation = useCallback<RunAdminOperation>(async (operation) => {
+        try {
+            return await operation();
+        } catch (error: unknown) {
+            if (error instanceof ApiError && error.status === 401) {
+                void retrySession();
+            }
+            throw error;
+        }
+    }, [retrySession]);
 
     useEffect(() => {
-        if (!auth.accessToken || !canOpenAdmin) {
+        if (!accessToken || !canOpenAdmin) {
             return;
         }
 
         const abortController = new AbortController();
+        const resources: AdminResource[] = [
+            ...(canViewLogs ? ["summary", "logs", "alerts"] as const : []),
+            ...(canViewBilling ? ["billing"] as const : []),
+            ...(canManageUsers ? ["users", "teams"] as const : []),
+        ];
 
-        void Promise.all([
-            canViewLogs
-                ? getAdminSummary(auth.accessToken, abortController.signal)
-                : Promise.resolve(undefined),
-            canViewBilling
-                ? getAdminBilling(auth.accessToken, abortController.signal)
-                : Promise.resolve(undefined),
-            canViewLogs
-                ? listAdminLogs(auth.accessToken, { signal: abortController.signal })
-                : Promise.resolve(undefined),
-            canViewLogs
-                ? listAdminAlerts(auth.accessToken, { signal: abortController.signal })
-                : Promise.resolve(undefined),
-            canManageUsers
-                ? listAdminUsers(auth.accessToken, { signal: abortController.signal })
-                : Promise.resolve(undefined),
-            canManageUsers
-                ? listAdminTeams(auth.accessToken, { signal: abortController.signal })
-                : Promise.resolve(undefined),
-        ]).then(([summary, billing, logs, alerts, users, teams]) => {
-            setData({
-                summary: summary?.data,
-                billing: billing?.data,
-                logs: logs?.data.items ?? [],
-                alerts: alerts?.data.items ?? [],
-                users: users?.data.items ?? [],
-                teams: teams?.data.items ?? [],
-            });
-            setPagination({
-                alerts: { nextCursor: alerts?.meta.nextCursor ?? null, status: "idle" },
-                logs: { nextCursor: logs?.meta.nextCursor ?? null, status: "idle" },
-                teams: { nextCursor: teams?.meta.nextCursor ?? null, status: "idle" },
-                users: { nextCursor: users?.meta.nextCursor ?? null, status: "idle" },
-            });
-            setStatus("ready");
-        }).catch((error: unknown) => {
-            if (!(error instanceof Error && error.name === "AbortError")) {
-                setStatus("error");
+        queueMicrotask(() => {
+            if (abortController.signal.aborted) return;
+            for (const resource of resources) {
+                void loadResource(resource, abortController.signal).catch(() => undefined);
             }
         });
 
         return () => abortController.abort();
-    }, [auth.accessToken, canManageUsers, canOpenAdmin, canViewBilling, canViewLogs, reload]);
+    }, [accessToken, canManageUsers, canOpenAdmin, canViewBilling, canViewLogs, loadResource]);
 
     const tabs = useMemo(() => [
         ...(canViewLogs ? ["overview", "alerts", "logs"] as const : []),
@@ -246,7 +311,7 @@ export function AdminDashboard() {
                         <span className="hidden h-7 w-px bg-border-default sm:block" />
                         <div>
                             <h1 className="m-0 text-base font-semibold">Organisation admin</h1>
-                            <p className="m-0 text-xs text-text-faint">Read-only operational view</p>
+                            <p className="m-0 text-xs text-text-faint">Permission-scoped operations with append-only audit records</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -276,23 +341,67 @@ export function AdminDashboard() {
                 <section className="min-w-0">
                     {!canOpenAdmin ? (
                         <StatePanel title="Access denied" detail="Your current permissions do not include organisation administration." />
-                    ) : status === "loading" ? (
-                        <StatePanel title="Loading organisation data" detail="Reading authoritative tenant-scoped records…" />
-                    ) : status === "error" ? (
-                        <StatePanel title="Admin data unavailable" detail="No cached or fabricated values are shown." action={() => {
-                            setStatus("loading");
-                            setReload((value) => value + 1);
-                        }} />
                     ) : tab === "overview" ? (
-                        <Overview summary={data.summary} accessToken={auth.accessToken} canConfigure={canConfigurePolicy} onChanged={() => setReload((value) => value + 1)} />
+                        <ResourceBoundary
+                            status={resourceStates.summary}
+                            loadingTitle="Loading organisation overview"
+                            errorTitle="Organisation overview unavailable"
+                            onRetry={() => void loadResource("summary").catch(() => undefined)}
+                        >
+                            <Overview
+                                summary={data.summary}
+                                accessToken={accessToken}
+                                canConfigure={canConfigurePolicy}
+                                onChanged={() => refreshResources("summary")}
+                                runOperation={runAdminOperation}
+                            />
+                        </ResourceBoundary>
                     ) : tab === "users" ? (
-                        <UsersAndTeams users={data.users} teams={data.teams} pagination={pagination} accessToken={auth.accessToken} onChanged={() => setReload((value) => value + 1)} onLoadMore={loadMore} />
+                        <UsersAndTeams
+                            users={data.users}
+                            teams={data.teams}
+                            pagination={pagination}
+                            resourceStates={resourceStates}
+                            accessToken={accessToken}
+                            onChanged={() => refreshResources("users", "teams")}
+                            onLoadMore={loadMore}
+                            onRetry={(resource) => void loadResource(resource).catch(() => undefined)}
+                            runOperation={runAdminOperation}
+                        />
                     ) : tab === "usage" ? (
-                        <Usage billing={data.billing} />
+                        <ResourceBoundary
+                            status={resourceStates.billing}
+                            loadingTitle="Loading authoritative usage"
+                            errorTitle="Usage data unavailable"
+                            onRetry={() => void loadResource("billing").catch(() => undefined)}
+                        >
+                            <Usage billing={data.billing} />
+                        </ResourceBoundary>
                     ) : tab === "alerts" ? (
-                        <Alerts alerts={data.alerts} page={pagination.alerts} accessToken={auth.accessToken} onChanged={() => setReload((value) => value + 1)} onLoadMore={() => void loadMore("alerts")} />
+                        <ResourceBoundary
+                            status={resourceStates.alerts}
+                            loadingTitle="Loading anomaly alerts"
+                            errorTitle="Anomaly alerts unavailable"
+                            onRetry={() => void loadResource("alerts").catch(() => undefined)}
+                        >
+                            <Alerts
+                                alerts={data.alerts}
+                                page={pagination.alerts}
+                                accessToken={accessToken}
+                                onChanged={() => refreshResources("alerts", "summary")}
+                                onLoadMore={() => void loadMore("alerts")}
+                                runOperation={runAdminOperation}
+                            />
+                        </ResourceBoundary>
                     ) : (
-                        <Logs logs={data.logs} page={pagination.logs} accessToken={auth.accessToken} canExport={canExportAudit} onLoadMore={() => void loadMore("logs")} />
+                        <ResourceBoundary
+                            status={resourceStates.logs}
+                            loadingTitle="Loading request logs"
+                            errorTitle="Request logs unavailable"
+                            onRetry={() => void loadResource("logs").catch(() => undefined)}
+                        >
+                            <Logs logs={data.logs} page={pagination.logs} accessToken={accessToken} canExport={canExportAudit} onLoadMore={() => void loadMore("logs")} runOperation={runAdminOperation} />
+                        </ResourceBoundary>
                     )}
                 </section>
             </div>
@@ -300,7 +409,7 @@ export function AdminDashboard() {
     );
 }
 
-function Overview({ summary, accessToken, canConfigure, onChanged }: Readonly<{ summary?: AdminSummary; accessToken?: string; canConfigure: boolean; onChanged: () => void }>) {
+function Overview({ summary, accessToken, canConfigure, onChanged, runOperation }: Readonly<{ summary?: AdminSummary; accessToken?: string; canConfigure: boolean; onChanged: () => Promise<void>; runOperation: RunAdminOperation }>) {
     if (!summary) {
         return <StatePanel title="No overview permission" detail="Summary data is unavailable for this account." />;
     }
@@ -352,35 +461,47 @@ function Overview({ summary, accessToken, canConfigure, onChanged }: Readonly<{ 
                     <MetricRows rows={summary.providerModels.map((item) => [`${item.providerId} · ${item.model}`, item.requestCount])} />
                 )}
             </Panel>
-            {canConfigure && accessToken ? <PolicyControls summary={summary} accessToken={accessToken} onChanged={onChanged} /> : null}
+            {canConfigure && accessToken ? (
+                <PolicyControls
+                    key={`${summary.organisation.policy.maskThreshold}:${summary.organisation.policy.blockThreshold}:${summary.budget.monthlyBudgetTokens}:${summary.organisation.retentionMode}`}
+                    summary={summary}
+                    accessToken={accessToken}
+                    onChanged={onChanged}
+                    runOperation={runOperation}
+                />
+            ) : null}
         </div>
     );
 }
 
-function UsersAndTeams({ users, teams, pagination, accessToken, onChanged, onLoadMore }: Readonly<{ users: AdminUserItem[]; teams: AdminTeamItem[]; pagination: AdminPagination; accessToken?: string; onChanged: () => void; onLoadMore: (resource: AdminPageResource) => Promise<void> }>) {
+function UsersAndTeams({ users, teams, pagination, resourceStates, accessToken, onChanged, onLoadMore, onRetry, runOperation }: Readonly<{ users: AdminUserItem[]; teams: AdminTeamItem[]; pagination: AdminPagination; resourceStates: AdminResourceStates; accessToken?: string; onChanged: () => Promise<void>; onLoadMore: (resource: AdminPageResource) => Promise<void>; onRetry: (resource: AdminPageResource) => void; runOperation: RunAdminOperation }>) {
     const teamNames = new Map(teams.map((team) => [team.teamId, team.name]));
     return (
         <div className="grid gap-6">
-            <SectionHeading title="Users and teams" detail="Current roles and assignments; mutations require Phase 9 audit guarantees." />
-            <Panel title={`Users (${users.length} loaded)`}>
-                {users.length === 0 ? <Empty label="No users found." /> : users.map((user) => (
-                    <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center" key={user.userId}>
-                        <div><strong className="block text-sm">{user.displayName}</strong><span className="text-xs text-text-soft">{user.email}</span></div>
-                        {accessToken ? <UserControls user={user} teams={teams} accessToken={accessToken} onChanged={onChanged} /> : <Badge value={user.role.replaceAll("_", " ")} />}
-                        <span className="text-xs text-text-soft">{user.teamId ? teamNames.get(user.teamId) ?? "Assigned team" : "No team"} · {user.status}</span>
-                    </div>
-                ))}
-                <AdminPaginationControl label="users" page={pagination.users} onLoadMore={() => void onLoadMore("users")} />
-            </Panel>
-            <Panel title={`Teams (${teams.length} loaded)`}>
-                {teams.length === 0 ? <Empty label="No teams found." /> : teams.map((team) => (
-                    <div className="flex items-center justify-between gap-4 border-b border-border-soft py-4 last:border-0" key={team.teamId}>
-                        <div><strong className="block text-sm">{team.name}</strong><span className="text-xs text-text-soft">{team.description ?? "No description"}</span></div>
-                        <span className="text-xs text-text-soft">{team.memberCount} members · {team.isActive ? "Active" : "Inactive"}</span>
-                    </div>
-                ))}
-                <AdminPaginationControl label="teams" page={pagination.teams} onLoadMore={() => void onLoadMore("teams")} />
-            </Panel>
+            <SectionHeading title="Users and teams" detail="Permission-scoped changes are validated by the backend and recorded in the append-only audit trail." />
+            <ResourceBoundary status={resourceStates.users} loadingTitle="Loading users" errorTitle="Users unavailable" onRetry={() => onRetry("users")}>
+                <Panel title={`Users (${users.length} loaded)`}>
+                    {users.length === 0 ? <Empty label="No users found." /> : users.map((user) => (
+                        <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center" key={user.userId}>
+                            <div><strong className="block text-sm">{user.displayName}</strong><span className="text-xs text-text-soft">{user.email}</span></div>
+                            {accessToken ? <UserControls user={user} teams={teams} accessToken={accessToken} onChanged={onChanged} runOperation={runOperation} /> : <Badge value={user.role.replaceAll("_", " ")} />}
+                            <span className="text-xs text-text-soft">{user.teamId ? teamNames.get(user.teamId) ?? "Assigned team" : "No team"} · {user.status}</span>
+                        </div>
+                    ))}
+                    <AdminPaginationControl label="users" page={pagination.users} onLoadMore={() => void onLoadMore("users")} />
+                </Panel>
+            </ResourceBoundary>
+            <ResourceBoundary status={resourceStates.teams} loadingTitle="Loading teams" errorTitle="Teams unavailable" onRetry={() => onRetry("teams")}>
+                <Panel title={`Teams (${teams.length} loaded)`}>
+                    {teams.length === 0 ? <Empty label="No teams found." /> : teams.map((team) => (
+                        <div className="flex items-center justify-between gap-4 border-b border-border-soft py-4 last:border-0" key={team.teamId}>
+                            <div><strong className="block text-sm">{team.name}</strong><span className="text-xs text-text-soft">{team.description ?? "No description"}</span></div>
+                            <span className="text-xs text-text-soft">{team.memberCount} members · {team.isActive ? "Active" : "Inactive"}</span>
+                        </div>
+                    ))}
+                    <AdminPaginationControl label="teams" page={pagination.teams} onLoadMore={() => void onLoadMore("teams")} />
+                </Panel>
+            </ResourceBoundary>
         </div>
     );
 }
@@ -411,15 +532,15 @@ function Usage({ billing }: Readonly<{ billing?: AdminBilling }>) {
     );
 }
 
-function Alerts({ alerts, page, accessToken, onChanged, onLoadMore }: Readonly<{ alerts: AdminAlertItem[]; page: AdminPageState; accessToken?: string; onChanged: () => void; onLoadMore: () => void }>) {
+function Alerts({ alerts, page, accessToken, onChanged, onLoadMore, runOperation }: Readonly<{ alerts: AdminAlertItem[]; page: AdminPageState; accessToken?: string; onChanged: () => Promise<void>; onLoadMore: () => void; runOperation: RunAdminOperation }>) {
     return (
         <div className="grid gap-6">
-            <SectionHeading title="Anomaly alerts" detail="Read-only daily token anomalies; resolution requires Phase 9 audit guarantees." />
+            <SectionHeading title="Anomaly alerts" detail="Alert status changes are permission-scoped and recorded in the append-only audit trail." />
             <Panel title={`Alerts (${alerts.length} loaded)`}>
                 {alerts.length === 0 ? <Empty label="No anomaly alerts found." /> : alerts.map((alert) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto]" key={alert.alertId}>
                         <div><strong className="text-sm">{alert.title}</strong><p className="mt-1 mb-0 text-xs text-text-soft">{alert.observedDay} · {formatNumber(alert.metadata.observedTokens)} tokens vs {formatNumber(alert.metadata.baselineAverageTokens)} baseline</p></div>
-                        <div className="flex items-center gap-2"><Badge value={alert.status} />{accessToken ? <MutationButton label={alert.status === "OPEN" ? "Resolve" : "Reopen"} run={() => updateAdminAlert(accessToken, alert.alertId, alert.status === "OPEN")} onDone={onChanged} /> : null}</div>
+                        <div className="flex items-center gap-2"><Badge value={alert.status} />{accessToken ? <MutationButton label={alert.status === "OPEN" ? "Resolve" : "Reopen"} run={() => runOperation(() => updateAdminAlert(accessToken, alert.alertId, alert.status === "OPEN"))} onDone={onChanged} successMessage="Alert status saved and verified." /> : null}</div>
                     </div>
                 ))}
                 <AdminPaginationControl label="alerts" page={page} onLoadMore={onLoadMore} />
@@ -428,10 +549,10 @@ function Alerts({ alerts, page, accessToken, onChanged, onLoadMore }: Readonly<{
     );
 }
 
-function Logs({ logs, page, accessToken, canExport, onLoadMore }: Readonly<{ logs: AdminLogItem[]; page: AdminPageState; accessToken?: string; canExport: boolean; onLoadMore: () => void }>) {
+function Logs({ logs, page, accessToken, canExport, onLoadMore, runOperation }: Readonly<{ logs: AdminLogItem[]; page: AdminPageState; accessToken?: string; canExport: boolean; onLoadMore: () => void; runOperation: RunAdminOperation }>) {
     return (
         <div className="grid gap-6">
-            <div className="flex items-start justify-between gap-4"><SectionHeading title="Request logs" detail="Metadata only. Prompt and response content is never available here." />{canExport && accessToken ? <MutationButton label="Export audit CSV" run={async () => {
+            <div className="flex items-start justify-between gap-4"><SectionHeading title="Request logs" detail="Metadata only. Prompt and response content is never available here." />{canExport && accessToken ? <MutationButton label="Export audit CSV" successMessage="Audit export downloaded." run={() => runOperation(async () => {
                 const dateTo = new Date();
                 const dateFrom = new Date(dateTo.getTime() - 30 * 24 * 60 * 60 * 1_000);
                 const blob = await downloadAdminAudit(accessToken, dateFrom.toISOString(), dateTo.toISOString());
@@ -441,7 +562,7 @@ function Logs({ logs, page, accessToken, canExport, onLoadMore }: Readonly<{ log
                 anchor.download = "proxiai-audit.csv";
                 anchor.click();
                 URL.revokeObjectURL(url);
-            }} /> : null}</div>
+            })} /> : null}</div>
             <Panel title={`Recent requests (${logs.length} loaded)`}>
                 {logs.length === 0 ? <Empty label="No request logs found." /> : logs.map((log) => (
                     <div className="grid gap-2 border-b border-border-soft py-4 last:border-0 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center" key={log.requestId}>
@@ -456,7 +577,7 @@ function Logs({ logs, page, accessToken, canExport, onLoadMore }: Readonly<{ log
     );
 }
 
-function PolicyControls({ summary, accessToken, onChanged }: Readonly<{ summary: AdminSummary; accessToken: string; onChanged: () => void }>) {
+function PolicyControls({ summary, accessToken, onChanged, runOperation }: Readonly<{ summary: AdminSummary; accessToken: string; onChanged: () => Promise<void>; runOperation: RunAdminOperation }>) {
     const [maskThreshold, setMaskThreshold] = useState(String(summary.organisation.policy.maskThreshold));
     const [blockThreshold, setBlockThreshold] = useState(String(summary.organisation.policy.blockThreshold));
     const [budget, setBudget] = useState(String(summary.budget.monthlyBudgetTokens));
@@ -479,19 +600,19 @@ function PolicyControls({ summary, accessToken, onChanged }: Readonly<{ summary:
                 consequence: "Threshold changes alter future masking and blocking decisions. The monthly budget can block future chat requests when authoritative usage reaches the limit.",
                 confirmLabel: "Apply policy",
             }}
-            run={() => updateAdminPolicy(accessToken, { maskThreshold: Number(maskThreshold), blockThreshold: Number(blockThreshold), monthlyTokenBudget: Number(budget) })}
+            run={() => runOperation(() => updateAdminPolicy(accessToken, { maskThreshold: Number(maskThreshold), blockThreshold: Number(blockThreshold), monthlyTokenBudget: Number(budget) }))}
             onDone={onChanged}
         />
         <ConfirmedMutationButton
             label={`Use ${summary.organisation.retentionMode === "METADATA_ONLY" ? "encrypted storage" : "metadata only"}`}
             confirmation={retentionConfirmation(summary)}
-            run={() => updateAdminRetention(accessToken, summary.organisation.retentionMode === "METADATA_ONLY" ? "ENCRYPTED_STORAGE" : "METADATA_ONLY")}
+            run={() => runOperation(() => updateAdminRetention(accessToken, summary.organisation.retentionMode === "METADATA_ONLY" ? "ENCRYPTED_STORAGE" : "METADATA_ONLY"))}
             onDone={onChanged}
         />
     </div></Panel>;
 }
 
-function UserControls({ user, teams, accessToken, onChanged }: Readonly<{ user: AdminUserItem; teams: AdminTeamItem[]; accessToken: string; onChanged: () => void }>) {
+function UserControls({ user, teams, accessToken, onChanged, runOperation }: Readonly<{ user: AdminUserItem; teams: AdminTeamItem[]; accessToken: string; onChanged: () => Promise<void>; runOperation: RunAdminOperation }>) {
     const teamNames = new Map(teams.map((team) => [team.teamId, team.name]));
     const userTarget = `${user.displayName} (${user.email})`;
 
@@ -508,7 +629,7 @@ function UserControls({ user, teams, accessToken, onChanged }: Readonly<{ user: 
                     : "Effective permissions will be recomputed from the selected canonical role.",
                 confirmLabel: "Change role",
             })}
-            run={(value) => updateAdminUserRole(accessToken, user.userId, value as AdminUserItem["role"])}
+            run={(value) => runOperation(() => updateAdminUserRole(accessToken, user.userId, value as AdminUserItem["role"]))}
             onDone={onChanged}
         >
             <option value="EMPLOYEE">Employee</option><option value="TEAM_LEAD">Team lead</option><option value="ORG_ADMIN">Org admin</option>
@@ -527,7 +648,7 @@ function UserControls({ user, teams, accessToken, onChanged }: Readonly<{ user: 
                 consequence: "Future team-scoped authorization uses this assignment. The backend remains authoritative for tenant-scoped team validation.",
                 confirmLabel: "Change team",
             })}
-            run={(value) => updateAdminUserTeam(accessToken, user.userId, value || null)}
+            run={(value) => runOperation(() => updateAdminUserTeam(accessToken, user.userId, value || null))}
             onDone={onChanged}
         >
             <option value="">No team</option>{teams.map((team) => <option key={team.teamId} value={team.teamId}>{team.name}</option>)}
@@ -535,7 +656,7 @@ function UserControls({ user, teams, accessToken, onChanged }: Readonly<{ user: 
         <ConfirmedMutationButton
             label={user.status === "ACTIVE" ? "Disable" : "Activate"}
             confirmation={statusConfirmation(user, userTarget)}
-            run={() => updateAdminUserStatus(accessToken, user.userId, user.status === "ACTIVE" ? "DISABLED" : "ACTIVE")}
+            run={() => runOperation(() => updateAdminUserStatus(accessToken, user.userId, user.status === "ACTIVE" ? "DISABLED" : "ACTIVE"))}
             onDone={onChanged}
         />
         <ConfirmedMutationButton
@@ -547,27 +668,61 @@ function UserControls({ user, teams, accessToken, onChanged }: Readonly<{ user: 
                 consequence: "All active refresh sessions for this user will be revoked. Existing access tokens retain their approved bounded lifetime.",
                 confirmLabel: "Revoke sessions",
             }}
-            run={() => revokeAdminUserSessions(accessToken, user.userId)}
+            run={() => runOperation(() => revokeAdminUserSessions(accessToken, user.userId))}
             onDone={onChanged}
         />
     </div>;
 }
 
-function MutationButton({ label, run, onDone, disabled = false }: Readonly<{ label: string; run: () => Promise<unknown>; onDone?: () => void; disabled?: boolean }>) {
-    const [state, setState] = useState<"idle" | "working" | "error">("idle");
+function MutationButton({ label, run, onDone, successMessage = "Action completed.", disabled = false }: Readonly<{ label: string; run: () => Promise<unknown>; onDone?: () => Promise<void> | void; successMessage?: string; disabled?: boolean }>) {
+    const [state, setState] = useState<AdminActionState>("idle");
+    const [failureMessage, setFailureMessage] = useState<string>();
+    const [refreshing, setRefreshing] = useState(false);
+    const inFlightRef = useRef(false);
 
-    async function execute() {
+    async function refreshAuthoritativeValues() {
+        if (!onDone || inFlightRef.current) return;
+
+        inFlightRef.current = true;
+        setRefreshing(true);
         setState("working");
         try {
-            await run();
-            setState("idle");
-            onDone?.();
+            await onDone();
+            setState("success");
         } catch {
-            setState("error");
+            setState("refresh-error");
+        } finally {
+            setRefreshing(false);
+            inFlightRef.current = false;
         }
     }
 
-    return <button className="rounded-lg border border-border-default bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60" disabled={disabled || state === "working"} onClick={() => void execute()} type="button">{state === "working" ? "Saving…" : state === "error" ? "Retry" : label}</button>;
+    async function execute() {
+        if (inFlightRef.current) return;
+
+        inFlightRef.current = true;
+        setRefreshing(false);
+        setState("working");
+        setFailureMessage(undefined);
+        try {
+            await run();
+            try {
+                setRefreshing(true);
+                await onDone?.();
+                setState("success");
+            } catch {
+                setState("refresh-error");
+            }
+        } catch (error: unknown) {
+            setFailureMessage(getSafeAdminFailureMessage(error));
+            setState("error");
+        } finally {
+            setRefreshing(false);
+            inFlightRef.current = false;
+        }
+    }
+
+    return <span className="grid gap-1"><button className="rounded-lg border border-border-default bg-white px-3 py-2 text-xs font-semibold disabled:opacity-60" disabled={disabled || state === "working"} onClick={() => state === "refresh-error" ? void refreshAuthoritativeValues() : void execute()} type="button">{state === "working" ? (refreshing ? "Refreshing…" : "Saving…") : state === "refresh-error" ? "Refresh" : state === "error" ? "Retry" : label}</button><AdminActionFeedback state={state} successMessage={successMessage} failureMessage={failureMessage} /></span>;
 }
 
 function retentionConfirmation(summary: AdminSummary) {
@@ -598,6 +753,22 @@ function statusConfirmation(user: AdminUserItem, userTarget: string) {
 
 function formatAdminValue(value: string): string {
     return value.replaceAll("_", " ").toLowerCase().replace(/^./u, (character) => character.toUpperCase());
+}
+
+function ResourceBoundary({ status, loadingTitle, errorTitle, onRetry, children }: Readonly<{
+    status: LoadState;
+    loadingTitle: string;
+    errorTitle: string;
+    onRetry: () => void;
+    children: React.ReactNode;
+}>) {
+    if (status === "loading") {
+        return <StatePanel title={loadingTitle} detail="Reading authoritative tenant-scoped records…" />;
+    }
+    if (status === "error") {
+        return <StatePanel title={errorTitle} detail="Other available admin sections remain usable. No cached or fabricated values are shown." action={onRetry} />;
+    }
+    return children;
 }
 
 function StatePanel({ title, detail, action }: Readonly<{ title: string; detail: string; action?: () => void }>) {

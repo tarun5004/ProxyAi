@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/lib/errors/api-error";
+
 import { AdminDashboard } from "./admin-dashboard";
 
 const adminApi = vi.hoisted(() => ({
@@ -25,6 +27,7 @@ const authState = vi.hoisted(() => ({
         "admin:view_billing",
         "admin:manage_users",
     ],
+    retrySession: vi.fn(),
 }));
 
 vi.mock("./admin.api", () => adminApi);
@@ -34,6 +37,7 @@ vi.mock("@/features/auth/auth-provider", () => ({
         accessToken: "access-token",
         context: { permissions: authState.permissions },
         logout: vi.fn(),
+        retrySession: authState.retrySession,
     }),
 }));
 vi.mock("next/navigation", () => ({
@@ -58,6 +62,7 @@ describe("Phase 8 admin dashboard", () => {
             "admin:view_billing",
             "admin:manage_users",
         ];
+        authState.retrySession.mockResolvedValue(undefined);
         adminApi.getAdminSummary.mockResolvedValue(envelope({
             period: "month",
             range: { from: "2026-08-01T00:00:00.000Z", to: "2026-08-21T00:00:00.000Z" },
@@ -90,11 +95,13 @@ describe("Phase 8 admin dashboard", () => {
     it("shows loading then authoritative overview values", async () => {
         render(<AdminDashboard />);
 
-        expect(screen.getByText("Loading organisation data")).toBeInTheDocument();
+        expect(screen.getByText("Loading organisation overview")).toBeInTheDocument();
         expect(await screen.findByText("ProxyAI Demo")).toBeInTheDocument();
+        expect(screen.getByText("Permission-scoped operations with append-only audit records")).toBeInTheDocument();
         expect(screen.getByText("Unknown usage")).toBeInTheDocument();
         expect(screen.queryByText(/estimated cost/i)).not.toBeInTheDocument();
         expect(screen.queryByText(/cache hit/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/read-only operational view|phase 9 audit guarantees/i)).not.toBeInTheDocument();
     });
 
     it("denies users without admin permissions without fetching data", async () => {
@@ -105,12 +112,34 @@ describe("Phase 8 admin dashboard", () => {
         await waitFor(() => expect(adminApi.getAdminSummary).not.toHaveBeenCalled());
     });
 
-    it("shows a safe error state when admin reads fail", async () => {
+    it("delegates unauthorized section reads to centralized session recovery", async () => {
+        adminApi.getAdminSummary.mockRejectedValueOnce(new ApiError({
+            status: 401,
+            code: "AUTHENTICATION_REQUIRED",
+            message: "raw backend message must not render",
+        }));
+
+        render(<AdminDashboard />);
+
+        expect(await screen.findByText("Organisation overview unavailable")).toBeInTheDocument();
+        await waitFor(() => expect(authState.retrySession).toHaveBeenCalledTimes(1));
+        expect(screen.queryByText("raw backend message must not render")).not.toBeInTheDocument();
+    });
+
+    it("keeps successful sections usable and retries only the failed section", async () => {
         adminApi.getAdminSummary.mockRejectedValueOnce(new Error("unavailable"));
         render(<AdminDashboard />);
 
-        expect(await screen.findByText("Admin data unavailable")).toBeInTheDocument();
-        expect(screen.getByText("No cached or fabricated values are shown.")).toBeInTheDocument();
+        expect(await screen.findByText("Organisation overview unavailable")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "usage" }));
+        expect(await screen.findByText("Usage · 2026-08")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "overview" }));
+        fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+        expect(await screen.findByText("ProxyAI Demo")).toBeInTheDocument();
+        await waitFor(() => expect(adminApi.getAdminSummary).toHaveBeenCalledTimes(2));
+        expect(adminApi.getAdminBilling).toHaveBeenCalledTimes(1);
     });
 
     it("reviews policy and budget changes, supports cancel, and prevents duplicate submits", async () => {
@@ -154,7 +183,30 @@ describe("Phase 8 admin dashboard", () => {
             "access-token",
             { maskThreshold: 25, blockThreshold: 70, monthlyTokenBudget: 2000 },
         ));
+        expect(await screen.findByRole("status")).toHaveTextContent("Change saved and verified.");
+        expect(adminApi.getAdminSummary).toHaveBeenCalledTimes(2);
         await waitFor(() => expect(screen.getByRole("button", { name: "Save policy" })).toBeEnabled());
+    });
+
+    it("retries only authoritative refresh after an accepted mutation", async () => {
+        authState.permissions = ["admin:view_logs", "admin:configure_policy"];
+        adminApi.updateAdminPolicy.mockResolvedValueOnce(envelope({}));
+        render(<AdminDashboard />);
+
+        await screen.findByText("ProxyAI Demo");
+        adminApi.getAdminSummary.mockRejectedValueOnce(new Error("refresh unavailable"));
+
+        fireEvent.click(screen.getByRole("button", { name: "Save policy" }));
+        fireEvent.click(within(screen.getByRole("dialog", { name: "Confirm policy and budget update" })).getByRole("button", { name: "Apply policy" }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("Change accepted, but current values could not be verified.");
+        expect(adminApi.updateAdminPolicy).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+        expect(await screen.findByRole("status")).toHaveTextContent("Change saved and verified.");
+        expect(adminApi.updateAdminPolicy).toHaveBeenCalledTimes(1);
+        expect(adminApi.getAdminSummary).toHaveBeenCalledTimes(3);
     });
 
     it("confirms role, team, status, and session mutations with safe before/after context", async () => {
@@ -179,7 +231,11 @@ describe("Phase 8 admin dashboard", () => {
         };
         adminApi.listAdminUsers.mockResolvedValue(envelope({ items: [user] }));
         adminApi.listAdminTeams.mockResolvedValue(envelope({ items: [team] }));
-        adminApi.updateAdminUserRole.mockRejectedValueOnce(new Error("safe failure"));
+        adminApi.updateAdminUserRole.mockRejectedValueOnce(new ApiError({
+            status: 403,
+            code: "PERMISSION_DENIED",
+            message: "database detail must stay hidden",
+        }));
         adminApi.updateAdminUserTeam.mockResolvedValueOnce(envelope({}));
         adminApi.updateAdminUserStatus.mockResolvedValueOnce(envelope({}));
         adminApi.revokeAdminUserSessions.mockResolvedValueOnce(envelope({}));
@@ -199,7 +255,8 @@ describe("Phase 8 admin dashboard", () => {
         expect(adminApi.updateAdminUserRole).not.toHaveBeenCalled();
         fireEvent.click(within(dialog).getByRole("button", { name: "Change role" }));
 
-        expect(await screen.findByRole("alert")).toHaveTextContent("Update failed");
+        expect(await screen.findByRole("alert")).toHaveTextContent("Your current permissions do not allow this change.");
+        expect(screen.queryByText("database detail must stay hidden")).not.toBeInTheDocument();
         expect(roleSelect).toHaveValue("EMPLOYEE");
         expect(adminApi.updateAdminUserRole).toHaveBeenCalledWith("access-token", user.userId, "ORG_ADMIN");
 
