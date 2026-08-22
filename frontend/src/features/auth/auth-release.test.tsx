@@ -90,7 +90,14 @@ describe("frontend authentication release gate", () => {
             retrySession: vi.fn(),
         });
 
-        render(<LoginScreen />);
+        render(<LoginScreen initialValues={{
+            email: "demo@novastack.demo",
+            organisationSlug: "novastack",
+        }} />);
+        expect(screen.getByRole("link", { name: "Back to home" })).toHaveAttribute("href", "/");
+        expect(screen.getByLabelText("Organisation slug")).toHaveValue("novastack");
+        expect(screen.getByLabelText("Email")).toHaveValue("demo@novastack.demo");
+        expect(screen.getByLabelText("Password")).toHaveValue("");
         fireEvent.change(screen.getByLabelText("Organisation slug"), { target: { value: "proxiai-demo" } });
         fireEvent.change(screen.getByLabelText("Email"), { target: { value: "admin@proxiai.local" } });
         fireEvent.change(screen.getByLabelText("Password"), { target: { value: "  preserved password  " } });

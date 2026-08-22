@@ -1,6 +1,8 @@
 import { ArrowRight, LockKey, UserCircle } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 
+import { PUBLIC_DEMO_LOGIN } from "@/features/auth/public-demo";
+
 import { Reveal } from "../motion/reveal";
 
 const limitations = [
@@ -35,9 +37,9 @@ export function DemoAccessSection() {
                         </dl>
                         <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-text-muted">
                             <LockKey className="mt-0.5 shrink-0" size={15} aria-hidden="true" />
-                            Password is delivered separately and rotated outside source control.
+                            Interactive demo access may be started on demand. The rotating password is delivered separately and never stored in source control.
                         </p>
-                        <Link className="mt-7 inline-flex min-h-11 items-center justify-center gap-3 rounded-lg bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-dark focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/25" href="/login">
+                        <Link className="mt-7 inline-flex min-h-11 items-center justify-center gap-3 rounded-lg bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-dark focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-brand/25" href={PUBLIC_DEMO_LOGIN.href}>
                             Open demo login
                             <ArrowRight size={16} weight="bold" aria-hidden="true" />
                         </Link>

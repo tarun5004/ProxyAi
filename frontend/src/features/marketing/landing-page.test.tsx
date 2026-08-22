@@ -19,8 +19,8 @@ describe("public landing experience", () => {
         expect(screen.getByRole("heading", { name: /Security, reliability, and accounting/i })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Security claims backed by deterministic tests." })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Try the real governed chat path." })).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Try the restricted demo" })).toHaveAttribute("href", "/login");
-        expect(screen.getByRole("link", { name: "Open demo login" })).toHaveAttribute("href", "/login");
+        expect(screen.getByRole("link", { name: "Try the restricted demo" })).toHaveAttribute("href", "/login?demo=public");
+        expect(screen.getByRole("link", { name: "Open demo login" })).toHaveAttribute("href", "/login?demo=public");
         expect(screen.getAllByRole("link", { name: /Log in/i }).every((link) => link.getAttribute("href") === "/login")).toBe(true);
     });
 
@@ -40,11 +40,25 @@ describe("public landing experience", () => {
         expect(screen.getByText("novastack")).toBeInTheDocument();
         expect(screen.getByText("demo@novastack.demo")).toBeInTheDocument();
         expect(screen.getByText(/no admin, billing, audit-export, policy, or team-log permissions/i)).toBeInTheDocument();
+        expect(screen.getByText(/Interactive demo access may be started on demand/i)).toBeInTheDocument();
         expect(document.body.textContent).not.toMatch(/DEMO_PUBLIC_PASSWORD|ORG_ADMIN password/i);
         expect(document.body.textContent).not.toMatch(/Trusted by|SOC 2 certified/i);
     });
 
-    it("preserves the existing login route composition", () => {
-        expect(LoginPage().type).toBe(LoginScreen);
+    it("prefills only approved public identifiers and keeps a home path", async () => {
+        const page = await LoginPage({
+            searchParams: Promise.resolve({ demo: "public" }),
+        });
+
+        expect(page.type).toBe(LoginScreen);
+        expect(page.props.initialValues).toEqual({
+            email: "demo@novastack.demo",
+            organisationSlug: "novastack",
+        });
+
+        const arbitraryQuery = await LoginPage({
+            searchParams: Promise.resolve({ demo: ["public"] }),
+        });
+        expect(arbitraryQuery.props.initialValues).toBeUndefined();
     });
 });
