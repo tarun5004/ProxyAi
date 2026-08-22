@@ -108,6 +108,61 @@ test("MASK sends only masked content while preserving the original request", asy
     );
 });
 
+test("ProxiAI product questions bind truthful facts while ordinary provider messages stay unchanged", async () => {
+    const questions = [
+        "What security certifications does ProxiAI have?",
+        "Does ProxiAI use HSM?",
+        "Which AI providers does ProxiAI support?",
+        "Does ProxiAI store all prompts and responses?",
+        "Is ProxiAI SOC2 certified?",
+        "Does ProxiAI support regional data residency?",
+    ];
+
+    for (const question of questions) {
+        const runtime = createRuntime();
+
+        await prepare(runtime, question);
+
+        const messages = runtime.providerRequests[0]?.messages;
+        assert.equal(messages?.length, 2, question);
+        assert.equal(messages?.[0]?.role, "system");
+        assert.match(messages?.[0]?.content ?? "", /Groq is the only enabled production AI provider/);
+        assert.match(messages?.[0]?.content ?? "", /does not claim SOC 2/);
+        assert.match(messages?.[0]?.content ?? "", /HSM.*not implemented/);
+        assert.match(messages?.[0]?.content ?? "", /Regional data-residency guarantees.*not implemented/);
+        assert.equal(messages?.[1]?.role, "user");
+        assert.equal(messages?.[1]?.content, question);
+    }
+
+    const ordinaryPrompt = "Explain bounded security gates.";
+    const ordinaryRuntime = createRuntime();
+
+    await prepare(ordinaryRuntime, ordinaryPrompt);
+
+    assert.deepEqual(ordinaryRuntime.providerRequests[0]?.messages, [
+        { role: "user", content: ordinaryPrompt },
+    ]);
+
+    const sensitiveValue = "grounding-owner@example.test";
+    const maskedRuntime = createRuntime({
+        policy: { maskThreshold: 10, blockThreshold: 80 },
+    });
+
+    await prepare(
+        maskedRuntime,
+        `Does ProxiAI store messages for ${sensitiveValue}?`,
+    );
+
+    const maskedMessages = maskedRuntime.providerRequests[0]?.messages;
+    assert.equal(maskedMessages?.length, 2);
+    assert.equal(maskedMessages?.[0]?.role, "system");
+    assert.equal(
+        maskedMessages?.[1]?.content,
+        "Does ProxiAI store messages for [EMAIL_REDACTED]?",
+    );
+    assert.equal(JSON.stringify(maskedMessages).includes(sensitiveValue), false);
+});
+
 test("AES-GCM rejects every untrusted context and malformed envelope without leakage", () => {
     const key = randomBytes(32).toString("base64url");
     const plaintext = "PHASE11_ENCRYPTION_SENTINEL";

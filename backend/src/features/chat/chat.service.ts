@@ -68,6 +68,7 @@ import {
     startAcceptedChatMetrics,
     type ChatExecutionMetrics,
 } from "./chat.metrics.js";
+import { buildProductAwareProviderMessages } from "./product-facts.js";
 import {
     loadChatOrganisationContext,
     type ChatOrganisationContext,
@@ -306,12 +307,10 @@ export async function prepareChatStream(
         const providerStream = dependencies.streamProvider(
             {
                 requestId: input.requestId,
-                messages: Object.freeze([
-                    Object.freeze({
-                        role: "user" as const,
-                        content: approvedPrompt,
-                    }),
-                ]),
+                messages: buildProductAwareProviderMessages({
+                    originalPrompt: input.request.prompt,
+                    approvedPrompt,
+                }),
                 maxOutputTokens:
                     candidate.adapter.getCapabilities().maxOutputTokens,
                 abortSignal: input.abortSignal,
