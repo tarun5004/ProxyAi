@@ -23,6 +23,12 @@ const defaultProps = {
     retainedMessages: [],
     conversationStatus: "ready" as const,
     error: undefined,
+    routingDisplay: {
+        model: "Not routed",
+        provider: "Not routed",
+        routing: "Not routed",
+        status: "NOT_ROUTED" as const,
+    },
     onSend: vi.fn(async () => undefined),
     onOpenConversations: vi.fn(),
 };
@@ -268,6 +274,7 @@ describe("chat message presentation", () => {
                 title="Markdown review"
                 retainedMessages={[]}
                 conversationStatus="ready"
+                routingDisplay={defaultProps.routingDisplay}
                 streaming={false}
                 onSend={onSend}
                 onOpenConversations={vi.fn()}

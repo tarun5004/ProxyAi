@@ -17,6 +17,7 @@ import { ConversationSidebar } from "@/features/conversations/conversation-sideb
 import type { ConversationSummary } from "@/features/conversations/conversation.types";
 import type { MessageSummary } from "@/features/conversations/conversation.types";
 import { PolicyInspector } from "@/features/policy/policy-inspector";
+import { getRoutingDisplayState } from "@/features/policy/routing-display";
 import { ApiError } from "@/lib/errors/api-error";
 
 import { streamChat } from "./chat.api";
@@ -315,6 +316,12 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
     }
 
     const roleLabel = auth.context?.role.replaceAll("_", " ") ?? "Member";
+    const routingDisplay = getRoutingDisplayState({
+        completion,
+        policy,
+        routing,
+        streaming,
+    });
 
     return (
         <WorkspaceShell
@@ -343,6 +350,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 retainedMessages={retainedMessages}
                 conversationStatus={conversationStatus}
                 streaming={streaming}
+                routingDisplay={routingDisplay}
                 error={requestError}
                 onSend={handleSend}
                 onRetry={handleRetry}
@@ -353,9 +361,9 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
             />}
             inspector={<PolicyInspector
                 policy={policy}
-                routing={routing}
                 fallback={fallback}
                 completion={completion}
+                routingDisplay={routingDisplay}
                 open={inspectorOpen}
                 onClose={() => setInspectorOpen(false)}
             />}

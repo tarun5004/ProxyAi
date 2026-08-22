@@ -6,14 +6,14 @@ import type {
     DoneEvent,
     FallbackEvent,
     PolicyEvent,
-    RoutingEvent,
 } from "@/features/chat/chat.types";
+import type { RoutingDisplayState } from "./routing-display";
 
 interface PolicyInspectorProps {
     policy?: PolicyEvent;
-    routing?: RoutingEvent;
     fallback?: FallbackEvent;
     completion?: DoneEvent;
+    routingDisplay: RoutingDisplayState;
     open: boolean;
     onClose(): void;
 }
@@ -92,9 +92,9 @@ export function PolicyInspector(props: PolicyInspectorProps) {
                 <span className="text-xs font-semibold text-text-primary">Processing Details</span>
                 <dl className="m-0 grid gap-[11px]">
                     <Detail label="Masking" value={props.policy?.masked ? "Applied" : "Not applied"} />
-                    <Detail label="Provider" value={props.routing?.provider ?? "Pending"} />
-                    <Detail label="Model" value={props.completion?.model ?? "openai/gpt-oss-20b"} />
-                    <Detail label="Routing" value={props.routing?.routingReason ?? "Manual"} />
+                    <Detail label="Provider" value={props.routingDisplay.provider} />
+                    <Detail label="Model" value={props.routingDisplay.model} />
+                    <Detail label="Routing" value={props.routingDisplay.routing} />
                     <Detail label="Fallback" value={formatFallback(props.fallback)} />
                     <Detail label="Latency" value={props.completion ? `${props.completion.latencyMs} ms` : "—"} />
                     <Detail label="Tokens" value={String(props.completion?.usage?.totalTokens ?? "—")} />

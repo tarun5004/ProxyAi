@@ -21,6 +21,7 @@ import {
 
 import { ConversationTitleEditor } from "@/features/conversations/conversation-title-editor";
 import type { MessageSummary } from "@/features/conversations/conversation.types";
+import type { RoutingDisplayState } from "@/features/policy/routing-display";
 
 import { AssistantMarkdown } from "./assistant-markdown";
 import type { UiChatMessage } from "./chat.types";
@@ -28,12 +29,20 @@ import { RetentionIndicator } from "./retention-indicator";
 import type { RetentionMode } from "@/features/auth/auth.types";
 
 const NEAR_BOTTOM_DISTANCE_PX = 96;
+const ROUTING_STATUS_LABELS: Record<RoutingDisplayState["status"], string> = {
+    BLOCKED: "Blocked",
+    NOT_ROUTED: "Not routed",
+    PENDING: "Pending",
+    ROUTED: "Routed",
+    ROUTING: "Routing",
+};
 
 interface ChatCenterProps {
     title: string;
     messages: readonly UiChatMessage[];
     retainedMessages: readonly MessageSummary[];
     conversationStatus: "error" | "idle" | "loading" | "ready";
+    routingDisplay: RoutingDisplayState;
     streaming: boolean;
     error?: string;
     onSend(prompt: string): Promise<void>;
@@ -160,10 +169,11 @@ export function ChatCenter(props: ChatCenterProps) {
                     )}
                     <div className="flex items-center gap-2.5">
                         <span className="inline-flex min-h-9 items-center rounded-[9px] border border-border-default px-3 text-xs text-[#303632] max-[720px]:min-h-[30px] max-[720px]:max-w-45 max-[720px]:overflow-hidden max-[720px]:px-[9px] max-[720px]:text-ellipsis max-[720px]:whitespace-nowrap">
-                            openai/gpt-oss-20b
+                            {props.routingDisplay.model}
                         </span>
                         <span className="inline-flex min-h-9 items-center gap-2 rounded-[9px] border border-border-default px-3 text-xs text-[#303632] max-[720px]:hidden">
-                            <i className="size-[7px] rounded-full bg-brand" /> Online
+                            <i className={`size-[7px] rounded-full ${routingStatusDotClass(props.routingDisplay.status)}`} />
+                            {formatRoutingStatus(props.routingDisplay.status)}
                         </span>
                     </div>
                 </div>
@@ -358,6 +368,22 @@ export function ChatCenter(props: ChatCenterProps) {
 function isNearBottom(element: HTMLElement) {
     return element.scrollHeight - element.scrollTop - element.clientHeight
         <= NEAR_BOTTOM_DISTANCE_PX;
+}
+
+function formatRoutingStatus(status: RoutingDisplayState["status"]): string {
+    return ROUTING_STATUS_LABELS[status];
+}
+
+function routingStatusDotClass(status: RoutingDisplayState["status"]): string {
+    if (status === "BLOCKED") {
+        return "bg-danger";
+    }
+
+    if (status === "ROUTING" || status === "ROUTED") {
+        return "bg-brand";
+    }
+
+    return "bg-text-faint";
 }
 
 function scrollToLatest(
