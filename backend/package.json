@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "nodemon",
     "dev:seed-admin": "tsx src/scripts/seed-dev-admin.ts",
+    "demo:provision-admin": "tsx src/scripts/provision-demo-admin.ts",
+    "demo:reset-public": "tsx src/scripts/reset-public-demo.ts",
     "seed:demo": "tsx src/scripts/seed-demo-organisation.ts",
     "deploy:indexes": "node dist/scripts/deploy-indexes.js",
     "migrate:phase9": "node dist/scripts/migrate-phase9.js",
