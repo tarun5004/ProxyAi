@@ -1,127 +1,172 @@
 import { spawn } from "node:child_process";
+import { readdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import net from "node:net";
 
 const backendDirectory = fileURLToPath(new URL("../backend/", import.meta.url));
-
 const suffix = `${process.pid}-${Date.now()}`;
-const mongoContainer = `proxiai-phase11-mongo-${suffix}`;
-const redisContainer = `proxiai-phase11-redis-${suffix}`;
-const mongoPort = await reservePort();
-const redisPort = await reservePort();
+const integrationBatchSize = 8;
+const integrationConcurrency = 1;
+const integrationFileTimeoutMs = 90_000;
+const integrationFiles = (await readdir(resolve(backendDirectory, "tests")))
+    .filter((fileName) => fileName.endsWith(".integration.mjs"))
+    .sort()
+    .map((fileName) => `tests/${fileName}`);
 
-try {
-    await run("docker", [
-        "run",
-        "--detach",
-        "--rm",
-        "--name",
-        mongoContainer,
-        "--publish",
-        `127.0.0.1:${mongoPort}:${mongoPort}`,
-        "mongo:8.0.12",
-        "--replSet",
-        "rs0",
-        "--bind_ip_all",
-        "--port",
-        String(mongoPort),
-    ]);
-    await run("docker", [
-        "run",
-        "--detach",
-        "--rm",
-        "--name",
-        redisContainer,
-        "--publish",
-        `127.0.0.1:${redisPort}:6379`,
-        "redis:7.4.2-bookworm",
-        "redis-server",
-        "--save",
-        "",
-        "--appendonly",
-        "no",
-    ]);
+if (integrationFiles.length === 0) {
+    throw new Error("No integration test files were discovered.");
+}
 
-    await waitFor(async () => (await run(
-        "docker",
-        [
-            "exec",
-            mongoContainer,
-            "mongosh",
-            "--quiet",
-            "--port",
-            String(mongoPort),
-            "--eval",
-            "db.adminCommand({ping:1}).ok",
-        ],
-        { quiet: true, allowFailure: true },
-    )).output.trim() === "1", "MongoDB startup");
+await runBackendNpmScript("build");
 
-    await run("docker", [
-        "exec",
-        mongoContainer,
-        "mongosh",
-        "--quiet",
-        "--port",
-        String(mongoPort),
-        "--eval",
-        `rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:${mongoPort}'}]}).ok`,
-    ]);
-    await waitFor(async () => (await run(
-        "docker",
-        [
-            "exec",
-            mongoContainer,
-            "mongosh",
-            "--quiet",
-            "--port",
-            String(mongoPort),
-            "--eval",
-            "db.hello().isWritablePrimary",
-        ],
-        { quiet: true, allowFailure: true },
-    )).output.trim() === "true", "MongoDB replica-set election");
-    await waitFor(async () => (await run(
-        "docker",
-        ["exec", redisContainer, "redis-cli", "ping"],
-        { quiet: true, allowFailure: true },
-    )).output.trim() === "PONG", "Redis startup");
-
-    const environment = createIntegrationEnvironment(mongoPort, redisPort);
-    const testCommand = process.platform === "win32"
-        ? (process.env.ComSpec ?? "cmd.exe")
-        : "npm";
-    const testArguments = process.platform === "win32"
-        ? ["/d", "/s", "/c", "npm run test:integration"]
-        : ["run", "test:integration"];
-    const result = await run(
-        testCommand,
-        testArguments,
-        {
-            cwd: backendDirectory,
-            env: environment,
-            capture: true,
-        },
+for (let offset = 0; offset < integrationFiles.length; offset += integrationBatchSize) {
+    await runIntegrationBatch(
+        Math.floor(offset / integrationBatchSize) + 1,
+        integrationFiles.slice(offset, offset + integrationBatchSize),
     );
+}
 
-    if (!/# fail 0\b/u.test(result.output)
-        || !/# skipped 0\b/u.test(result.output)) {
-        throw new Error("Phase 11 integration must finish with zero failures and zero skips.");
+process.stdout.write(`${JSON.stringify({
+    phase: 11,
+    integration: "PASS",
+    mongo: "replica-set",
+    redis: "isolated",
+    bullmq: "isolated",
+    files: integrationFiles.length,
+    batches: Math.ceil(integrationFiles.length / integrationBatchSize),
+})}\n`);
+
+async function runIntegrationBatch(batchNumber, testFiles) {
+    const mongoContainer = `proxiai-phase11-mongo-${suffix}-${batchNumber}`;
+    const redisContainer = `proxiai-phase11-redis-${suffix}-${batchNumber}`;
+    const mongoPort = await reservePort();
+    const redisPort = await reservePort();
+
+    try {
+        await run("docker", [
+            "run",
+            "--detach",
+            "--rm",
+            "--name",
+            mongoContainer,
+            "--publish",
+            `127.0.0.1:${mongoPort}:${mongoPort}`,
+            "mongo:8.0.12",
+            "--replSet",
+            "rs0",
+            "--bind_ip_all",
+            "--port",
+            String(mongoPort),
+        ]);
+        await run("docker", [
+            "run",
+            "--detach",
+            "--rm",
+            "--name",
+            redisContainer,
+            "--publish",
+            `127.0.0.1:${redisPort}:6379`,
+            "redis:7.4.2-bookworm",
+            "redis-server",
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+        ]);
+
+        await waitFor(async () => (await run(
+            "docker",
+            [
+                "exec",
+                mongoContainer,
+                "mongosh",
+                "--quiet",
+                "--port",
+                String(mongoPort),
+                "--eval",
+                "db.adminCommand({ping:1}).ok",
+            ],
+            { quiet: true, allowFailure: true },
+        )).output.trim() === "1", "MongoDB startup");
+
+        await run("docker", [
+            "exec",
+            mongoContainer,
+            "mongosh",
+            "--quiet",
+            "--port",
+            String(mongoPort),
+            "--eval",
+            `rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:${mongoPort}'}]}).ok`,
+        ]);
+        await waitFor(async () => (await run(
+            "docker",
+            [
+                "exec",
+                mongoContainer,
+                "mongosh",
+                "--quiet",
+                "--port",
+                String(mongoPort),
+                "--eval",
+                "db.hello().isWritablePrimary",
+            ],
+            { quiet: true, allowFailure: true },
+        )).output.trim() === "true", "MongoDB replica-set election");
+        await waitFor(async () => (await run(
+            "docker",
+            ["exec", redisContainer, "redis-cli", "ping"],
+            { quiet: true, allowFailure: true },
+        )).output.trim() === "PONG", "Redis startup");
+
+        const environment = createIntegrationEnvironment(mongoPort, redisPort);
+        await waitFor(
+            () => probeMongoDriver(environment),
+            "MongoDB application-driver readiness",
+        );
+        const result = await run(
+            process.execPath,
+            [
+                "--test",
+                `--test-concurrency=${integrationConcurrency}`,
+                `--test-timeout=${integrationFileTimeoutMs}`,
+                ...testFiles,
+            ],
+            {
+                cwd: backendDirectory,
+                env: environment,
+                capture: true,
+            },
+        );
+
+        if (!/# cancelled 0\b/u.test(result.output)
+            || !/# fail 0\b/u.test(result.output)
+            || !/# skipped 0\b/u.test(result.output)) {
+            throw new Error(
+                `Phase 11 integration batch ${batchNumber} must finish with zero cancellations, failures, and skips.`,
+            );
+        }
+    } finally {
+        await run(
+            "docker",
+            ["rm", "--force", mongoContainer, redisContainer],
+            { quiet: true, allowFailure: true },
+        );
+    }
+}
+
+async function runBackendNpmScript(scriptName) {
+    if (process.platform === "win32") {
+        await run(
+            process.env.ComSpec ?? "cmd.exe",
+            ["/d", "/s", "/c", `npm run ${scriptName}`],
+            { cwd: backendDirectory },
+        );
+        return;
     }
 
-    process.stdout.write(`${JSON.stringify({
-        phase: 11,
-        integration: "PASS",
-        mongo: "replica-set",
-        redis: "isolated",
-        bullmq: "isolated",
-    })}\n`);
-} finally {
-    await run(
-        "docker",
-        ["rm", "--force", mongoContainer, redisContainer],
-        { quiet: true, allowFailure: true },
-    );
+    await run("npm", ["run", scriptName], { cwd: backendDirectory });
 }
 
 function createIntegrationEnvironment(mongoPortValue, redisPortValue) {
@@ -162,6 +207,30 @@ function createIntegrationEnvironment(mongoPortValue, redisPortValue) {
 
 function mongoUri(port, databaseName) {
     return `mongodb://127.0.0.1:${port}/${databaseName}?replicaSet=rs0`;
+}
+
+async function probeMongoDriver(environment) {
+    const script = [
+        'import mongoose from "mongoose";',
+        "try {",
+        "await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 5000 });",
+        "await mongoose.connection.db.admin().command({ ping: 1 });",
+        "} finally {",
+        "await mongoose.disconnect();",
+        "}",
+    ].join("");
+    const result = await run(
+        process.execPath,
+        ["--input-type=module", "--eval", script],
+        {
+            cwd: backendDirectory,
+            env: environment,
+            quiet: true,
+            allowFailure: true,
+        },
+    );
+
+    return result.code === 0;
 }
 
 async function reservePort() {

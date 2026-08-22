@@ -16,7 +16,7 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test --test-timeout=30000 tests/*.test.mjs",
-    "test:integration": "npm run build && node --test --test-timeout=30000 tests/*.integration.mjs",
+    "test:integration": "npm run build && node --test --test-concurrency=1 --test-timeout=90000 tests/*.integration.mjs",
     "test:coverage": "npm run build && node --test --test-timeout=30000 --experimental-test-coverage --test-coverage-include=dist/**/*.js --test-coverage-lines=75 tests/*.test.mjs",
     "test:coverage:critical": "npm run build && node ../scripts/verify-backend-critical-coverage.mjs",
     "test:release-harness": "node --test ../scripts/release-harness.test.mjs"
