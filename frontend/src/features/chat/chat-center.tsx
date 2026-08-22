@@ -2,6 +2,7 @@
 
 import {
     ArrowDown,
+    ArrowClockwise,
     List,
     PaperPlaneTilt,
     ShieldCheck,
@@ -35,6 +36,7 @@ interface ChatCenterProps {
     streaming: boolean;
     error?: string;
     onSend(prompt: string): Promise<void>;
+    onRetry?(assistantMessageId: string): Promise<void>;
     onRename?(title: string): Promise<void>;
     onOpenConversations(): void;
     onOpenPolicy?(): void;
@@ -234,8 +236,23 @@ export function ChatCenter(props: ChatCenterProps) {
                             {message.state === "streaming" ? (
                                 <span className="mt-3 inline-block text-[11px] font-semibold text-brand">Streaming</span>
                             ) : null}
-                            {message.state === "error" ? (
-                                <span className="mt-3 inline-block text-[11px] font-semibold text-danger">Response interrupted</span>
+                            {message.state === "error" || message.state === "aborted" ? (
+                                <div className="mt-3 flex flex-wrap items-center gap-3">
+                                    <span className="text-[11px] font-semibold text-danger">
+                                        {message.state === "aborted" ? "Response stopped" : "Response interrupted"}
+                                    </span>
+                                    {message.retryable && props.onRetry && !props.streaming ? (
+                                        <button
+                                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-default px-3 text-[11px] font-semibold text-text-primary hover:border-brand/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                            type="button"
+                                            onClick={() => void props.onRetry?.(message.id)}
+                                            aria-label="Retry response"
+                                        >
+                                            <ArrowClockwise size={15} aria-hidden="true" />
+                                            Retry
+                                        </button>
+                                    ) : null}
+                                </div>
                             ) : null}
                         </div>
                     </article>

@@ -6,6 +6,7 @@ import { chatEventSchemas, type ChatEvent } from "./chat.types";
 
 export async function* streamChat(input: {
     accessToken: string;
+    clientRequestId: string;
     conversationId: string;
     prompt: string;
     signal: AbortSignal;
@@ -25,7 +26,7 @@ export async function* streamChat(input: {
             body: JSON.stringify({
                 conversationId: input.conversationId,
                 prompt: input.prompt,
-                clientRequestId: crypto.randomUUID(),
+                clientRequestId: input.clientRequestId,
                 providerId: "groq",
                 routingMode: "manual",
             }),

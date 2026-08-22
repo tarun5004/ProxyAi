@@ -26,6 +26,7 @@ describe("chat stream protocol", () => {
 
             for await (const event of streamChat({
                 accessToken: "access-token",
+                clientRequestId: "22222222-2222-4222-8222-222222222222",
                 conversationId: "11111111-1111-4111-8111-111111111111",
                 prompt: "safe prompt",
                 signal: new AbortController().signal,
@@ -39,5 +40,17 @@ describe("chat stream protocol", () => {
         await expect(collect()).rejects.toMatchObject({
             code: "STREAM_INTERRUPTED",
         });
+        expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({
+                body: JSON.stringify({
+                    conversationId: "11111111-1111-4111-8111-111111111111",
+                    prompt: "safe prompt",
+                    clientRequestId: "22222222-2222-4222-8222-222222222222",
+                    providerId: "groq",
+                    routingMode: "manual",
+                }),
+            }),
+        );
     });
 });

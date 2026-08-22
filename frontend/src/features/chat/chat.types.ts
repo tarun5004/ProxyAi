@@ -83,5 +83,6 @@ export interface UiChatMessage {
     id: string;
     role: "user" | "assistant";
     content: string;
-    state: "complete" | "streaming" | "error";
+    state: "aborted" | "complete" | "streaming" | "error";
+    retryable?: boolean;
 }

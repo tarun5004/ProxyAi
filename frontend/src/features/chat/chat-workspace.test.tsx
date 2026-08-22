@@ -247,4 +247,84 @@ describe("conversation workspace loading", () => {
         )).toBeInTheDocument();
         expect(screen.queryByText("Policy blocked.")).not.toBeInTheDocument();
     });
+
+    it("retries only a terminal failure with a fresh client request identity", async () => {
+        let finishFirstAttempt: (() => void) | undefined;
+        chatApi.streamChat
+            .mockImplementationOnce(async function* () {
+                yield { type: "token", data: { text: "Partial answer" } };
+                await new Promise<void>((resolve) => {
+                    finishFirstAttempt = resolve;
+                });
+                yield {
+                    type: "error",
+                    data: {
+                        code: "PROVIDER_UNAVAILABLE",
+                        message: "Provider unavailable.",
+                        requestId: "77777777-7777-4777-8777-777777777777",
+                        retryable: true,
+                    },
+                };
+            })
+            .mockImplementationOnce(async function* () {
+                yield { type: "token", data: { text: "Recovered answer" } };
+                yield {
+                    type: "done",
+                    data: {
+                        requestId: "88888888-8888-4888-8888-888888888888",
+                        provider: "groq",
+                        model: "openai/gpt-oss-20b",
+                        routingReason: "ordered",
+                        latencyMs: 90,
+                        cacheHit: false,
+                        masked: false,
+                    },
+                };
+            });
+        render(<ChatWorkspace initialConversationId={firstConversation.conversationId} />);
+
+        await screen.findByRole("heading", { name: "Security review" });
+        fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+            target: { value: "Retry this prompt" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+        expect(await screen.findByText("Partial answer")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Retry response" })).not.toBeInTheDocument();
+
+        finishFirstAttempt?.();
+        const retryButton = await screen.findByRole("button", { name: "Retry response" });
+        const firstClientRequestId = chatApi.streamChat.mock.calls[0]?.[0].clientRequestId;
+        fireEvent.click(retryButton);
+
+        expect(await screen.findByText("Recovered answer")).toBeInTheDocument();
+        await waitFor(() => expect(chatApi.streamChat).toHaveBeenCalledTimes(2));
+        const secondClientRequestId = chatApi.streamChat.mock.calls[1]?.[0].clientRequestId;
+        expect(firstClientRequestId).toMatch(/^[0-9a-f-]{36}$/u);
+        expect(secondClientRequestId).toMatch(/^[0-9a-f-]{36}$/u);
+        expect(secondClientRequestId).not.toBe(firstClientRequestId);
+        expect(screen.getAllByText("Retry this prompt")).toHaveLength(1);
+        expect(screen.queryByRole("button", { name: "Retry response" })).not.toBeInTheDocument();
+    });
+
+    it("offers retry after an aborted terminal attempt", async () => {
+        chatApi.streamChat.mockImplementationOnce(async function* () {
+            const abortError = new Error("aborted");
+            abortError.name = "AbortError";
+            throw abortError;
+        });
+        render(<ChatWorkspace initialConversationId={firstConversation.conversationId} />);
+
+        await screen.findByRole("heading", { name: "Security review" });
+        fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+            target: { value: "Abort-safe retry" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+        expect(await screen.findByText("Response stopped")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Retry response" })).toBeEnabled();
+        expect(screen.getByText(
+            "The response was stopped before completion. You can retry safely.",
+        )).toBeInTheDocument();
+    });
 });

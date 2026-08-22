@@ -38,6 +38,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
     const auth = useAuth();
     const router = useRouter();
     const activeRequest = useRef<AbortController | undefined>(undefined);
+    const requestInFlight = useRef(false);
     const [conversations, setConversations] = useState<ConversationSummary[]>([]);
     const [conversationListStatus, setConversationListStatus] = useState<"error" | "loading" | "ready">("loading");
     const [conversationListReload, setConversationListReload] = useState(0);
@@ -142,11 +143,12 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
         }
     }, [auth.accessToken, creating, router]);
 
-    const handleSend = useCallback(async (prompt: string) => {
-        if (!auth.accessToken || streaming) {
+    const handleSend = useCallback(async (prompt: string, retryAssistantId?: string) => {
+        if (!auth.accessToken || requestInFlight.current) {
             return;
         }
 
+        requestInFlight.current = true;
         setStreaming(true);
         setRequestError(undefined);
         setPolicy(undefined);
@@ -168,30 +170,44 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 router.replace(`/chat/${conversation.conversationId}`);
             }
 
-            const userMessage: UiChatMessage = {
-                id: crypto.randomUUID(),
-                role: "user",
-                content: prompt,
-                state: "complete",
-            };
             const createdAssistantId = crypto.randomUUID();
             assistantId = createdAssistantId;
-            setMessages((current) => [
-                ...current,
-                userMessage,
-                {
+            setMessages((current) => {
+                const assistantMessage: UiChatMessage = {
                     id: createdAssistantId,
                     role: "assistant",
                     content: "",
+                    retryable: false,
                     state: "streaming",
-                },
-            ]);
+                };
+
+                if (retryAssistantId) {
+                    return current.map((message) =>
+                        message.id === retryAssistantId
+                            ? assistantMessage
+                            : message,
+                    );
+                }
+
+                return [
+                    ...current,
+                    {
+                        id: crypto.randomUUID(),
+                        role: "user",
+                        content: prompt,
+                        state: "complete",
+                    },
+                    assistantMessage,
+                ];
+            });
 
             const abortController = new AbortController();
             activeRequest.current = abortController;
+            const clientRequestId = crypto.randomUUID();
 
             for await (const event of streamChat({
                 accessToken: auth.accessToken,
+                clientRequestId,
                 conversationId: conversation.conversationId,
                 prompt,
                 signal: abortController.signal,
@@ -211,37 +227,62 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                     setCompletion(event.data);
                     updateAssistantMessage(setMessages, assistantId, (message) => ({
                         ...message,
+                        retryable: false,
                         state: "complete",
                     }));
                 } else if (event.type === "error") {
                     updateAssistantMessage(setMessages, assistantId, (message) => ({
                         ...message,
+                        retryable: event.data.retryable,
                         state: "error",
                     }));
                     setRequestError("The response stream was interrupted. Please try again.");
                 }
             }
         } catch (error: unknown) {
-            if (isAbortError(error)) {
-                setMessages((current) => current.filter(
-                    (message) => message.state !== "streaming",
-                ));
-            } else if (assistantId !== undefined) {
+            if (assistantId !== undefined) {
                 updateAssistantMessage(
                     setMessages,
                     assistantId,
                     (message) => ({
                         ...message,
-                        state: "error",
+                        retryable: isAbortError(error) || isRetryableChatFailure(error),
+                        state: isAbortError(error) ? "aborted" : "error",
                     }),
                 );
             }
-            handleChatError(error, setPolicy, setRequestError);
+
+            if (isAbortError(error)) {
+                setRequestError("The response was stopped before completion. You can retry safely.");
+            } else {
+                handleChatError(error, setPolicy, setRequestError);
+            }
         } finally {
             activeRequest.current = undefined;
+            requestInFlight.current = false;
             setStreaming(false);
         }
-    }, [activeConversation, auth.accessToken, router, streaming]);
+    }, [activeConversation, auth.accessToken, router]);
+
+    const handleRetry = useCallback(async (assistantMessageId: string) => {
+        if (requestInFlight.current) {
+            return;
+        }
+
+        const assistantIndex = messages.findIndex((message) =>
+            message.id === assistantMessageId
+            && message.role === "assistant"
+            && message.retryable === true
+            && (message.state === "aborted" || message.state === "error"),
+        );
+        const prompt = findRetryPrompt(messages, assistantIndex);
+
+        if (!prompt) {
+            return;
+        }
+
+        await handleSend(prompt, assistantMessageId);
+    }, [handleSend, messages]);
 
     const handleRename = useCallback(async (title: string) => {
         if (!auth.accessToken || !activeConversation) {
@@ -299,6 +340,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                 streaming={streaming}
                 error={requestError}
                 onSend={handleSend}
+                onRetry={handleRetry}
                 onRename={activeConversation ? handleRename : undefined}
                 onOpenConversations={() => setSidebarOpen(true)}
                 onOpenPolicy={() => setInspectorOpen(true)}
@@ -323,6 +365,35 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
 
 function isAbortError(error: unknown): boolean {
     return error instanceof Error && error.name === "AbortError";
+}
+
+function isRetryableChatFailure(error: unknown): boolean {
+    if (!(error instanceof ApiError)) {
+        return true;
+    }
+
+    return error.code === "STREAM_INTERRUPTED"
+        || error.code === "RATE_LIMITED"
+        || error.status >= 500;
+}
+
+function findRetryPrompt(
+    messages: readonly UiChatMessage[],
+    assistantIndex: number,
+): string | undefined {
+    if (assistantIndex <= 0) {
+        return undefined;
+    }
+
+    for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+        const message = messages[index];
+
+        if (message?.role === "user") {
+            return message.content;
+        }
+    }
+
+    return undefined;
 }
 
 function updateAssistantMessage(
