@@ -1,6 +1,6 @@
 .next/
+.playwright-cli/
 out/
 coverage/
 node_modules/
 *.tsbuildinfo
-
