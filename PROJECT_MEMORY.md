@@ -1673,6 +1673,22 @@ current deployment prerequisite or completion gate.
   intentionally deep-stopped. Certify the next ECS release window; do not
   pursue Lightsail without a new architecture decision.
 
+## Latest Task — Render Cold-Start Liveness
+
+- **Root cause:** The API previously connected MongoDB, Redis, encryption
+  storage readiness, and BullMQ queue producers before binding its HTTP port,
+  so Render could not reach Express liveness during a free-tier cold start.
+- **Runtime contract:** Local encryption configuration initializes first; the
+  API then binds `0.0.0.0` on validated `PORT` (`8080` default), serves
+  dependency-free `/health/live`, and initializes network dependencies.
+- **Fail-closed readiness:** `/health/ready` remains `503` and `/api/v1`
+  returns `SERVICE_STARTING` until MongoDB, Redis, encryption readiness, and
+  billing/analytics queue producers are ready. Failed/stopping state returns
+  `SERVICE_UNAVAILABLE`; provider health remains separate.
+- **Verification:** Cold-start order, liveness, aggregate readiness, safe API
+  rejection, dependency failure, Render port/host, and graceful shutdown have
+  focused coverage; the backend full suite passes.
+
 ## Do Not Forget
 
 - Implement only the active PHASE task; keep deferred features out of the MVP.

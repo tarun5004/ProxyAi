@@ -53,6 +53,11 @@ const [
     import("../dist/shared/lib/mongo.js"),
 ]);
 
+const { markApiRuntimeReady } = await import(
+    "../dist/shared/runtime/api-runtime-state.js"
+);
+markApiRuntimeReady();
+
 const mongoose = mongooseModule.default;
 const { connectMongo, disconnectMongo } = mongoModule;
 const PASSWORD = "Valid refresh password";

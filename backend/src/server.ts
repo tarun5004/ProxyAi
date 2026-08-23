@@ -9,11 +9,16 @@ import { connectMongo } from "./shared/lib/mongo.js";
 import { connectRedis } from "./shared/lib/redis.js";
 import { disconnectInfrastructure } from
     "./shared/runtime/infrastructure.js";
+import { openApiListener, API_LISTEN_HOST } from
+    "./shared/runtime/api-listener.js";
+import {
+    shutdownApiRuntime,
+    startApiRuntime,
+} from "./shared/runtime/api-startup.js";
 import { closeHttpServerWithinGrace } from
     "./shared/runtime/http-server-shutdown.js";
 import {
     ApiStartupStageError,
-    runApiStartupStage,
 } from "./shared/runtime/startup-stage.js";
 import { initializeEncryption } from "./shared/security/encryption.js";
 import { assertEncryptionStorageReady } from "./shared/security/encryption-readiness.js";
@@ -22,45 +27,36 @@ let server: Server | undefined;
 let shutdownStarted = false;
 
 async function startApi(): Promise<void> {
-    await runApiStartupStage(
-        "encryption_initialization",
-        "ENCRYPTION_INITIALIZATION_FAILED",
+    const ready = await startApiRuntime({
         initializeEncryption,
-    );
-    await Promise.all([
-        runApiStartupStage(
-            "mongo_connection",
-            "MONGODB_CONNECTION_FAILED",
-            connectMongo,
-        ),
-        runApiStartupStage(
-            "redis_connection",
-            "REDIS_CONNECTION_FAILED",
-            connectRedis,
-        ),
-    ]);
-    await runApiStartupStage(
-        "encryption_readiness",
-        "ENCRYPTION_READINESS_FAILED",
+        startHttpListener: async () => {
+            server = await openApiListener(
+                (port, host, onListening) => app.listen(
+                    port,
+                    host,
+                    onListening,
+                ),
+                env.PORT,
+            );
+            logger.info(
+                {
+                    event: "app.listening",
+                    host: API_LISTEN_HOST,
+                    port: env.PORT,
+                },
+                "ProxiAI API listener started",
+            );
+        },
+        connectMongo,
+        connectRedis,
         assertEncryptionStorageReady,
-    );
-    await runApiStartupStage(
-        "async_infrastructure",
-        "ASYNC_INFRASTRUCTURE_CONNECTION_FAILED",
-        connectApiAsyncInfrastructure,
-    );
+        connectAsyncInfrastructure: connectApiAsyncInfrastructure,
+        isShutdownRequested: () => shutdownStarted,
+    });
 
-    if (shutdownStarted) {
+    if (!ready) {
         return;
     }
-
-    await runApiStartupStage(
-        "http_listener",
-        "HTTP_LISTENER_START_FAILED",
-        async () => {
-            server = await listen();
-        },
-    );
 
     logger.info(
         {
@@ -87,10 +83,12 @@ async function shutdown(
         "Application shutdown started",
     );
 
-    const httpClosed = await closeHttpServer();
-    const infrastructureClosed = await disconnectInfrastructure();
+    const closed = await shutdownApiRuntime({
+        closeHttpServer,
+        disconnectInfrastructure,
+    });
 
-    if (!httpClosed || !infrastructureClosed) {
+    if (!closed) {
         process.exitCode = 1;
     }
 
@@ -100,17 +98,6 @@ async function shutdown(
         },
         "Application shutdown completed",
     );
-}
-
-function listen(): Promise<Server> {
-    return new Promise((resolve, reject) => {
-        const listeningServer = app.listen(env.PORT, () => {
-            listeningServer.off("error", reject);
-            resolve(listeningServer);
-        });
-
-        listeningServer.once("error", reject);
-    });
 }
 
 async function closeHttpServer(): Promise<boolean> {

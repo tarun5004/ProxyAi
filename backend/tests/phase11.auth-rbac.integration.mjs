@@ -42,6 +42,11 @@ const [
     import("../dist/features/users/user.types.js"),
 ]);
 
+const { markApiRuntimeReady } = await import(
+    "../dist/shared/runtime/api-runtime-state.js"
+);
+markApiRuntimeReady();
+
 const mongoose = mongooseModule.default;
 const { connectMongo, disconnectMongo } = mongoModule;
 const server = app.listen(0, "127.0.0.1");

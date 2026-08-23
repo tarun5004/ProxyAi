@@ -16,13 +16,13 @@ export class ApiStartupStageError extends Error {
     }
 }
 
-export async function runApiStartupStage(
+export async function runApiStartupStage<Result>(
     startupStage: ApiStartupStage,
     errorCode: string,
-    operation: () => void | Promise<void>,
-): Promise<void> {
+    operation: () => Result | Promise<Result>,
+): Promise<Result> {
     try {
-        await operation();
+        return await operation();
     } catch {
         throw new ApiStartupStageError(startupStage, errorCode);
     }

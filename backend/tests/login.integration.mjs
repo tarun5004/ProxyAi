@@ -59,6 +59,11 @@ const [
     import("../dist/shared/lib/redis.js"),
 ]);
 
+const { markApiRuntimeReady } = await import(
+    "../dist/shared/runtime/api-runtime-state.js"
+);
+markApiRuntimeReady();
+
 const mongoose = mongooseModule.default;
 const { connectMongo, disconnectMongo } = mongoModule;
 const { connectRedis, disconnectRedis, redis } = redisModule;

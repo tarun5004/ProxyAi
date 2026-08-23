@@ -13,6 +13,7 @@ import { globalErrorHandler } from "./shared/middleware/error.middleware.js";
 import { httpMetricsMiddleware } from "./shared/middleware/http-metrics.middleware.js";
 import { notFoundHandler } from "./shared/middleware/not-found.middleware.js";
 import { requestIdMiddleware } from "./shared/middleware/request-id.middleware.js";
+import { requireApiRuntimeReady } from "./shared/middleware/runtime-readiness.middleware.js";
 
 export const app = express();
 
@@ -23,12 +24,13 @@ app.use(requestIdMiddleware);
 app.use(httpMetricsMiddleware);
 app.use(helmet());
 app.use(cors(corsOptions));
-app.use(express.json({ limit: "1mb" }));
 app.use(metricsRouter);
+app.use("/health", healthRouter);
+app.use("/api/v1", requireApiRuntimeReady);
+app.use(express.json({ limit: "1mb" }));
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/chat", chatRouter);
 app.use("/api/v1/conversations", conversationRouter);
-app.use("/health", healthRouter);
 app.use(notFoundHandler);
 app.use(globalErrorHandler);

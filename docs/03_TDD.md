@@ -2161,7 +2161,9 @@ remain authoritative for those product views.
 
 ### 39.1 `/health/live`
 
-Returns `200` when the process event loop is running.
+Returns `200` once the HTTP listener is active. API startup initializes local
+encryption configuration, binds `0.0.0.0` on the validated `PORT`, and only
+then connects network dependencies.
 
 ### 39.2 `/health/ready`
 
@@ -2169,8 +2171,15 @@ Returns `200` only when:
 
 - MongoDB is connected.
 - Redis is connected.
+- encrypted-storage key readiness passes for persisted data.
+- API billing and analytics queue producers are connected.
 
 Returns `503` otherwise.
+
+While runtime readiness is incomplete, all `/api/v1` routes fail closed with
+`SERVICE_STARTING`; failed or stopping runtime state uses
+`SERVICE_UNAVAILABLE`. Health and bounded metrics endpoints remain outside the
+business-route gate.
 
 Provider health is separate routing/operational state. It must not make the
 base API process unready because transient provider degradation is handled by

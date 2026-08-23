@@ -1611,7 +1611,8 @@ Public, but output is intentionally minimal.
   "status": "ready",
   "checks": {
     "mongo": "up",
-    "redis": "up"
+    "redis": "up",
+    "runtime": "up"
   },
   "time": "2026-07-23T10:30:00.000Z"
 }
@@ -1624,13 +1625,17 @@ Public, but output is intentionally minimal.
   "status": "not_ready",
   "checks": {
     "mongo": "up",
-    "redis": "down"
+    "redis": "down",
+    "runtime": "down"
   },
   "time": "2026-07-23T10:30:00.000Z"
 }
 ```
 
 No connection strings, exception messages, provider keys, or topology details are returned.
+The aggregate `runtime` check becomes `up` only after encryption-storage
+readiness and required API queue producers initialize. While it is `down`,
+business `/api/v1` routes return safe `503` errors and do not execute.
 
 ## 24.3 GET `/health/detailed`
 

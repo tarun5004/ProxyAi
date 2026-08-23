@@ -1341,7 +1341,9 @@ only after shared-state limitations and measured load justify it.
 
 ### `/health/live`
 
-Checks only that the process is running.
+Returns `200` as soon as the API listener is active. The listener binds
+`0.0.0.0` on the validated runtime `PORT` before network dependencies connect,
+so platform liveness remains independent of MongoDB, Redis, and BullMQ startup.
 
 ### `/health/ready`
 
@@ -1349,6 +1351,12 @@ Checks:
 
 - MongoDB connectivity
 - Redis connectivity
+- Encryption storage readiness
+- API billing/analytics queue-producer readiness
+
+Until all required runtime dependencies are ready, `/health/ready` returns
+`503` and every `/api/v1` route is rejected with a safe startup/unavailable
+error before business handlers execute.
 
 Provider health remains routing/operational state and is intentionally not a
 base API readiness dependency.

@@ -24,6 +24,11 @@ const [
     import("../dist/shared/observability/metrics.js"),
 ]);
 
+const { markApiRuntimeReady } = await import(
+    "../dist/shared/runtime/api-runtime-state.js"
+);
+markApiRuntimeReady();
+
 const {
     APPROVED_METRIC_LABEL_VALUES,
     metrics,

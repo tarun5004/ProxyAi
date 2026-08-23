@@ -12,6 +12,11 @@ const [{ app }, metricsModule, { resolveHttpRouteTemplate }] = await Promise.all
     import("../dist/shared/middleware/http-metrics.middleware.js"),
 ]);
 
+const { markApiRuntimeReady } = await import(
+    "../dist/shared/runtime/api-runtime-state.js"
+);
+markApiRuntimeReady();
+
 const {
     APPROVED_METRIC_LABEL_VALUES,
     CHAT_LLM_DURATION_BUCKETS_SECONDS,

@@ -11,14 +11,16 @@ process.env.MONGO_URI ??= "mongodb://127.0.0.1:27017/proxiai_test";
 process.env.REDIS_URL ??= "redis://127.0.0.1:6379";
 process.env.COMMIT_SHA = "health-test-sha";
 
-const [{ app }, mongooseModule, redisModule] = await Promise.all([
+const [{ app }, mongooseModule, redisModule, runtimeModule] = await Promise.all([
     import("../dist/app.js"),
     import("mongoose"),
     import("../dist/shared/lib/redis.js"),
+    import("../dist/shared/runtime/api-runtime-state.js"),
 ]);
 
 const mongoose = mongooseModule.default;
 const { redis } = redisModule;
+const { markApiRuntimeReady, markApiRuntimeStarting } = runtimeModule;
 
 async function requestHealth(path) {
     const server = app.listen(0, "127.0.0.1");
@@ -37,6 +39,7 @@ async function requestHealth(path) {
 }
 
 test("liveness is dependency-free and includes deployment metadata", async () => {
+    markApiRuntimeStarting();
     const response = await requestHealth("/health/live");
     const body = await response.json();
 
@@ -50,6 +53,7 @@ test("liveness is dependency-free and includes deployment metadata", async () =>
 });
 
 test("readiness returns 503 when dependencies are unavailable", async () => {
+    markApiRuntimeStarting();
     const response = await requestHealth("/health/ready");
     const body = await response.json();
     const serializedBody = JSON.stringify(body);
@@ -59,6 +63,7 @@ test("readiness returns 503 when dependencies are unavailable", async () => {
     assert.deepEqual(body.checks, {
         mongo: "down",
         redis: "down",
+        runtime: "down",
     });
     assert.equal(serializedBody.includes(process.env.MONGO_URI), false);
     assert.equal(serializedBody.includes(process.env.REDIS_URL), false);
@@ -76,6 +81,7 @@ test("readiness returns 200 when MongoDB and Redis are ready", async () => {
         configurable: true,
         value: "ready",
     });
+    markApiRuntimeReady();
 
     try {
         const response = await requestHealth("/health/ready");
@@ -86,8 +92,10 @@ test("readiness returns 200 when MongoDB and Redis are ready", async () => {
         assert.deepEqual(body.checks, {
             mongo: "up",
             redis: "up",
+            runtime: "up",
         });
     } finally {
+        markApiRuntimeStarting();
         Object.defineProperty(mongoose.connection, "readyState", {
             configurable: true,
             value: originalMongoState,

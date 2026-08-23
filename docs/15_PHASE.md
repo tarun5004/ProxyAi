@@ -269,6 +269,9 @@ Last Completed Commit: feat(frontend): build technical recruiter-focused landing
 - [x] Add `/health/ready`.
 - [x] Check MongoDB readiness.
 - [x] Check Redis readiness.
+- [x] Bind the API listener before network dependency initialization.
+- [x] Keep `/api/v1` fail-closed until runtime readiness completes.
+- [x] Include encryption and API queue initialization in aggregate readiness.
 - [x] Add service version.
 - [x] Add commit SHA when available.
 

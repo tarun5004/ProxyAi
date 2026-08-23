@@ -16,6 +16,17 @@ const validEnvironment = {
 };
 
 function importEnvironment(overrides = {}) {
+    const environment = {
+        ...validEnvironment,
+        ...overrides,
+    };
+
+    for (const [name, value] of Object.entries(environment)) {
+        if (value === undefined) {
+            delete environment[name];
+        }
+    }
+
     return spawnSync(
         process.execPath,
         [
@@ -25,6 +36,7 @@ function importEnvironment(overrides = {}) {
                 const { env } = await import("./dist/config/env.js");
                 process.stdout.write(JSON.stringify({
                     accessTokenTtlMinutes: env.ACCESS_TOKEN_TTL_MINUTES,
+                    port: env.PORT,
                     refreshTokenTtlDays: env.REFRESH_TOKEN_TTL_DAYS,
                 }));
             `,
@@ -32,10 +44,7 @@ function importEnvironment(overrides = {}) {
         {
             cwd: process.cwd(),
             encoding: "utf8",
-            env: {
-                ...validEnvironment,
-                ...overrides,
-            },
+            env: environment,
         },
     );
 }
@@ -46,8 +55,19 @@ test("authentication settings are parsed through the typed environment boundary"
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout), {
         accessTokenTtlMinutes: 15,
+        port: 8080,
         refreshTokenTtlDays: 7,
     });
+});
+
+test("API port honors Render input and retains the local 8080 default", () => {
+    const renderResult = importEnvironment({ PORT: "10000" });
+    const localResult = importEnvironment({ PORT: undefined });
+
+    assert.equal(renderResult.status, 0, renderResult.stderr);
+    assert.equal(localResult.status, 0, localResult.stderr);
+    assert.equal(JSON.parse(renderResult.stdout).port, 10000);
+    assert.equal(JSON.parse(localResult.stdout).port, 8080);
 });
 
 test("worker runtime settings do not require API-only environment values", () => {
