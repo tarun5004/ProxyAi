@@ -20,7 +20,7 @@ const combinedOutput = (await Promise.all(textFiles.map((file) => readFile(file,
 
 const requiredText = [
     "Govern enterprise AI before sensitive data reaches a provider.",
-    "https://app.proxiai.me",
+    "https://app.proxiai.me/demo-admin",
     "https://github.com/tarun5004/ProxyAi",
     "VERIFIED RELEASE EVIDENCE",
 ];

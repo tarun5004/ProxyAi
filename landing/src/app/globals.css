@@ -58,3 +58,20 @@ body {
         animation-iteration-count: 1 !important;
     }
 }
+
+@keyframes drift {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-24px, 20px); }
+}
+
+
+@keyframes sweep {
+    0%, 100% { transform: translateX(-10%); opacity: 0.5; }
+    50% { transform: translateX(60%); opacity: 1; }
+}
+
+@keyframes stampIn {
+    0% { opacity: 0; transform: rotate(-25deg) scale(0.6); }
+    70% { transform: rotate(14deg) scale(1.05); }
+    100% { opacity: 1; transform: rotate(10deg) scale(1); }
+}

@@ -24,7 +24,7 @@ export function LandingHeader() {
 
             <a
                 className="hidden min-h-11 items-center rounded-lg bg-brand-500 px-5 text-sm font-semibold text-white shadow-panel transition hover:bg-brand-600 md:inline-flex"
-                href="https://app.proxiai.me"
+                href="https://app.proxiai.me/demo-admin"
             >
                 Try Live Demo
             </a>
@@ -40,7 +40,7 @@ export function LandingHeader() {
                             {label}
                         </a>
                     ))}
-                    <a className="mt-1 rounded-lg bg-brand-500 px-3 py-2.5 text-center font-semibold text-white" href="https://app.proxiai.me">
+                    <a className="mt-1 rounded-lg bg-brand-500 px-3 py-2.5 text-center font-semibold text-white" href="https://app.proxiai.me/demo-admin">
                         Try Live Demo
                     </a>
                 </nav>

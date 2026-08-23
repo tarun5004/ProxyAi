@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import HomePage from "@/app/page";
@@ -13,7 +13,8 @@ describe("standalone recruiter landing", () => {
         expect(screen.getByRole("heading", { level: 1, name: /Govern enterprise AI before sensitive data reaches a provider/i })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: /A policy-aware gateway with explicit trust boundaries/i })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: /Every request follows a deterministic order/i })).toBeInTheDocument();
-        expect(screen.getAllByRole("link", { name: "Try Live Demo" }).every((link) => link.getAttribute("href") === "https://app.proxiai.me")).toBe(true);
+        expect(screen.getAllByRole("link", { name: "Try Live Demo" }).every((link) => link.getAttribute("href") === "https://app.proxiai.me/demo-admin")).toBe(true);
+        expect(screen.getAllByRole("img", { name: "ProxyAi" }).length).toBeGreaterThan(0);
         expect(screen.getAllByRole("link", { name: /GitHub|Inspect the code|Source on GitHub/i }).every((link) => link.getAttribute("href") === "https://github.com/tarun5004/ProxyAi")).toBe(true);
         expect(screen.getByText("Interactive demo may be started on demand.")).toBeInTheDocument();
     });
@@ -42,5 +43,17 @@ describe("standalone recruiter landing", () => {
         expect(screen.getByText(releaseEvidence.backendLineCoverage)).toBeInTheDocument();
         expect(screen.getByText(releaseEvidence.frontendLineCoverage)).toBeInTheDocument();
         expect(screen.getByText(/not an external certification/i)).toBeInTheDocument();
+    });
+
+    it("switches between interactive product surface previews", () => {
+        render(<HomePage />);
+
+        const policyTab = screen.getByRole("tab", { name: "Policy inspector" });
+        fireEvent.click(policyTab);
+
+        expect(policyTab).toHaveAttribute("aria-selected", "true");
+        const policyPanel = screen.getByRole("tabpanel", { name: "Policy inspector" });
+        expect(policyPanel).toBeInTheDocument();
+        expect(within(policyPanel).getByText("ALLOW_WITH_MASK")).toBeInTheDocument();
     });
 });

@@ -1,3 +1,5 @@
+"use client";
+
 import { SectionHeading } from "./section-heading";
 
 const reliabilityAreas = [
@@ -20,21 +22,48 @@ const reliabilityAreas = [
 
 export function ReliabilitySection() {
     return (
-        <section className="py-20 sm:py-28" aria-labelledby="reliability-heading">
-            <div className="mx-auto w-full max-w-7xl px-5 sm:px-8">
+        <section className="relative overflow-hidden py-20 sm:py-28" aria-labelledby="reliability-heading">
+            <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+                <div
+                    className="absolute inset-0 opacity-[0.05]"
+                    style={{
+                        backgroundImage: "radial-gradient(var(--color-ink-950) 1.5px, transparent 1.5px)",
+                        backgroundSize: "24px 24px",
+                    }}
+                />
+                <div className="absolute top-[-6rem] right-1/3 size-[24rem] rounded-full bg-brand-100/60 blur-[100px]" />
+            </div>
+
+            <div className="relative mx-auto w-full max-w-7xl px-5 sm:px-8">
                 <SectionHeading
                     description="Provider execution and background accounting use separate, bounded failure paths so chat delivery does not invent billing truth."
                     eyebrow="RELIABILITY + ASYNC"
                     id="reliability-heading"
                     title="Failures are normalized, retried carefully, and recorded safely."
                 />
+
+                {/* Flip-reveal cards: capability on front, honest caveat on hover/focus */}
                 <div className="mt-12 grid gap-5 lg:grid-cols-3">
                     {reliabilityAreas.map((area) => (
-                        <article className="flex h-full flex-col rounded-2xl border border-line bg-white p-6 shadow-panel sm:p-7" key={area.title}>
-                            <h3 className="text-xl font-bold text-ink-950">{area.title}</h3>
-                            <p className="mt-4 text-sm leading-7 text-ink-600">{area.detail}</p>
-                            <p className="mt-6 border-t border-line pt-5 text-xs leading-6 text-ink-600">{area.note}</p>
-                        </article>
+                        <div className="group [perspective:1200px]" key={area.title} tabIndex={0}>
+                            <div className="relative h-72 w-full transition-transform duration-500 [transform-style:preserve-3d] group-hover:[transform:rotateY(180deg)] group-focus-visible:[transform:rotateY(180deg)]">
+                                {/* Front */}
+                                <article className="absolute inset-0 flex flex-col rounded-2xl border border-line bg-white p-6 shadow-panel [backface-visibility:hidden] sm:p-7">
+                                    <h3 className="text-xl font-bold text-ink-950">{area.title}</h3>
+                                    <p className="mt-4 text-sm leading-7 text-ink-600">{area.detail}</p>
+                                    <span className="mt-auto flex items-center gap-1.5 pt-4 text-xs font-semibold text-brand-700" aria-hidden="true">
+                                        Hover for the honest limit
+                                        <span className="transition-transform group-hover:translate-x-1">→</span>
+                                    </span>
+                                </article>
+
+                                {/* Back */}
+                                <article className="absolute inset-0 flex flex-col rounded-2xl border border-brand-200 bg-brand-50 p-6 [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-7">
+                                    <p className="font-mono text-xs font-bold tracking-[0.08em] text-brand-700">SCOPE</p>
+                                    <p className="mt-4 text-sm leading-7 text-ink-800">{area.note}</p>
+                                </article>
+                            </div>
+                        </div>
                     ))}
                 </div>
 

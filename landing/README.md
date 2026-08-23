@@ -24,7 +24,7 @@ No Node.js server is required after export.
 - No authentication, chat, admin, MongoDB, Redis/BullMQ, provider, or AWS SDK.
 - No backend/database/API dependency during rendering.
 - No environment variables or runtime secrets.
-- The live-demo CTA is a normal link to `https://app.proxiai.me`.
+- The live-demo CTA is a normal link to `https://app.proxiai.me/demo-admin`.
 - Release evidence is a dated internal baseline in
   `src/content/release-evidence.json`; update it only after a verified release.
 
