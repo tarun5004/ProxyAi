@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
 
-export const VERCEL_BACKEND_ORIGIN = "https://proxiai-api-v2.onrender.com";
-
 type FrontendBuildEnvironment = Partial<Pick<
     NodeJS.ProcessEnv,
     "BACKEND_INTERNAL_ORIGIN" | "NODE_ENV" | "VERCEL"
@@ -12,17 +10,22 @@ export function createNextConfig(
 ): NextConfig {
     const isVercelBuild = environment.VERCEL === "1";
 
+    if (isVercelBuild) {
+        return {
+            poweredByHeader: false,
+            reactStrictMode: true,
+        };
+    }
+
     return {
-        ...(isVercelBuild ? {} : { output: "standalone" as const }),
+        output: "standalone",
         poweredByHeader: false,
         reactStrictMode: true,
         async rewrites() {
-            const backendOrigin = isVercelBuild
-                ? VERCEL_BACKEND_ORIGIN
-                : environment.BACKEND_INTERNAL_ORIGIN
-                    ?? (environment.NODE_ENV === "production"
-                        ? undefined
-                        : "http://localhost:8080");
+            const backendOrigin = environment.BACKEND_INTERNAL_ORIGIN
+                ?? (environment.NODE_ENV === "production"
+                    ? undefined
+                    : "http://localhost:8080");
 
             if (!backendOrigin) {
                 return [];

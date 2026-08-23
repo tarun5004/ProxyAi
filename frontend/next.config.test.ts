@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import {
-    createNextConfig,
-    VERCEL_BACKEND_ORIGIN,
-} from "./next.config";
+import { createNextConfig } from "./next.config";
 
 describe("frontend deployment output", () => {
-    it("uses transparent Vercel rewrites to the Render backend", async () => {
+    it("uses standard Vercel output and delegates proxying to src/proxy.ts", () => {
         const config = createNextConfig({
             NODE_ENV: "production",
             VERCEL: "1",
@@ -14,16 +11,7 @@ describe("frontend deployment output", () => {
 
         expect(config.output).toBeUndefined();
         expect(config.redirects).toBeUndefined();
-        await expect(config.rewrites?.()).resolves.toEqual([
-            {
-                source: "/api/:path*",
-                destination: `${VERCEL_BACKEND_ORIGIN}/api/:path*`,
-            },
-            {
-                source: "/health/:path*",
-                destination: `${VERCEL_BACKEND_ORIGIN}/health/:path*`,
-            },
-        ]);
+        expect(config.rewrites).toBeUndefined();
     });
 
     it("preserves standalone output and configured proxying for Docker builds", async () => {
