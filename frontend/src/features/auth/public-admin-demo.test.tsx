@@ -18,6 +18,7 @@ import { DemoAccessSection } from "@/features/marketing/components/demo-access-s
 import { AuthProvider, useAuth } from "./auth-provider";
 import { PublicAdminDemoBanner } from "./public-admin-demo-banner";
 import {
+    DEMO_HEALTH_ATTEMPT_TIMEOUT_MS,
     DEMO_HEALTH_POLL_INTERVAL_MS,
     PublicAdminDemoScreen,
     waitForDemoBackend,
@@ -111,6 +112,32 @@ describe("public admin demo", () => {
             DEMO_HEALTH_POLL_INTERVAL_MS,
             DEMO_HEALTH_POLL_INTERVAL_MS,
         ]);
+    });
+
+    it("aborts a stalled health attempt before the Vercel proxy timeout", async () => {
+        vi.useFakeTimers();
+        const attemptSignals: AbortSignal[] = [];
+        let now = 0;
+
+        const result = waitForDemoBackend({
+            signal: new AbortController().signal,
+            checkHealth: (signal) => new Promise((resolve) => {
+                attemptSignals.push(signal);
+                signal.addEventListener("abort", () => resolve(false), {
+                    once: true,
+                });
+            }),
+            sleep: async () => {
+                now = 120_000;
+            },
+            now: () => now,
+        });
+
+        await vi.advanceTimersByTimeAsync(DEMO_HEALTH_ATTEMPT_TIMEOUT_MS);
+
+        await expect(result).resolves.toBe(false);
+        expect(attemptSignals).toHaveLength(1);
+        expect(attemptSignals[0]?.aborted).toBe(true);
     });
 
     it("starts countdown only after authentication and expires local auth state", async () => {

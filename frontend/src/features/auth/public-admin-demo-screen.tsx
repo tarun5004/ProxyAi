@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "./auth-provider";
 
 export const DEMO_HEALTH_POLL_INTERVAL_MS = 4_000;
+export const DEMO_HEALTH_ATTEMPT_TIMEOUT_MS = DEMO_HEALTH_POLL_INTERVAL_MS;
 export const DEMO_WAKE_TIMEOUT_MS = 120_000;
 
 type WakePhase = "idle" | "waking" | "ready" | "error";
@@ -31,6 +32,34 @@ async function checkDemoHealth(signal: AbortSignal): Promise<boolean> {
         return response.ok;
     } catch {
         return false;
+    }
+}
+
+async function runBoundedHealthCheck(
+    checkHealth: (signal: AbortSignal) => Promise<boolean>,
+    parentSignal: AbortSignal,
+    timeoutMs: number,
+): Promise<boolean> {
+    const attemptController = new AbortController();
+    const abortAttempt = () => attemptController.abort(parentSignal.reason);
+    const timeout = window.setTimeout(
+        () => attemptController.abort(),
+        timeoutMs,
+    );
+
+    if (parentSignal.aborted) {
+        abortAttempt();
+    } else {
+        parentSignal.addEventListener("abort", abortAttempt, { once: true });
+    }
+
+    try {
+        return await checkHealth(attemptController.signal);
+    } catch {
+        return false;
+    } finally {
+        window.clearTimeout(timeout);
+        parentSignal.removeEventListener("abort", abortAttempt);
     }
 }
 
@@ -56,15 +85,39 @@ export async function waitForDemoBackend({
     const deadline = now() + DEMO_WAKE_TIMEOUT_MS;
 
     while (!signal.aborted) {
-        if (await checkHealth(signal)) {
-            return true;
-        }
+        const remainingMs = deadline - now();
+        const attemptStartedAt = now();
 
-        if (now() >= deadline) {
+        if (remainingMs <= 0) {
             return false;
         }
 
-        await sleep(DEMO_HEALTH_POLL_INTERVAL_MS, signal);
+        if (await runBoundedHealthCheck(
+            checkHealth,
+            signal,
+            Math.min(DEMO_HEALTH_ATTEMPT_TIMEOUT_MS, remainingMs),
+        )) {
+            return true;
+        }
+
+        const remainingAfterAttemptMs = deadline - now();
+
+        if (remainingAfterAttemptMs <= 0) {
+            return false;
+        }
+
+        const attemptElapsedMs = now() - attemptStartedAt;
+        const pollDelayMs = Math.max(
+            0,
+            DEMO_HEALTH_POLL_INTERVAL_MS - attemptElapsedMs,
+        );
+
+        if (pollDelayMs > 0) {
+            await sleep(
+                Math.min(pollDelayMs, remainingAfterAttemptMs),
+                signal,
+            );
+        }
     }
 
     return false;
