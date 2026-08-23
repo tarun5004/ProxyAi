@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-export const VERCEL_BACKEND_ORIGIN = "https://proxiai-api.onrender.com";
+export const VERCEL_BACKEND_ORIGIN = "https://proxiai-api-v2.onrender.com";
 
 type FrontendBuildEnvironment = Partial<Pick<
     NodeJS.ProcessEnv,
