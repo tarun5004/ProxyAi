@@ -22,19 +22,9 @@ interface WaitForDemoBackendInput {
     readonly now?: () => number;
 }
 
-export function createDemoHealthUrl(
-    apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
-): string {
-    if (apiBaseUrl === undefined || apiBaseUrl.trim() === "") {
-        return "/health/ready";
-    }
-
-    return new URL("/health/ready", apiBaseUrl).toString();
-}
-
 async function checkDemoHealth(signal: AbortSignal): Promise<boolean> {
     try {
-        const response = await fetch(createDemoHealthUrl(), {
+        const response = await fetch("/health/ready", {
             cache: "no-store",
             signal,
         });
