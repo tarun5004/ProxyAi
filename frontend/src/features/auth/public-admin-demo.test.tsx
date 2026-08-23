@@ -18,6 +18,7 @@ import { DemoAccessSection } from "@/features/marketing/components/demo-access-s
 import { AuthProvider, useAuth } from "./auth-provider";
 import { PublicAdminDemoBanner } from "./public-admin-demo-banner";
 import {
+    createDemoHealthUrl,
     DEMO_HEALTH_POLL_INTERVAL_MS,
     PublicAdminDemoScreen,
     waitForDemoBackend,
@@ -74,6 +75,35 @@ describe("public admin demo", () => {
 
     afterEach(() => {
         vi.useRealTimers();
+        vi.unstubAllEnvs();
+        vi.unstubAllGlobals();
+    });
+
+    it("derives wake health checks from the configured backend API origin", async () => {
+        expect(createDemoHealthUrl(
+            "https://proxiai-api.onrender.com/api/v1",
+        )).toBe("https://proxiai-api.onrender.com/health/ready");
+        expect(createDemoHealthUrl(
+            "http://localhost:8080/api/v1",
+        )).toBe("http://localhost:8080/health/ready");
+        expect(createDemoHealthUrl(undefined)).toBe("/health/ready");
+
+        vi.stubEnv(
+            "NEXT_PUBLIC_API_BASE_URL",
+            "https://proxiai-api.onrender.com/api/v1",
+        );
+        const fetchMock = vi.fn().mockResolvedValue(new Response(null, {
+            status: 200,
+        }));
+        vi.stubGlobal("fetch", fetchMock);
+
+        await expect(waitForDemoBackend({
+            signal: new AbortController().signal,
+        })).resolves.toBe(true);
+        expect(fetchMock).toHaveBeenCalledWith(
+            "https://proxiai-api.onrender.com/health/ready",
+            expect.objectContaining({ cache: "no-store" }),
+        );
     });
 
     it("polls a cold backend at the bounded four-second interval", async () => {
