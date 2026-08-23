@@ -11,6 +11,10 @@ import { disconnectInfrastructure } from
     "./shared/runtime/infrastructure.js";
 import { closeHttpServerWithinGrace } from
     "./shared/runtime/http-server-shutdown.js";
+import {
+    ApiStartupStageError,
+    runApiStartupStage,
+} from "./shared/runtime/startup-stage.js";
 import { initializeEncryption } from "./shared/security/encryption.js";
 import { assertEncryptionStorageReady } from "./shared/security/encryption-readiness.js";
 
@@ -18,16 +22,45 @@ let server: Server | undefined;
 let shutdownStarted = false;
 
 async function startApi(): Promise<void> {
-    initializeEncryption();
-    await Promise.all([connectMongo(), connectRedis()]);
-    await assertEncryptionStorageReady();
-    await connectApiAsyncInfrastructure();
+    await runApiStartupStage(
+        "encryption_initialization",
+        "ENCRYPTION_INITIALIZATION_FAILED",
+        initializeEncryption,
+    );
+    await Promise.all([
+        runApiStartupStage(
+            "mongo_connection",
+            "MONGODB_CONNECTION_FAILED",
+            connectMongo,
+        ),
+        runApiStartupStage(
+            "redis_connection",
+            "REDIS_CONNECTION_FAILED",
+            connectRedis,
+        ),
+    ]);
+    await runApiStartupStage(
+        "encryption_readiness",
+        "ENCRYPTION_READINESS_FAILED",
+        assertEncryptionStorageReady,
+    );
+    await runApiStartupStage(
+        "async_infrastructure",
+        "ASYNC_INFRASTRUCTURE_CONNECTION_FAILED",
+        connectApiAsyncInfrastructure,
+    );
 
     if (shutdownStarted) {
         return;
     }
 
-    server = await listen();
+    await runApiStartupStage(
+        "http_listener",
+        "HTTP_LISTENER_START_FAILED",
+        async () => {
+            server = await listen();
+        },
+    );
 
     logger.info(
         {
@@ -120,12 +153,17 @@ process.once("SIGTERM", () => {
     void shutdown("SIGTERM");
 });
 
-void startApi().catch(async () => {
+void startApi().catch(async (error: unknown) => {
     process.exitCode = 1;
+    const startupError = error instanceof ApiStartupStageError
+        ? error
+        : undefined;
+
     logger.error(
         {
-            errorCode: "API_START_FAILED",
+            errorCode: startupError?.errorCode ?? "API_START_FAILED",
             event: "app.startup.failed",
+            startupStage: startupError?.startupStage ?? "unknown",
         },
         "ProxiAI API startup failed",
     );
