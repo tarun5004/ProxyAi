@@ -1689,6 +1689,27 @@ current deployment prerequisite or completion gate.
   rejection, dependency failure, Render port/host, and graceful shutdown have
   focused coverage; the backend full suite passes.
 
+## Latest Task — Live Chat Reliability Remediation
+
+- **First-send routing:** A newly created conversation now finishes its first
+  stream before client navigation changes the route, preventing React cleanup
+  from aborting and discarding the submitted message.
+- **Response limit:** Organisation policy now separates the cumulative monthly
+  token budget from `maxOutputTokensPerRequest` (1-4096, default 4096). Provider
+  requests use the lower of the organisation limit and provider capability.
+- **Secure memory:** Provider context uses only recent complete user/assistant
+  pairs owned by the authenticated user and retained under
+  `ENCRYPTED_STORAGE`. Content is decrypted only in memory and bounded before
+  provider egress.
+- **Current-policy enforcement:** Historical user messages pass through current
+  PII, risk, and policy checks. Masked history sends only masked content;
+  blocked history and its assistant pair are omitted. Metadata-only workspaces
+  intentionally have no recoverable content memory.
+- **Verification (2026-08-30):** Backend lint/typecheck/build and 302/302 unit
+  tests passed. Isolated integration passed 51 checks; 12 transaction checks
+  were skipped because local MongoDB is standalone rather than a replica set.
+  Frontend lint/typecheck/build and 65/65 tests passed.
+
 ## Do Not Forget
 
 - Implement only the active PHASE task; keep deferred features out of the MVP.

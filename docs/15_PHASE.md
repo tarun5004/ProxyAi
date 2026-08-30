@@ -149,10 +149,16 @@ land on the current local `main`, but it must not be pushed until all focused
 and full release gates pass.
 
 - [x] Preserve the first prompt while creating and routing a new conversation.
-- [ ] Separate per-response output tokens from the monthly organisation budget.
-- [ ] Add bounded, owner-scoped provider memory for `ENCRYPTED_STORAGE` only.
-- [ ] Re-run historical user content through current PII/policy before egress.
-- [ ] Pass frontend/backend lint, typecheck, tests, build, and diff checks.
+- [x] Separate per-response output tokens from the monthly organisation budget.
+- [x] Add bounded, owner-scoped provider memory for `ENCRYPTED_STORAGE` only.
+- [x] Re-run historical user content through current PII/policy before egress.
+- [x] Pass frontend/backend lint, typecheck, tests, build, and diff checks.
+
+Verification evidence: backend lint, typecheck, build, and 302/302 unit tests
+passed with local Redis. Isolated MongoDB/Redis/BullMQ integration tests passed
+51 checks with 12 transaction checks skipped because standalone local MongoDB
+does not provide a replica set. Frontend lint, typecheck, build, and 65/65
+tests passed.
 
 ---
 
