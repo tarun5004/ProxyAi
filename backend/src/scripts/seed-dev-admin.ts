@@ -68,6 +68,7 @@ async function seedDevelopmentAdmin(): Promise<void> {
                 policy: {
                     maskThreshold: 20,
                     blockThreshold: 60,
+                    maxOutputTokensPerRequest: 4_096,
                 },
             });
         } else if (organisation.status !== "ACTIVE") {

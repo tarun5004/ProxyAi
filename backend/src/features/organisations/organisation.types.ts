@@ -6,6 +6,9 @@ export const RETENTION_MODES = [
     "METADATA_ONLY",
     "ENCRYPTED_STORAGE",
 ] as const;
+export const DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST = 4_096;
+export const MIN_MAX_OUTPUT_TOKENS_PER_REQUEST = 1;
+export const MAX_MAX_OUTPUT_TOKENS_PER_REQUEST = 4_096;
 
 export type OrganisationStatus = (typeof ORGANISATION_STATUSES)[number];
 export type OrganisationPlan = (typeof ORGANISATION_PLANS)[number];
@@ -18,6 +21,7 @@ export interface OrganisationRetention {
 export interface OrganisationPolicy {
     maskThreshold: number;
     blockThreshold: number;
+    maxOutputTokensPerRequest: number;
 }
 
 export interface OrganisationFeatureFlags {

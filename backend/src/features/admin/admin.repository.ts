@@ -26,6 +26,7 @@ interface OrganisationAdminRecord {
     readonly policy: {
         readonly maskThreshold: number;
         readonly blockThreshold: number;
+        readonly maxOutputTokensPerRequest?: number;
     };
 }
 

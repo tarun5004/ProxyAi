@@ -45,12 +45,18 @@ const trustedUserId = randomUUID();
 const conversationId = randomUUID();
 
 function createRuntime({
-    policy = { maskThreshold: 20, blockThreshold: 60 },
+    policy = {},
     budgetError,
     ownershipError,
     usageError,
     waitForAbortAfterToken = false,
 } = {}) {
+    const resolvedPolicy = {
+        maskThreshold: 20,
+        blockThreshold: 60,
+        maxOutputTokensPerRequest: 100,
+        ...policy,
+    };
     const order = [];
     const providerRequests = [];
     const usageRecords = [];
@@ -138,7 +144,7 @@ function createRuntime({
 
             return {
                 plan: "FREE",
-                policy,
+                policy: resolvedPolicy,
                 autoRoutingEnabled: false,
                 retentionMode: "METADATA_ONLY",
             };
@@ -315,6 +321,7 @@ test("MASK sends only the masked providerPrompt", async () => {
 
     assert.equal(response.status, 200);
     assert.equal(runtime.providerCalls, 1);
+    assert.equal(runtime.providerRequests[0]?.maxOutputTokens, 100);
     assert.equal(
         runtime.providerRequests[0]?.messages[0]?.content,
         "Email [EMAIL_REDACTED] today.",

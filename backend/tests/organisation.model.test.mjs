@@ -60,6 +60,7 @@ test("valid organisation receives safe defaults and a UUID v4", async () => {
     assert.equal(organisation.status, "SUSPENDED");
     assert.equal(organisation.plan, "FREE");
     assert.equal(organisation.monthlyTokenBudget, 0);
+    assert.equal(organisation.policy.maxOutputTokensPerRequest, 4_096);
     assert.deepEqual(organisation.retention.toObject(), {
         mode: "METADATA_ONLY",
     });
@@ -210,6 +211,28 @@ test("policy thresholds accept boundaries only when block is greater", async () 
             ).validate(),
             (error) => error?.name === "ValidationError",
         );
+    }
+});
+
+test("per-response output token limit accepts only integer provider boundaries", async () => {
+    for (const maxOutputTokensPerRequest of [1, 4_096]) {
+        await new OrganisationModel(validOrganisation({
+            policy: {
+                maskThreshold: 20,
+                blockThreshold: 60,
+                maxOutputTokensPerRequest,
+            },
+        })).validate();
+    }
+
+    for (const maxOutputTokensPerRequest of [0, 4_097, 100.5]) {
+        await assertValidationFailure(validOrganisation({
+            policy: {
+                maskThreshold: 20,
+                blockThreshold: 60,
+                maxOutputTokensPerRequest,
+            },
+        }), "policy.maxOutputTokensPerRequest");
     }
 });
 

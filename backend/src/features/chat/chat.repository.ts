@@ -5,6 +5,7 @@ import type {
     OrganisationPolicy,
     RetentionMode,
 } from "../organisations/organisation.types.js";
+import { DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST } from "../organisations/organisation.types.js";
 
 export interface ChatOrganisationContext {
     readonly plan: OrganisationPlan;
@@ -15,7 +16,9 @@ export interface ChatOrganisationContext {
 
 interface OrganisationChatRecord {
     readonly plan: OrganisationPlan;
-    readonly policy: OrganisationPolicy;
+    readonly policy: Omit<OrganisationPolicy, "maxOutputTokensPerRequest"> & {
+        readonly maxOutputTokensPerRequest?: number;
+    };
     readonly featureFlags: {
         readonly autoRouting: boolean;
     };
@@ -64,6 +67,9 @@ export async function loadChatOrganisationContext(
         policy: Object.freeze({
             maskThreshold: organisation.policy.maskThreshold,
             blockThreshold: organisation.policy.blockThreshold,
+            maxOutputTokensPerRequest:
+                organisation.policy.maxOutputTokensPerRequest
+                ?? DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST,
         }),
         autoRoutingEnabled: organisation.featureFlags.autoRouting,
         retentionMode: organisation.retention.mode,

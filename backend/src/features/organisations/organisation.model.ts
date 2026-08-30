@@ -4,6 +4,9 @@ import mongoose from "mongoose";
 import type { Model } from "mongoose";
 
 import {
+    DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST,
+    MAX_MAX_OUTPUT_TOKENS_PER_REQUEST,
+    MIN_MAX_OUTPUT_TOKENS_PER_REQUEST,
     ORGANISATION_PLANS,
     ORGANISATION_STATUSES,
     RETENTION_MODES,
@@ -55,6 +58,17 @@ const policySchema = new Schema<OrganisationPolicy>(
             validate: {
                 validator: Number.isInteger,
                 message: "blockThreshold must be an integer.",
+            },
+        },
+        maxOutputTokensPerRequest: {
+            type: Number,
+            default: DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST,
+            min: MIN_MAX_OUTPUT_TOKENS_PER_REQUEST,
+            max: MAX_MAX_OUTPUT_TOKENS_PER_REQUEST,
+            required: true,
+            validate: {
+                validator: Number.isInteger,
+                message: "maxOutputTokensPerRequest must be an integer.",
             },
         },
     },

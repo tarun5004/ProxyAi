@@ -8,6 +8,7 @@ import { buildAuditMetadata } from "../audit/audit.metadata.js";
 import type { NewAuditLog } from "../audit/audit.types.js";
 import { RefreshTokenModel } from "../auth/refresh-token.model.js";
 import { OrganisationModel } from "../organisations/organisation.model.js";
+import { DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST } from "../organisations/organisation.types.js";
 import type { RetentionMode } from "../organisations/organisation.types.js";
 import { TeamModel } from "../teams/team.model.js";
 import { UserModel } from "../users/user.model.js";
@@ -162,6 +163,7 @@ export async function updateOrganisationPolicy(
     patch: {
         readonly maskThreshold?: number;
         readonly blockThreshold?: number;
+        readonly maxOutputTokensPerRequest?: number;
         readonly monthlyTokenBudget?: number;
     },
 ) {
@@ -173,14 +175,23 @@ export async function updateOrganisationPolicy(
 
         const oldMaskThreshold = organisation.policy.maskThreshold;
         const oldBlockThreshold = organisation.policy.blockThreshold;
+        const oldMaxOutputTokensPerRequest = organisation.policy.maxOutputTokensPerRequest
+            ?? DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST;
         const oldMonthlyTokenBudget = organisation.monthlyTokenBudget;
         organisation.policy.maskThreshold = patch.maskThreshold ?? oldMaskThreshold;
         organisation.policy.blockThreshold = patch.blockThreshold ?? oldBlockThreshold;
+        organisation.policy.maxOutputTokensPerRequest =
+            patch.maxOutputTokensPerRequest ?? oldMaxOutputTokensPerRequest;
         organisation.monthlyTokenBudget = patch.monthlyTokenBudget ?? oldMonthlyTokenBudget;
         await organisation.validate();
         await organisation.save({ session });
 
-        if (oldMaskThreshold !== organisation.policy.maskThreshold || oldBlockThreshold !== organisation.policy.blockThreshold) {
+        if (
+            oldMaskThreshold !== organisation.policy.maskThreshold
+            || oldBlockThreshold !== organisation.policy.blockThreshold
+            || oldMaxOutputTokensPerRequest
+                !== organisation.policy.maxOutputTokensPerRequest
+        ) {
             await appendAdminAudit(context, {
                 action: "organisation.policy_changed",
                 resourceType: "ORGANISATION",
@@ -190,6 +201,9 @@ export async function updateOrganisationPolicy(
                     newMaskThreshold: organisation.policy.maskThreshold,
                     oldBlockThreshold,
                     newBlockThreshold: organisation.policy.blockThreshold,
+                    oldMaxOutputTokensPerRequest,
+                    newMaxOutputTokensPerRequest:
+                        organisation.policy.maxOutputTokensPerRequest,
                 }),
             }, session);
         }
@@ -209,6 +223,8 @@ export async function updateOrganisationPolicy(
             policy: {
                 maskThreshold: organisation.policy.maskThreshold,
                 blockThreshold: organisation.policy.blockThreshold,
+                maxOutputTokensPerRequest:
+                    organisation.policy.maxOutputTokensPerRequest,
             },
             monthlyTokenBudget: organisation.monthlyTokenBudget,
             updatedAt: organisation.updatedAt,

@@ -71,7 +71,7 @@ describe("Phase 8 admin dashboard", () => {
                 name: "ProxyAI Demo",
                 plan: "FREE",
                 retentionMode: "METADATA_ONLY",
-                policy: { maskThreshold: 20, blockThreshold: 60 },
+                policy: { maskThreshold: 20, blockThreshold: 60, maxOutputTokensPerRequest: 4_096 },
             },
             requests: { total: 5, completed: 3, blocked: 1, masked: 1, failed: 0, interrupted: 1 },
             usage: { knownRequestCount: 3, unknownRequestCount: 1, inputTokens: 20, outputTokens: 30, totalTokens: 50 },
@@ -156,6 +156,7 @@ describe("Phase 8 admin dashboard", () => {
         fireEvent.change(screen.getByRole("spinbutton", { name: "Mask threshold" }), { target: { value: "25" } });
         fireEvent.change(screen.getByRole("spinbutton", { name: "Block threshold" }), { target: { value: "70" } });
         fireEvent.change(screen.getByRole("spinbutton", { name: "Monthly token budget" }), { target: { value: "2000" } });
+        fireEvent.change(screen.getByRole("spinbutton", { name: "Max response tokens" }), { target: { value: "100" } });
         fireEvent.click(save);
 
         let dialog = screen.getByRole("dialog", { name: "Confirm policy and budget update" });
@@ -183,7 +184,7 @@ describe("Phase 8 admin dashboard", () => {
         completeMutation();
         await waitFor(() => expect(adminApi.updateAdminPolicy).toHaveBeenCalledWith(
             "access-token",
-            { maskThreshold: 25, blockThreshold: 70, monthlyTokenBudget: 2000 },
+            { maskThreshold: 25, blockThreshold: 70, maxOutputTokensPerRequest: 100, monthlyTokenBudget: 2000 },
         ));
         expect(await screen.findByRole("status")).toHaveTextContent("Change saved and verified.");
         expect(adminApi.getAdminSummary).toHaveBeenCalledTimes(2);

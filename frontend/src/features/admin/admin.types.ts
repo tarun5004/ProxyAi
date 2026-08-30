@@ -40,6 +40,7 @@ export const adminSummarySchema = z.object({
         policy: z.object({
             maskThreshold: z.number().int(),
             blockThreshold: z.number().int(),
+            maxOutputTokensPerRequest: z.number().int().min(1).max(4_096),
         }),
     }),
     requests: z.object({

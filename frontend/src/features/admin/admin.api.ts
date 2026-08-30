@@ -137,7 +137,7 @@ export function revokeAdminUserSessions(accessToken: string, userId: string) {
     return requestJson({ path: `/admin/users/${userId}/revoke-sessions`, accessToken, method: "POST", body: {}, schema: mutationEnvelope });
 }
 
-export function updateAdminPolicy(accessToken: string, input: { maskThreshold?: number; blockThreshold?: number; monthlyTokenBudget?: number }) {
+export function updateAdminPolicy(accessToken: string, input: { maskThreshold?: number; blockThreshold?: number; maxOutputTokensPerRequest?: number; monthlyTokenBudget?: number }) {
     return requestJson({ path: "/admin/policy", accessToken, method: "PATCH", body: input, schema: mutationEnvelope });
 }
 

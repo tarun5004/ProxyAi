@@ -43,6 +43,7 @@ async function seedDemoOrganisation(): Promise<void> {
                 policy: {
                     maskThreshold: 40,
                     blockThreshold: 70,
+                    maxOutputTokensPerRequest: 4_096,
                 },
                 featureFlags: {
                     autoRouting: false,
@@ -60,6 +61,7 @@ async function seedDemoOrganisation(): Promise<void> {
             organisation.policy = {
                 maskThreshold: 40,
                 blockThreshold: 70,
+                maxOutputTokensPerRequest: 4_096,
             };
             organisation.featureFlags = {
                 autoRouting: false,

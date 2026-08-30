@@ -472,7 +472,7 @@ function Overview({ summary, accessToken, canConfigure, onChanged, runOperation 
             </Panel>
             {canConfigure && accessToken ? (
                 <PolicyControls
-                    key={`${summary.organisation.policy.maskThreshold}:${summary.organisation.policy.blockThreshold}:${summary.budget.monthlyBudgetTokens}:${summary.organisation.retentionMode}`}
+                    key={`${summary.organisation.policy.maskThreshold}:${summary.organisation.policy.blockThreshold}:${summary.organisation.policy.maxOutputTokensPerRequest}:${summary.budget.monthlyBudgetTokens}:${summary.organisation.retentionMode}`}
                     summary={summary}
                     accessToken={accessToken}
                     onChanged={onChanged}
@@ -579,11 +579,13 @@ function Logs({ logs, page, onLoadMore }: Readonly<{ logs: AdminLogItem[]; page:
 function PolicyControls({ summary, accessToken, onChanged, runOperation }: Readonly<{ summary: AdminSummary; accessToken: string; onChanged: () => Promise<void>; runOperation: RunAdminOperation }>) {
     const [maskThreshold, setMaskThreshold] = useState(String(summary.organisation.policy.maskThreshold));
     const [blockThreshold, setBlockThreshold] = useState(String(summary.organisation.policy.blockThreshold));
+    const [maxOutputTokens, setMaxOutputTokens] = useState(String(summary.organisation.policy.maxOutputTokensPerRequest));
     const [budget, setBudget] = useState(String(summary.budget.monthlyBudgetTokens));
 
-    return <Panel title="Policy and retention settings"><div className="grid gap-4 md:grid-cols-3">
+    return <Panel title="Policy and retention settings"><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="grid gap-1 text-xs font-medium">Mask threshold<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="0" max="100" value={maskThreshold} onChange={(event) => setMaskThreshold(event.target.value)} /></label>
         <label className="grid gap-1 text-xs font-medium">Block threshold<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="0" max="100" value={blockThreshold} onChange={(event) => setBlockThreshold(event.target.value)} /></label>
+        <label className="grid gap-1 text-xs font-medium">Max response tokens<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="1" max="4096" value={maxOutputTokens} onChange={(event) => setMaxOutputTokens(event.target.value)} /></label>
         <label className="grid gap-1 text-xs font-medium">Monthly token budget<input className="rounded-lg border border-border-default px-3 py-2 text-sm" type="number" min="0" value={budget} onChange={(event) => setBudget(event.target.value)} /></label>
     </div><div className="mt-4 flex flex-wrap gap-2">
         <ConfirmedMutationButton
@@ -594,12 +596,13 @@ function PolicyControls({ summary, accessToken, onChanged, runOperation }: Reado
                 changes: [
                     { label: "Mask threshold", before: String(summary.organisation.policy.maskThreshold), after: maskThreshold },
                     { label: "Block threshold", before: String(summary.organisation.policy.blockThreshold), after: blockThreshold },
+                    { label: "Max response tokens", before: String(summary.organisation.policy.maxOutputTokensPerRequest), after: maxOutputTokens },
                     { label: "Monthly token budget", before: String(summary.budget.monthlyBudgetTokens), after: budget },
                 ],
-                consequence: "Threshold changes alter future masking and blocking decisions. The monthly budget can block future chat requests when authoritative usage reaches the limit.",
+                consequence: "Threshold changes alter future masking and blocking decisions. The response cap limits each provider answer, while the monthly budget blocks future requests after cumulative usage reaches its limit.",
                 confirmLabel: "Apply policy",
             }}
-            run={() => runOperation(() => updateAdminPolicy(accessToken, { maskThreshold: Number(maskThreshold), blockThreshold: Number(blockThreshold), monthlyTokenBudget: Number(budget) }))}
+            run={() => runOperation(() => updateAdminPolicy(accessToken, { maskThreshold: Number(maskThreshold), blockThreshold: Number(blockThreshold), maxOutputTokensPerRequest: Number(maxOutputTokens), monthlyTokenBudget: Number(budget) }))}
             onDone={onChanged}
         />
         <ConfirmedMutationButton

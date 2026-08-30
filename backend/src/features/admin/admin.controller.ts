@@ -170,6 +170,9 @@ export async function adminUpdatePolicy(request: Request, response: Response) {
     send(response, request, await updateOrganisationPolicy(mutationContext(request), {
         ...(body.maskThreshold === undefined ? {} : { maskThreshold: body.maskThreshold }),
         ...(body.blockThreshold === undefined ? {} : { blockThreshold: body.blockThreshold }),
+        ...(body.maxOutputTokensPerRequest === undefined
+            ? {}
+            : { maxOutputTokensPerRequest: body.maxOutputTokensPerRequest }),
         ...(body.monthlyTokenBudget === undefined ? {} : { monthlyTokenBudget: body.monthlyTokenBudget }),
     }));
 }

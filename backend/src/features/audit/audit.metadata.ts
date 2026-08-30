@@ -35,6 +35,8 @@ const policyChangeSchema = z.strictObject({
     newMaskThreshold: z.number().int().min(0).max(100),
     oldBlockThreshold: z.number().int().min(0).max(100),
     newBlockThreshold: z.number().int().min(0).max(100),
+    oldMaxOutputTokensPerRequest: z.number().int().min(1).max(4_096),
+    newMaxOutputTokensPerRequest: z.number().int().min(1).max(4_096),
 });
 const budgetSchema = z.strictObject({
     oldMonthlyTokenBudget: z.number().int().nonnegative(),

@@ -6,6 +6,10 @@ import {
 } from "../../shared/async/job-contract.js";
 import { AUDIT_ACTIONS } from "../audit/audit.types.js";
 import { RETENTION_MODES } from "../organisations/organisation.types.js";
+import {
+    MAX_MAX_OUTPUT_TOKENS_PER_REQUEST,
+    MIN_MAX_OUTPUT_TOKENS_PER_REQUEST,
+} from "../organisations/organisation.types.js";
 import { PROVIDER_IDS } from "../providers/provider.types.js";
 import { USER_ROLES, USER_STATUSES } from "../users/user.types.js";
 import { ADMIN_PERIODS } from "./admin.types.js";
@@ -91,6 +95,11 @@ export const adminEmptyBodySchema = z.strictObject({});
 export const adminPolicyBodySchema = z.strictObject({
     maskThreshold: z.number().int().min(0).max(100).optional(),
     blockThreshold: z.number().int().min(0).max(100).optional(),
+    maxOutputTokensPerRequest: z.number()
+        .int()
+        .min(MIN_MAX_OUTPUT_TOKENS_PER_REQUEST)
+        .max(MAX_MAX_OUTPUT_TOKENS_PER_REQUEST)
+        .optional(),
     monthlyTokenBudget: z.number().int().nonnegative().safe().optional(),
 }).refine((value) => Object.keys(value).length > 0, {
     message: "At least one policy field is required.",

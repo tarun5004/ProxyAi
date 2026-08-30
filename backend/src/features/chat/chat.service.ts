@@ -312,7 +312,10 @@ export async function prepareChatStream(
                     approvedPrompt,
                 }),
                 maxOutputTokens:
-                    candidate.adapter.getCapabilities().maxOutputTokens,
+                    Math.min(
+                        candidate.adapter.getCapabilities().maxOutputTokens,
+                        organisation.policy.maxOutputTokensPerRequest,
+                    ),
                 abortSignal: input.abortSignal,
             },
             [candidate],

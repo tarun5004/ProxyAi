@@ -2,6 +2,7 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { auditRepository, type AuditRepository } from "../audit/audit.repository.js";
 import type { SafeAuditLogItem } from "../audit/audit.types.js";
 import { readAuthoritativeBudgetStatus } from "../billing/billing.service.js";
+import { DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST } from "../organisations/organisation.types.js";
 import { readProviderHealth } from "../providers/provider-health.store.js";
 import { getEnabledProductionProviderIds } from "../providers/provider-runtime.registry.js";
 import {
@@ -60,7 +61,13 @@ export async function getAdminSummary(
             name: organisation.name,
             plan: organisation.plan,
             retentionMode: organisation.retention.mode,
-            policy: organisation.policy,
+            policy: {
+                maskThreshold: organisation.policy.maskThreshold,
+                blockThreshold: organisation.policy.blockThreshold,
+                maxOutputTokensPerRequest:
+                    organisation.policy.maxOutputTokensPerRequest
+                    ?? DEFAULT_MAX_OUTPUT_TOKENS_PER_REQUEST,
+            },
         },
         requests: {
             total: analytics.totalRequests,
