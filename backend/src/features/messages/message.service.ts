@@ -21,8 +21,11 @@ import type {
     MessageListCursor,
     MessagePage,
     MessageRole,
+    RetainedConversationMessage,
     SafeMessageSummary,
 } from "./message.types.js";
+
+const PROVIDER_HISTORY_RECORD_LIMIT = 20;
 
 const apiRoleByStoredRole: Readonly<Record<MessageRole, ApiMessageRole>> = {
     ASSISTANT: "assistant",
@@ -78,19 +81,7 @@ export async function listMessagesForConversationOwner(
 function toSafeMessageSummary(
     message: MessageDocument,
 ): SafeMessageSummary {
-    const content = message.contentEnc === undefined
-        ? undefined
-        : requireEncryptionService().decrypt(
-            normalizeEncryptedPayload(message.contentEnc as EncryptedPayload),
-            {
-                orgId: message.orgId,
-                entityType: "MESSAGE",
-                entityId: message.messageId,
-                fieldName: "content",
-                conversationId: message.conversationId,
-                messageId: message.messageId,
-            },
-        );
+    const content = decryptMessageContent(message);
 
     return {
         messageId: message.messageId,
@@ -104,6 +95,63 @@ function toSafeMessageSummary(
         contentAvailable: content !== undefined,
         ...(content === undefined ? {} : { content }),
     };
+}
+
+export async function loadRecentProviderHistory(
+    input: {
+        readonly orgId: string;
+        readonly userId: string;
+        readonly conversationId: string;
+    },
+    repository: MessageRepository = messageRepository,
+): Promise<readonly RetainedConversationMessage[]> {
+    try {
+        const messages = await repository.findRecentRetainedForOwner({
+            orgId: input.orgId,
+            userId: input.userId,
+            conversationId: input.conversationId,
+            limit: PROVIDER_HISTORY_RECORD_LIMIT,
+        });
+
+        return Object.freeze([...messages].reverse().flatMap((message) => {
+            if (
+                message.requestId === undefined
+                || (message.role !== "USER" && message.role !== "ASSISTANT")
+            ) {
+                return [];
+            }
+
+            const content = decryptMessageContent(message);
+
+            if (content === undefined) {
+                throw historyUnavailable();
+            }
+
+            return [{
+                requestId: message.requestId,
+                role: message.role === "USER" ? "user" as const : "assistant" as const,
+                content,
+            }];
+        }));
+    } catch {
+        throw historyUnavailable();
+    }
+}
+
+function decryptMessageContent(message: MessageDocument): string | undefined {
+    return message.contentEnc === undefined
+        ? undefined
+        : requireEncryptionService().decrypt(
+            normalizeEncryptedPayload(message.contentEnc as EncryptedPayload),
+            {
+                orgId: message.orgId,
+                entityType: "MESSAGE",
+                entityId: message.messageId,
+                fieldName: "content",
+                conversationId: message.conversationId,
+                messageId: message.messageId,
+            },
+        );
 }
 
 export interface PersistCompletedMessagePairInput {
@@ -260,5 +308,13 @@ function persistenceError(): AppError {
         503,
         "MESSAGE_PERSISTENCE_UNAVAILABLE",
         "Completed message persistence is temporarily unavailable.",
+    );
+}
+
+function historyUnavailable(): AppError {
+    return new AppError(
+        503,
+        "MESSAGE_HISTORY_UNAVAILABLE",
+        "Conversation memory is temporarily unavailable.",
     );
 }

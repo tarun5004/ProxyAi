@@ -24,7 +24,11 @@ import {
     readAuthoritativeBudgetStatus,
 } from "../billing/billing.service.js";
 import { getConversationForOwner } from "../conversations/conversation.service.js";
-import { persistCompletedMessagePair } from "../messages/message.service.js";
+import {
+    loadRecentProviderHistory,
+    persistCompletedMessagePair,
+} from "../messages/message.service.js";
+import type { RetainedConversationMessage } from "../messages/message.types.js";
 import type { RetentionMode } from "../organisations/organisation.types.js";
 import { processPiiPromptImmutably } from "../pii/pii-prompt-processor.js";
 import { calculatePiiRisk } from "../pii/pii-risk-scorer.js";
@@ -69,6 +73,7 @@ import {
     type ChatExecutionMetrics,
 } from "./chat.metrics.js";
 import { buildProductAwareProviderMessages } from "./product-facts.js";
+import { buildBoundedProviderHistory } from "./chat-context.js";
 import {
     loadChatOrganisationContext,
     type ChatOrganisationContext,
@@ -90,6 +95,11 @@ export interface ChatPipelineDependencies {
         orgId: string,
     ) => Promise<Readonly<BudgetStatus>>;
     readonly processPrompt: typeof processPiiPromptImmutably;
+    readonly loadConversationHistory: (input: {
+        readonly orgId: string;
+        readonly userId: string;
+        readonly conversationId: string;
+    }) => Promise<readonly RetainedConversationMessage[]>;
     readonly candidates: readonly ProviderFallbackCandidate[];
     readonly readProviderHealth: (
         providerId: ProviderId,
@@ -131,6 +141,7 @@ export const defaultChatPipelineDependencies: ChatPipelineDependencies = {
     idempotency: idempotencyService,
     readBudgetStatus: readAuthoritativeBudgetStatus,
     processPrompt: processPiiPromptImmutably,
+    loadConversationHistory: loadRecentProviderHistory,
     candidates: productionProviderCandidates,
     readProviderHealth,
     streamProvider: streamWithOrderedFallback,
@@ -303,6 +314,32 @@ export async function prepareChatStream(
             dependencies.candidates,
             dependencies.readProviderHealth,
         );
+        const providerHistory = organisation.retentionMode === "ENCRYPTED_STORAGE"
+            ? buildBoundedProviderHistory({
+                messages: await dependencies.loadConversationHistory({
+                    orgId: input.auth.orgId,
+                    userId: input.auth.userId,
+                    conversationId: input.request.conversationId,
+                }),
+                sanitizeUserContent: (content) => {
+                    const historicalPii = dependencies.processPrompt({ prompt: content });
+                    const historicalDecision = evaluatePolicy({
+                        pii: historicalPii,
+                        risk: calculatePiiRisk(historicalPii.classification),
+                        budget,
+                        thresholds: organisation.policy,
+                    });
+
+                    if (historicalDecision.action === "BLOCK") {
+                        return null;
+                    }
+
+                    return historicalDecision.action === "ALLOW_WITH_MASK"
+                        ? historicalDecision.providerPrompt
+                        : content;
+                },
+            })
+            : [];
         const fallbackEvents: ProviderFallbackEvent[] = [];
         const providerStream = dependencies.streamProvider(
             {
@@ -310,6 +347,7 @@ export async function prepareChatStream(
                 messages: buildProductAwareProviderMessages({
                     originalPrompt: input.request.prompt,
                     approvedPrompt,
+                    historyMessages: providerHistory,
                 }),
                 maxOutputTokens:
                     Math.min(

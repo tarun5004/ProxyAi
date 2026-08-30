@@ -51,3 +51,9 @@ export interface MessagePage {
     readonly items: readonly SafeMessageSummary[];
     readonly nextCursor: string | null;
 }
+
+export interface RetainedConversationMessage {
+    readonly requestId: string;
+    readonly role: "user" | "assistant";
+    readonly content: string;
+}

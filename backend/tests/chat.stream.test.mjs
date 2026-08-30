@@ -50,6 +50,9 @@ function createRuntime({
     ownershipError,
     usageError,
     waitForAbortAfterToken = false,
+    retentionMode = "METADATA_ONLY",
+    history = [],
+    historyError,
 } = {}) {
     const resolvedPolicy = {
         maskThreshold: 20,
@@ -64,6 +67,7 @@ function createRuntime({
     const analyticsJobs = [];
     const policyEvents = [];
     const reservationEvents = [];
+    const historyInputs = [];
     let providerCalls = 0;
     const adapter = {
         providerId: "groq",
@@ -146,7 +150,7 @@ function createRuntime({
                 plan: "FREE",
                 policy: resolvedPolicy,
                 autoRoutingEnabled: false,
-                retentionMode: "METADATA_ONLY",
+                retentionMode,
             };
         },
         controls,
@@ -163,6 +167,15 @@ function createRuntime({
         processPrompt(request) {
             order.push("pii");
             return processPiiPromptImmutably(request);
+        },
+        async loadConversationHistory(input) {
+            historyInputs.push(input);
+
+            if (historyError) {
+                throw historyError;
+            }
+
+            return history;
         },
         candidates: [{ adapter, model: "test-model" }],
         async readProviderHealth() {
@@ -201,6 +214,7 @@ function createRuntime({
         policyEvents,
         providerRequests,
         reservationEvents,
+        historyInputs,
         billingJobs,
         analyticsJobs,
         usageRecords,
@@ -331,12 +345,68 @@ test("MASK sends only the masked providerPrompt", async () => {
     assert.match(streamText, /"action":"ALLOW_WITH_MASK"/);
 });
 
+test("encrypted history is owner-loaded, re-masked, and sent before the current prompt", async () => {
+    const historicalSensitiveValue = "old-contact@example.com";
+    const runtime = createRuntime({
+        retentionMode: "ENCRYPTED_STORAGE",
+        policy: { maskThreshold: 10, blockThreshold: 60 },
+        history: [{
+            requestId: "history-request",
+            role: "user",
+            content: `Email ${historicalSensitiveValue}`,
+        }, {
+            requestId: "history-request",
+            role: "assistant",
+            content: "I used the approved contact placeholder.",
+        }],
+    });
+
+    const response = await postChat(runtime, "What did we discuss?");
+    await response.text();
+    const providerMessages = runtime.providerRequests[0]?.messages;
+
+    assert.deepEqual(providerMessages, [{
+        role: "user",
+        content: "Email [EMAIL_REDACTED]",
+    }, {
+        role: "assistant",
+        content: "I used the approved contact placeholder.",
+    }, {
+        role: "user",
+        content: "What did we discuss?",
+    }]);
+    assert.equal(JSON.stringify(providerMessages).includes(historicalSensitiveValue), false);
+    assert.deepEqual(runtime.historyInputs, [{
+        orgId: trustedOrgId,
+        userId: trustedUserId,
+        conversationId,
+    }]);
+});
+
+test("encrypted history failure releases idempotency before any provider call", async () => {
+    const runtime = createRuntime({
+        retentionMode: "ENCRYPTED_STORAGE",
+        historyError: new AppError(
+            503,
+            "MESSAGE_HISTORY_UNAVAILABLE",
+            "Conversation memory is temporarily unavailable.",
+        ),
+    });
+
+    const response = await postChat(runtime, "Continue our discussion.");
+
+    assert.equal(response.status, 503);
+    assert.equal(runtime.providerCalls, 0);
+    assert.deepEqual(runtime.reservationEvents, ["released"]);
+});
+
 test("ALLOW streams output and records known provider usage", async () => {
     const runtime = createRuntime();
     const response = await postChat(runtime, "Explain adapter patterns.");
     const streamText = await response.text();
 
     assert.equal(response.status, 200);
+    assert.deepEqual(runtime.historyInputs, []);
     assert.match(streamText, /event: request_started/);
     assert.match(streamText, /event: routing/);
     assert.match(streamText, /event: token/);

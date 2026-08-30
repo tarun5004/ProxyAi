@@ -91,21 +91,25 @@ export function isProxiAiProductQuestion(prompt: string): boolean {
 export function buildProductAwareProviderMessages(input: Readonly<{
     originalPrompt: string;
     approvedPrompt: string;
+    historyMessages?: readonly ProviderMessage[];
 }>): readonly ProviderMessage[] {
     const userMessage = Object.freeze({
         role: "user" as const,
         content: input.approvedPrompt,
     });
 
-    if (!isProxiAiProductQuestion(input.originalPrompt)) {
-        return Object.freeze([userMessage]);
-    }
+    const historyMessages = input.historyMessages ?? [];
 
-    return Object.freeze([
-        Object.freeze({
+    const systemMessages = isProxiAiProductQuestion(input.originalPrompt)
+        ? [Object.freeze({
             role: "system" as const,
             content: PROXIAI_PRODUCT_FACTS_INSTRUCTION,
-        }),
+        })]
+        : [];
+
+    return Object.freeze([
+        ...systemMessages,
+        ...historyMessages,
         userMessage,
     ]);
 }

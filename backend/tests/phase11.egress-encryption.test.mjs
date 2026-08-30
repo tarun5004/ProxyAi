@@ -230,8 +230,14 @@ test("audit metadata stays bounded and CSV neutralizes whitespace-prefixed formu
 });
 
 function createRuntime({
-    policy = { maskThreshold: 20, blockThreshold: 60 },
+    policy = {},
 } = {}) {
+    const resolvedPolicy = {
+        maskThreshold: 20,
+        blockThreshold: 60,
+        maxOutputTokensPerRequest: 256,
+        ...policy,
+    };
     const auditEvents = [];
     const billingJobs = [];
     const analyticsJobs = [];
@@ -273,7 +279,7 @@ function createRuntime({
         async loadOrganisationContext() {
             return {
                 plan: "FREE",
-                policy,
+                policy: resolvedPolicy,
                 autoRoutingEnabled: false,
                 retentionMode: "METADATA_ONLY",
             };
@@ -307,6 +313,9 @@ function createRuntime({
             };
         },
         processPrompt: processPiiPromptImmutably,
+        async loadConversationHistory() {
+            return [];
+        },
         candidates: [{ adapter, model: "test-model" }],
         async readProviderHealth() {
             return { state: "UNKNOWN" };

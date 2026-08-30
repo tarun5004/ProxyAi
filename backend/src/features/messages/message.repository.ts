@@ -19,6 +19,12 @@ export interface MessageRepository {
         limit: number;
         cursor?: MessageListCursor;
     }): Promise<MessageDocument[]>;
+    findRecentRetainedForOwner(input: {
+        orgId: string;
+        userId: string;
+        conversationId: string;
+        limit: number;
+    }): Promise<MessageDocument[]>;
     countByRequest(
         orgId: string,
         requestId: string,
@@ -69,6 +75,19 @@ export const messageRepository: MessageRepository = {
             .select("+contentEnc")
             .sort({ createdAt: 1, messageId: 1 })
             .limit(input.limit + 1)
+            .exec();
+    },
+    async findRecentRetainedForOwner(input) {
+        return MessageModel.find({
+            orgId: input.orgId,
+            userId: input.userId,
+            conversationId: input.conversationId,
+            contentStored: true,
+            role: { $in: ["USER", "ASSISTANT"] },
+        })
+            .select("+contentEnc")
+            .sort({ createdAt: -1, messageId: -1 })
+            .limit(input.limit)
             .exec();
     },
     async countByRequest(orgId, requestId, session) {

@@ -114,3 +114,23 @@ test("ordinary and masked prompts preserve approved egress safely", () => {
     assert.match(maskedMessages[0]?.content ?? "", /Do not emit raw HTML/);
     assert.match(maskedMessages[0]?.content ?? "", /code fences/);
 });
+
+test("product grounding stays first while approved history precedes the current prompt", () => {
+    const currentPrompt = "What security controls does ProxiAI implement?";
+    const historyMessages = [{ role: "user", content: "Earlier question" }, {
+        role: "assistant",
+        content: "Earlier answer",
+    }];
+
+    const messages = buildProductAwareProviderMessages({
+        originalPrompt: currentPrompt,
+        approvedPrompt: currentPrompt,
+        historyMessages,
+    });
+
+    assert.equal(messages[0]?.role, "system");
+    assert.deepEqual(messages.slice(1), [
+        ...historyMessages,
+        { role: "user", content: currentPrompt },
+    ]);
+});
