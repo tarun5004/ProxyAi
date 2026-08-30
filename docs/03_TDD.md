@@ -1408,6 +1408,29 @@ returns `contentAvailable=true` plus `content`; the encryption envelope is
 never an API field. A missing key, tag mismatch, or malformed envelope fails
 the whole read safely and never returns partial plaintext or ciphertext.
 
+## 26.5 Provider conversation context
+
+Provider memory is server-owned. The client sends only the new prompt and the
+conversation ID; it never supplies authoritative history. For
+`ENCRYPTED_STORAGE`, the API may load a bounded number of the owner's recent
+encrypted messages using trusted `{ orgId, userId, conversationId }`, decrypt
+them in memory, and place only a bounded recent suffix before the current user
+message. `METADATA_ONLY` has no recoverable provider history.
+
+Every historical user message is re-evaluated against the current PII and
+policy thresholds before egress. A historical `ALLOW_WITH_MASK` turn contributes
+only its newly masked provider text. A historical `BLOCK` turn and its paired
+assistant response are omitted. Decrypted history is never logged, cached,
+written back as plaintext, or accepted from the browser.
+
+## 26.6 Response-token limit
+
+`monthlyTokenBudget` remains the organisation-wide accounting limit. It does
+not describe response length. `policy.maxOutputTokensPerRequest` is the separate
+integer response cap and is clamped by the selected provider/model capability.
+The default is `4096`; the allowed range is `1..4096`. Provider requests receive
+the lower of the organisation cap and provider capability.
+
 Canonical safe failures are `503 ENCRYPTION_UNAVAILABLE` when required runtime
 key material, a referenced key version, or encryption-service readiness is
 unavailable, and `500 MESSAGE_CONTENT_UNAVAILABLE` for malformed envelopes or

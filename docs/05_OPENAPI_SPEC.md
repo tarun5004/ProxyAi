@@ -877,6 +877,13 @@ Rules:
 - When `routingMode=manual`, `providerId` is required.
 - When `routingMode=auto`, `providerId` is ignored or rejected to avoid ambiguity. The implementation should reject conflicting fields with `VALIDATION_ERROR`.
 - Auto routing must be feature-enabled for the organisation. Otherwise return `FEATURE_DISABLED` or require manual routing according to plan behavior.
+- Response length is controlled by the server-owned organisation policy
+  `maxOutputTokensPerRequest`; it is not accepted from this request body.
+- `monthlyTokenBudget` remains cumulative accounting and is not interpreted as
+  a per-response token count.
+- Under `ENCRYPTED_STORAGE`, the server may prepend bounded, owner-scoped,
+  decrypted history after applying current PII/policy rules again.
+  `METADATA_ONLY` contributes no historical content.
 
 ### Attachment boundary
 
@@ -1429,7 +1436,8 @@ when the transaction/audit append cannot commit.
 
 ## 21.1 PATCH `/admin/policy` — Phase 9
 
-Updates approved organisation policy thresholds and monthly token budget.
+Updates approved organisation policy thresholds, per-response output-token
+limit, and monthly token budget.
 
 ### Permission
 
@@ -1441,6 +1449,7 @@ Updates approved organisation policy thresholds and monthly token budget.
 {
   "maskThreshold": 20,
   "blockThreshold": 60,
+  "maxOutputTokensPerRequest": 100,
   "monthlyTokenBudget": 1000000
 }
 ```
@@ -1451,6 +1460,7 @@ All fields are optional for PATCH, but at least one must be present.
 
 - Thresholds are integers from 0 to 100.
 - `blockThreshold` must be greater than `maskThreshold` after applying the complete resulting configuration.
+- `maxOutputTokensPerRequest` is an integer from 1 to 4096.
 - `monthlyTokenBudget` is a non-negative integer.
 - An update cannot silently reset omitted values.
 
@@ -1462,7 +1472,8 @@ All fields are optional for PATCH, but at least one must be present.
   "data": {
     "policy": {
       "maskThreshold": 20,
-      "blockThreshold": 60
+      "blockThreshold": 60,
+      "maxOutputTokensPerRequest": 100
     },
     "monthlyTokenBudget": 1000000,
     "updatedAt": "2026-07-23T10:22:00.000Z"

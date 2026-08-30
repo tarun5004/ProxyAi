@@ -142,6 +142,18 @@ Last Completed Task: Phase 11 — Testing and Hardening
 Last Completed Commit: feat(frontend): build technical recruiter-focused landing page
 ```
 
+## 4.1 Approved Live Chat Defect Remediation
+
+This corrective work does not start a new product phase or deployment. It may
+land on the current local `main`, but it must not be pushed until all focused
+and full release gates pass.
+
+- [x] Preserve the first prompt while creating and routing a new conversation.
+- [ ] Separate per-response output tokens from the monthly organisation budget.
+- [ ] Add bounded, owner-scoped provider memory for `ENCRYPTED_STORAGE` only.
+- [ ] Re-run historical user content through current PII/policy before egress.
+- [ ] Pass frontend/backend lint, typecheck, tests, build, and diff checks.
+
 ---
 
 # 5. Master Phase Overview
