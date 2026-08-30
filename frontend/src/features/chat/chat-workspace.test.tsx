@@ -15,6 +15,10 @@ const conversationApi = vi.hoisted(() => ({
 const chatApi = vi.hoisted(() => ({
     streamChat: vi.fn(),
 }));
+const router = vi.hoisted(() => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+}));
 
 vi.mock("@/features/auth/auth-provider", () => ({
     useAuth: () => ({
@@ -45,10 +49,7 @@ vi.mock("@/features/conversations/conversation.api", () => conversationApi);
 vi.mock("./chat.api", () => chatApi);
 
 vi.mock("next/navigation", () => ({
-    useRouter: () => ({
-        push: vi.fn(),
-        replace: vi.fn(),
-    }),
+    useRouter: () => router,
 }));
 
 const firstConversation = {
@@ -64,6 +65,12 @@ const secondConversation = {
     messageCount: 1,
     createdAt: "2026-08-19T09:00:00.000Z",
     lastMessageAt: "2026-08-19T09:05:00.000Z",
+};
+const createdConversation = {
+    conversationId: "77777777-7777-4777-8777-777777777777",
+    title: "New conversation",
+    messageCount: 0,
+    createdAt: "2026-08-20T10:00:00.000Z",
 };
 
 function envelope(data: unknown, nextCursor: string | null = null) {
@@ -263,6 +270,49 @@ describe("conversation workspace loading", () => {
         expect(screen.getByText("7")).toBeInTheDocument();
         expect(chatApi.streamChat).toHaveBeenCalledWith(expect.objectContaining({
             prompt: "Contact alice@example.com",
+        }));
+    });
+
+    it("finishes the first message before navigating to its new conversation", async () => {
+        conversationApi.createConversation.mockResolvedValueOnce(envelope(createdConversation));
+        let releaseStream: (() => void) | undefined;
+        chatApi.streamChat.mockImplementationOnce(async function* () {
+            yield { type: "token", data: { text: "First answer" } };
+            await new Promise<void>((resolve) => {
+                releaseStream = resolve;
+            });
+            yield {
+                type: "done",
+                data: {
+                    requestId: "55555555-5555-4555-8555-555555555555",
+                    provider: "groq",
+                    model: "openai/gpt-oss-20b",
+                    routingReason: "ordered",
+                    usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 },
+                    latencyMs: 120,
+                    cacheHit: false,
+                    masked: false,
+                },
+            };
+        });
+        render(<ChatWorkspace />);
+
+        fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+            target: { value: "Keep this first message" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+        expect(await screen.findByText("First answer")).toBeInTheDocument();
+        expect(router.replace).not.toHaveBeenCalled();
+
+        releaseStream?.();
+
+        await waitFor(() => expect(router.replace).toHaveBeenCalledWith(
+            `/chat/${createdConversation.conversationId}`,
+        ));
+        expect(chatApi.streamChat).toHaveBeenCalledWith(expect.objectContaining({
+            conversationId: createdConversation.conversationId,
+            prompt: "Keep this first message",
         }));
     });
 

@@ -238,15 +238,17 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
 
         let conversation = activeConversation;
         let assistantId: string | undefined;
+        let createdConversationForThisMessage = false;
+        let streamCompleted = false;
 
         try {
             if (!conversation) {
                 const response = await createConversation(auth.accessToken);
                 conversation = response.data;
+                createdConversationForThisMessage = true;
                 setActiveConversation(conversation);
                 setConversationStatus("ready");
                 setConversations((current) => [conversation!, ...current]);
-                router.replace(`/chat/${conversation.conversationId}`);
             }
 
             const createdAssistantId = crypto.randomUUID();
@@ -305,6 +307,7 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                         content: message.content + event.data.text,
                     }));
                 } else if (event.type === "done") {
+                    streamCompleted = true;
                     setCompletion(event.data);
                     updateAssistantMessage(setMessages, assistantId, (message) => ({
                         ...message,
@@ -321,6 +324,11 @@ export function ChatWorkspace({ initialConversationId }: Readonly<{ initialConve
                     }));
                     setRequestError("The response stream was interrupted. Please try again.");
                 }
+            }
+
+            // Navigating earlier would remount the workspace and abort the first stream.
+            if (createdConversationForThisMessage && streamCompleted) {
+                router.replace(`/chat/${conversation.conversationId}`);
             }
         } catch (error: unknown) {
             if (assistantId !== undefined) {

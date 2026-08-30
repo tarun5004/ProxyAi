@@ -105,7 +105,7 @@ function setAdminPageState(
     }));
 }
 
-export function AdminDashboard() {
+export function AdminDashboard({ returnConversationId }: Readonly<{ returnConversationId?: string }>) {
     const auth = useAuth();
     const router = useRouter();
     const [tab, setTab] = useState<AdminTab>("overview");
@@ -315,7 +315,10 @@ export function AdminDashboard() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Link className="inline-flex items-center gap-2 rounded-lg border border-border-default bg-white px-3 py-2 text-xs font-semibold" href="/chat">
+                        <Link
+                            className="inline-flex items-center gap-2 rounded-lg border border-border-default bg-white px-3 py-2 text-xs font-semibold"
+                            href={returnConversationId ? `/chat/${returnConversationId}` : "/chat"}
+                        >
                             <ArrowLeft size={16} /> Workspace
                         </Link>
                         <button className="grid size-9 place-items-center rounded-lg text-text-soft hover:bg-surface-green" onClick={() => void logout()} aria-label="Sign out">

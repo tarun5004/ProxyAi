@@ -48,6 +48,9 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
     }, [props.conversations, query]);
     const displayName = props.user?.displayName ?? "ProxyAi User";
     const organisationName = props.user?.organisation.name ?? "Your workspace";
+    const adminHref = props.activeConversationId
+        ? `/admin?conversationId=${encodeURIComponent(props.activeConversationId)}`
+        : "/admin";
     const initials = displayName
         .split(/\s+/u)
         .slice(0, 2)
@@ -156,7 +159,7 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
 
             {props.showAdmin ? (
                 <Link
-                    href="/admin"
+                    href={adminHref}
                     className="mb-3 flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-text-soft hover:bg-surface-green hover:text-brand-dark"
                     onClick={props.onClose}
                 >

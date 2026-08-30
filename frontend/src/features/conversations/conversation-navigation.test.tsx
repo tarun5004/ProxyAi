@@ -72,4 +72,32 @@ describe("conversation navigation discovery", () => {
         expect(activityTimes[0]).toHaveAttribute("datetime", "2026-08-19T08:05:00.000Z");
         expect(activityTimes[1]).toHaveAttribute("datetime", "2026-08-20T09:05:00.000Z");
     });
+
+    it("keeps the active conversation when opening organisation admin", () => {
+        const conversationId = "11111111-1111-4111-8111-111111111111";
+
+        render(
+            <ConversationSidebar
+                conversations={[]}
+                status="ready"
+                activeConversationId={conversationId}
+                roleLabel="ORG ADMIN"
+                open
+                creating={false}
+                hasMore={false}
+                pageStatus="idle"
+                onClose={vi.fn()}
+                onCreate={vi.fn()}
+                onLoadMore={vi.fn()}
+                onLogout={vi.fn()}
+                onRetry={vi.fn()}
+                showAdmin
+            />,
+        );
+
+        expect(screen.getByRole("link", { name: "Organisation admin" })).toHaveAttribute(
+            "href",
+            `/admin?conversationId=${conversationId}`,
+        );
+    });
 });
