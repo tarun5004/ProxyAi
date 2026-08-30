@@ -56,4 +56,31 @@ describe("standalone recruiter landing", () => {
         expect(policyPanel).toBeInTheDocument();
         expect(within(policyPanel).getByText("ALLOW_WITH_MASK")).toBeInTheDocument();
     });
+
+    it("keeps every gateway risk selectable without a hidden mobile-only control", () => {
+        render(<HomePage />);
+
+        const evidenceTab = screen.getByRole("tab", { name: /Missing operational evidence/i });
+        fireEvent.click(evidenceTab);
+
+        expect(evidenceTab).toHaveAttribute("aria-selected", "true");
+        expect(screen.getByRole("tabpanel", { name: /Missing operational evidence/i })).toBeInTheDocument();
+    });
+
+    it("supports persistent lifecycle selection for touch and keyboard users", () => {
+        render(<HomePage />);
+
+        const maskButton = screen.getByRole("button", { name: /ALLOW_WITH_MASK/i });
+        const policyStep = screen.getByText("ALLOW / MASK / BLOCK policy").closest("li");
+
+        expect(maskButton).toHaveAttribute("aria-pressed", "false");
+        fireEvent.focus(maskButton);
+        expect(maskButton).toHaveAttribute("aria-pressed", "true");
+
+        fireEvent.click(maskButton);
+        fireEvent.blur(maskButton);
+
+        expect(maskButton).toHaveAttribute("aria-pressed", "true");
+        expect(policyStep).toHaveClass("bg-brand-50");
+    });
 });

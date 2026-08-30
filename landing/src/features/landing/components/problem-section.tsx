@@ -42,14 +42,14 @@ export function ProblemSection() {
 
                 <div className="mt-12 grid gap-6 lg:grid-cols-[0.5fr_1.5fr]">
                     {/* Selector rail */}
-                    <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:pb-0" role="tablist" aria-label="Gateway risk areas">
+                    <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:flex-col lg:gap-1.5" role="tablist" aria-label="Gateway risk areas">
                         {problemStatements.map((problem, index) => {
                             const isActive = index === activeIndex;
                             return (
                                 <button
                                     aria-controls="problem-detail-panel"
                                     aria-selected={isActive}
-                                    className={`group relative shrink-0 rounded-xl px-4 py-4 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                                    className={`group relative w-full rounded-xl px-4 py-4 text-left transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
                                         isActive
                                             ? "bg-brand-500 shadow-panel"
                                             : "bg-surface-muted hover:bg-brand-50"

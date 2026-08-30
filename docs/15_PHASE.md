@@ -160,6 +160,23 @@ passed with local Redis. Isolated MongoDB/Redis/BullMQ integration tests passed
 does not provide a replica set. Frontend lint, typecheck, build, and 65/65
 tests passed.
 
+## 4.2 Approved Landing Responsive Remediation
+
+This corrective work preserves the existing recruiter-facing design and
+deployment boundaries while fixing verified small-screen interaction defects.
+
+- [x] Keep hero content inside a 320 CSS-pixel viewport without clipping.
+- [x] Present every gateway-risk tab without hidden horizontal discovery.
+- [x] Support lifecycle policy selection with mouse, touch, and keyboard.
+- [x] Preserve the existing desktop layout and permanent application links.
+- [x] Pass landing lint, typecheck, tests, build, static output, and rendered QA.
+
+Verification on 2026-08-30 covered 320, 390, and 1440 CSS-pixel viewports.
+The 320-pixel document and hero trace remained bounded, mobile risk tabs
+required no horizontal discovery, lifecycle policies supported persistent
+selection, and the landing lint, typecheck, 6/6 tests, production build, and
+static-output checks passed.
+
 ---
 
 # 5. Master Phase Overview

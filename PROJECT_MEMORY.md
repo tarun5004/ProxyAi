@@ -1710,6 +1710,19 @@ current deployment prerequisite or completion gate.
   were skipped because local MongoDB is standalone rather than a replica set.
   Frontend lint/typecheck/build and 65/65 tests passed.
 
+## Latest Task — Landing Responsive Remediation
+
+- **Root cause:** Grid children in the technical hero retained their intrinsic
+  minimum width, so long trace rows widened and clipped the 320-pixel layout.
+- **Responsive behavior:** Hero grid children and trace rows can now shrink;
+  gateway-risk tabs use a visible mobile grid instead of a hidden horizontal
+  rail; desktop composition remains unchanged.
+- **Accessible interaction:** Lifecycle policy cards are real buttons. Hover
+  and focus preview an outcome, while click or touch keeps the selection active.
+- **Verification (2026-08-30):** Rendered checks passed at 320, 390, and 1440
+  CSS pixels with no document overflow or console errors. Landing lint,
+  typecheck, 6/6 tests, production build, and static-output verification passed.
+
 ## Do Not Forget
 
 - Implement only the active PHASE task; keep deferred features out of the MVP.

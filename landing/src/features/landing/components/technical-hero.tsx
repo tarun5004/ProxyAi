@@ -1,7 +1,7 @@
 export function TechnicalHero() {
     return (
         <section className="mx-auto grid w-full max-w-7xl items-center gap-16 px-5 pt-16 pb-24 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:pt-24 lg:pb-32" id="top">
-            <div>
+            <div className="min-w-0">
                 <p className="font-mono text-xs font-bold tracking-[0.14em] text-brand-700">
                     PROXIAI · REQUEST GATEWAY
                 </p>
@@ -26,7 +26,7 @@ export function TechnicalHero() {
             </div>
 
             {/* Signature element: live request trace, terminal-style */}
-            <div className="relative mx-auto w-full max-w-md" aria-label="Example governed request trace">
+            <div className="relative mx-auto min-w-0 w-full max-w-md" aria-label="Example governed request trace">
                 <div className="absolute -inset-6 -z-10 rounded-full bg-brand-100 blur-3xl" aria-hidden="true" />
                 <div className="overflow-hidden rounded-2xl border border-ink-950/10 bg-ink-950 shadow-soft">
                     <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
@@ -35,7 +35,7 @@ export function TechnicalHero() {
                         <span className="size-2.5 rounded-full bg-white/20" aria-hidden="true" />
                         <span className="ml-2 font-mono text-[11px] text-white/40">request-trace.log</span>
                     </div>
-                    <ol className="grid gap-0 p-5 font-mono text-[13px] leading-7">
+                    <ol className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0 p-5 font-mono text-[13px] leading-7">
                         {[
                             ["auth", "tenant verified · org_4f2a", "done"],
                             ["policy", "PII detected · scope: contact_info", "done"],
@@ -43,12 +43,12 @@ export function TechnicalHero() {
                             ["provider", "groq · streaming response", "done"],
                             ["audit", "request logged · append-only", "done"],
                         ].map(([step, detail, kind]) => (
-                            <li className="flex items-baseline gap-3 border-t border-white/5 py-2.5 first:border-t-0" key={step}>
+                            <li className="flex min-w-0 items-baseline gap-3 border-t border-white/5 py-2.5 first:border-t-0" key={step}>
                                 <span className={`shrink-0 ${kind === "mask" ? "text-amber-400" : "text-brand-400"}`} aria-hidden="true">
                                     {kind === "mask" ? "◐" : "✓"}
                                 </span>
                                 <span className="shrink-0 text-white/40">{step}</span>
-                                <span className="truncate text-white/85">{detail}</span>
+                                <span className="min-w-0 flex-1 truncate text-white/85">{detail}</span>
                             </li>
                         ))}
                     </ol>

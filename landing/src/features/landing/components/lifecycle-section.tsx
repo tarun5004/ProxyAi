@@ -14,8 +14,12 @@ const actionTone = {
 const POLICY_STEP_INDEX = 6; // "ALLOW / MASK / BLOCK policy" — step 07
 
 export function LifecycleSection() {
-    const [hoveredPolicy, setHoveredPolicy] = useState<number | null>(null);
-    const isTimelineLit = hoveredPolicy !== null;
+    const [previewedPolicy, setPreviewedPolicy] = useState<number | null>(null);
+    const [selectedPolicy, setSelectedPolicy] = useState<number | null>(null);
+
+    // Hover/focus is temporary; selection stays active for touch users.
+    const activePolicy = previewedPolicy ?? selectedPolicy;
+    const isTimelineLit = activePolicy !== null;
 
     return (
         <section className="relative overflow-hidden border-y border-line bg-surface-muted py-20 sm:py-28" aria-labelledby="lifecycle-heading">
@@ -42,26 +46,31 @@ export function LifecycleSection() {
                     <div className="mt-8 grid gap-3">
                         {policyActions.map((policy, index) => {
                             const tone = actionTone[policy.tone];
-                            const isHovered = hoveredPolicy === index;
+                            const isActive = activePolicy === index;
                             return (
-                                <article
-                                    className={`cursor-default rounded-xl border p-4 transition-all duration-200 ${tone.border} ${tone.bg} ${
-                                        isHovered ? "scale-[1.03] shadow-panel ring-2 ring-offset-2 ring-offset-surface-muted" : ""
-                                    } ${isHovered && policy.tone === "green" ? "ring-brand-400" : ""} ${isHovered && policy.tone === "amber" ? "ring-amber-400" : ""} ${isHovered && policy.tone === "red" ? "ring-red-400" : ""}`}
+                                <button
+                                    aria-pressed={isActive}
+                                    className={`w-full rounded-xl border p-4 text-left transition-all duration-200 ${tone.border} ${tone.bg} ${
+                                        isActive ? "scale-[1.02] shadow-panel ring-2 ring-offset-2 ring-offset-surface-muted" : ""
+                                    } ${isActive && policy.tone === "green" ? "ring-brand-400" : ""} ${isActive && policy.tone === "amber" ? "ring-amber-400" : ""} ${isActive && policy.tone === "red" ? "ring-red-400" : ""}`}
                                     key={policy.action}
-                                    onMouseEnter={() => setHoveredPolicy(index)}
-                                    onMouseLeave={() => setHoveredPolicy(null)}
+                                    onBlur={() => setPreviewedPolicy(null)}
+                                    onClick={() => setSelectedPolicy((current) => current === index ? null : index)}
+                                    onFocus={() => setPreviewedPolicy(index)}
+                                    onMouseEnter={() => setPreviewedPolicy(index)}
+                                    onMouseLeave={() => setPreviewedPolicy(null)}
+                                    type="button"
                                 >
-                                    <h3 className={`flex items-center gap-2 font-mono text-xs font-bold ${tone.text}`}>
+                                    <span className={`flex items-center gap-2 font-mono text-xs font-bold ${tone.text}`}>
                                         <span className={`size-1.5 rounded-full ${tone.dot}`} aria-hidden="true" />
                                         {policy.action}
-                                    </h3>
-                                    <p className={`mt-2 text-sm leading-6 ${tone.text}`}>{policy.detail}</p>
-                                </article>
+                                    </span>
+                                    <span className={`mt-2 block text-sm leading-6 ${tone.text}`}>{policy.detail}</span>
+                                </button>
                             );
                         })}
                     </div>
-                    <p className="mt-3 text-xs text-ink-600">Hover a policy outcome to trace it through the pipeline →</p>
+                    <p className="mt-3 text-xs text-ink-600">Select or hover a policy outcome to trace it through the pipeline →</p>
                 </div>
 
                 {/* Denser 2-col grid restored, connecting rail added on top, stronger highlight */}
