@@ -34,6 +34,19 @@ User -> Auth -> Tenant scope -> Idempotency -> Rate limit -> Budget
      -> Encrypted persistence -> Async billing/analytics/audit
 ```
 
+## Engineering decisions
+
+| Concern | Implemented approach |
+| --- | --- |
+| Tenant isolation | Server-resolved organisation scope, role/permission middleware and tenant-owned persistence |
+| Controlled AI egress | PII detection/masking and policy evaluation before the provider boundary |
+| Streaming failures | Client-abort propagation, bounded retries/circuit breakers and fallback only before the first token |
+| Sensitive storage | AES-256-GCM encrypted message storage or metadata-only mode; no plaintext fallback on encryption failure |
+| Async correctness | Request identities, BullMQ workers, accounting ledgers and durable enqueue recovery |
+| Operations | Readiness/liveness, structured logs, metrics, audit export, container release gates and AWS rollback procedures |
+
+The project demonstrates API, worker and infrastructure responsibilities together. The [limitations](#current-limitations) distinguish implemented paths from incomplete public deployment recovery.
+
 ## Recruiter Snapshot
 
 - **Multi-tenant security:** trusted `orgId` is resolved server-side and applied
