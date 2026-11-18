@@ -1,6 +1,6 @@
 # ProxiAI
 
-**Policy-aware AI gateway for secure, governed, and observable enterprise AI usage.**
+**A multi-tenant AI gateway exploring policy enforcement, PII masking, streaming and usage accounting.**
 
 ProxiAI sits between an organisation's users and approved LLM providers. It
 authenticates every request, enforces tenant policy, detects sensitive data,
@@ -11,6 +11,10 @@ operational metadata for billing, analytics, alerts, and audit workflows.
 > 11 and is undergoing final Phase 12 deployment certification. AWS ECS/Fargate
 > is the canonical runtime. The current live recovery is externally blocked by
 > Redis quota/credential rotation; see [Current limitations](#current-limitations).
+
+**Explore the project:** [architecture](#architecture) · [local setup](#local-development) · [verification commands](#verification) · [limitations](#current-limitations).
+
+[Public landing page](https://proxyai-landing.vercel.app) — a product introduction, separate from the authenticated gateway application.
 
 ## Why ProxiAI
 
